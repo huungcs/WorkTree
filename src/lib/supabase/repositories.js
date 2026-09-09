@@ -201,6 +201,12 @@ export const NodeRepository = {
   }) {
     const sb = await getSupabase();
     const resolvedType = type || nodeType || 'folder';
+    if (resolvedType === 'company') {
+      throw new Error('Không thể tạo thêm đơn vị cấp công ty gốc.');
+    }
+    if (resolvedType === 'person') {
+      throw new Error('Nhân sự không thuộc cây tổ chức (Invariant B). Hãy thêm vào bảng nhân sự.');
+    }
 
     const { data, error } = await sb
       .from('organization_nodes')
@@ -232,7 +238,11 @@ export const NodeRepository = {
     if (updates.name !== undefined) payload.name = updates.name;
     if (updates.description !== undefined) payload.description = updates.description;
     if (updates.type !== undefined || updates.node_type !== undefined) {
-      payload.type = updates.type || updates.node_type;
+      const resolvedType = updates.type || updates.node_type;
+      if (resolvedType === 'person') {
+        throw new Error('Nhân sự không thuộc cây tổ chức (Invariant B).');
+      }
+      payload.type = resolvedType;
     }
     if (updates.sort_order !== undefined || updates.sortOrder !== undefined) {
       payload.sort_order = updates.sort_order ?? updates.sortOrder;
@@ -260,6 +270,18 @@ export const NodeRepository = {
   async archiveNode(nodeId) {
     if (!nodeId) throw new Error('Missing nodeId for archiveNode');
     const sb = await getSupabase();
+
+    // Invariant: cannot archive root node
+    const { data: existing, error: fetchErr } = await sb
+      .from('organization_nodes')
+      .select('parent_id')
+      .eq('id', nodeId)
+      .single();
+    if (fetchErr) throw fetchErr;
+    if (!existing || existing.parent_id === null) {
+      throw new Error('Không thể lưu trữ hoặc xóa đơn vị công ty gốc.');
+    }
+
     const { data, error } = await sb
       .from('organization_nodes')
       .update({ archived_at: new Date().toISOString() })
@@ -458,7 +480,32 @@ export const TaskRepository = {
     };
   },
 
-  async updateTask(taskId, updates = {}) {
+  async getTaskById(taskId) {
+    if (!taskId) return null;
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from('task_rollups')
+      .select('*')
+      .eq('id', taskId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    return {
+      ...data,
+      assignee_id: data.primary_assignee_id,
+      assigneeId: data.primary_assignee_id,
+      dueDate: data.due_date,
+      startDate: data.start_date,
+      estimateMinutes: data.estimate_minutes,
+      actualMinutes: data.actual_minutes,
+      uiStatus: STATUS_MAP.dbToUi[data.status] || data.status,
+      uiPriority: PRIORITY_MAP.dbToUi[data.priority] || data.priority
+    };
+  },
+
+  async updateTask(taskId, updates = {}, expectedUpdatedAt = null) {
     if (!taskId) throw new Error('Missing taskId for updateTask');
     const sb = await getSupabase();
 
@@ -494,23 +541,29 @@ export const TaskRepository = {
     if (updates.node_id !== undefined || updates.nodeId !== undefined) {
       payload.node_id = updates.node_id ?? updates.nodeId;
     }
+    if (updates.archived_at !== undefined) payload.archived_at = updates.archived_at;
 
-    const { data, error } = await sb
-      .from('tasks')
-      .update(payload)
-      .eq('id', taskId)
-      .select()
-      .single();
+    let query = sb.from('tasks').update(payload).eq('id', taskId);
+    if (expectedUpdatedAt) {
+      query = query.eq('updated_at', expectedUpdatedAt);
+    }
+    const { data, error } = await query.select().maybeSingle();
 
     if (error) throw error;
+    if (expectedUpdatedAt && !data) {
+      const conflictErr = new Error('Dữ liệu đã được thay đổi ở nơi khác. Đã tải lại phiên bản mới nhất.');
+      conflictErr.code = 'CONCURRENCY_CONFLICT';
+      throw conflictErr;
+    }
+
     return {
       ...data,
-      assignee_id: data.primary_assignee_id,
-      assigneeId: data.primary_assignee_id,
-      dueDate: data.due_date,
-      startDate: data.start_date,
-      uiStatus: STATUS_MAP.dbToUi[data.status] || data.status,
-      uiPriority: PRIORITY_MAP.dbToUi[data.priority] || data.priority
+      assignee_id: data?.primary_assignee_id,
+      assigneeId: data?.primary_assignee_id,
+      dueDate: data?.due_date,
+      startDate: data?.start_date,
+      uiStatus: STATUS_MAP.dbToUi[data?.status] || data?.status,
+      uiPriority: PRIORITY_MAP.dbToUi[data?.priority] || data?.priority
     };
   },
 

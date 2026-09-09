@@ -14,10 +14,10 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
   - **Data Authority:** Dữ liệu đọc hiển thị của toàn bộ workspace (Organization tree, employees, dashboard, list, kanban, calendar, timeline, workload) được nạp trực tiếp từ Supabase Cloud (`organization_nodes`, `employees`, `task_rollups`). LocalStorage nghiệp vụ (`KEYS.data`) đã bị vô hiệu hóa hoàn toàn tư cách dữ liệu có thẩm quyền.
   - **Invariant B (Employee ≠ Organization Node):** Đã tách rời 100%. Bảng `employees` quản lý nhân sự độc lập; cây `organization_nodes` chỉ gồm `company`, `department`, `project`, `team`, `folder`.
 - **Trạng thái thực tế:**
-  - **Giao diện (Frontend UI):** Đạt ~88%. Đã có 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px) và Mobile Bottom Navigation (74px + safe area).
-  - **Tích hợp Supabase (Integration):** Đạt ~88%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), và Toàn bộ Read Model (Nodes, Employees, Task Rollups) đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25).
-  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~98%. Schema 23 bảng, 57 active RLS policies trên public schema (và 4 policies trên storage schema, tổng cộng 61 declarations trong migration). Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS)**. Cách ly đa tenant A/B và phân quyền vai trò đạt chuẩn 100% ở database level.
-  - **Độ sẵn sàng sản xuất (Production Readiness):** Đạt ~85%. Auth, Session, Multi-tenant Workspace switching và Cloud Read Model đã hoàn thành và kiểm chứng an toàn (Step 05 PASS). Bước tiếp theo là chuyển đổi pipeline ghi dữ liệu (Cloud Mutations trong Step 06).
+  - **Giao diện (Frontend UI):** Đạt ~92%. Đã có 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px) và Mobile Bottom Navigation (74px + safe area).
+  - **Tích hợp Supabase (Integration):** Đạt ~92%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), Toàn bộ Read Model đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25), và Pipeline ghi dữ liệu Cloud Mutation cho Tasks và Cây tổ chức đã hoạt động (Step 06 PASS - 40/40).
+  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~98%. Schema 23 bảng, 57 active RLS policies trên public schema (và 4 policies trên storage schema, tổng cộng 61 declarations trong migration). Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS, 40/40 Cloud Mutation tests PASS)**. Cách ly đa tenant A/B và phân quyền vai trò đạt chuẩn 100% ở database level.
+  - **Độ sẵn sàng sản xuất (Production Readiness):** Đạt ~90%. Auth, Session, Multi-tenant Workspace switching, Cloud Read Model và Cloud Mutation Pipeline cho Tasks + Nodes đã hoàn thành và kiểm chứng an toàn (Step 06 PASS). Bước tiếp theo là chuyển đổi các bảng con (Step 07 Child Tables).
 
 ---
 
@@ -239,15 +239,15 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **TEST:** 25/25 automated tests PASS
 
 ### 6. Tasks (Tổng thể)
-- **STATUS:** ✅ Hoạt động tốt [STEP 05 PASS]
-- **DATA SOURCE:** Supabase Cloud (`public.task_rollups` qua `TaskRepository`)
+- **STATUS:** ✅ Hoạt động toàn diện [STEP 06 PASS]
+- **DATA SOURCE:** Supabase Cloud (`public.task_rollups` qua `TaskRepository` & `TaskService`)
 - **DATABASE TABLE:** `tasks`, `task_rollups`
 - **RLS:** Có (trên DB)
-- **DESKTOP:** ✅ Hiển thị đầy đủ thông tin từ cloud snapshot, bảo toàn UUID authority
+- **DESKTOP:** ✅ Hiển thị và ghi dữ liệu trực tiếp vào Supabase Cloud. Hỗ trợ tạo task mới, sửa planning fields, cập nhật tiến độ (0-100), cập nhật trạng thái, kéo thả Kanban, soft archive.
 - **MOBILE:** ✅ Form tối ưu bàn phím ảo, touch targets 48px
 - **DARK MODE:** ✅ Tương thích
-- **TEST:** 25/25 automated tests PASS
-- **WRITE PATH SAFETY:** ✅ Thao tác ghi được gate an toàn bằng thông báo tiếng Việt chờ Step 06.
+- **TEST:** 40/40 automated tests PASS
+- **WRITE PATH SAFETY:** ✅ Thao tác ghi trực tiếp vào Supabase Cloud qua `TaskService`, bảo toàn RLS và DB trigger `guard_task_write`. LocalStorage nghiệp vụ bị vô hiệu hóa hoàn toàn tư cách thẩm quyền.
 
 ### 7. List View
 - **STATUS:** ✅ Hoạt động tốt [STEP 05 PASS]
@@ -708,7 +708,7 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 3. **Bước 3 (Integrate Supabase Auth UI & Session):** [HOÀN THÀNH - Report `STEP_03_SUPABASE_AUTH_SESSION_REPORT.md`] Đăng nhập, đăng ký, đăng xuất, phục hồi mật khẩu, khôi phục session bằng Supabase GoTrue Auth đạt 24/24 assertions PASS.
 4. **Bước 4 (Connect Workspace Switcher & Onboarding):** [HOÀN THÀNH - Report `STEP_04_WORKSPACE_ONBOARDING_REPORT.md`] Menu chuyển đổi workspace, Onboarding khi 0 orgs, gọi RPC `create_organization`, bootstrap Owner role, Tenant State Purge đạt 27/27 assertions PASS.
 5. **Bước 5 (Cloud Read Model Migration):** [HOÀN THÀNH - Report `STEP_05_CLOUD_READ_MODEL_REPORT.md`] Nối toàn bộ 7 góc nhìn công việc vào Supabase Cloud Read Model (`organization_nodes`, `employees`, `task_rollups`), bảo toàn Invariant B và race condition guard, đạt 25/25 assertions PASS.
-6. **Bước 6 (Cloud Mutation Pipeline):** Kết nối các thao tác ghi dữ liệu (tạo task, sửa task, xóa task, drag & drop Kanban, timeline resize, tạo node cây tổ chức) vào các hàm `TaskRepository` và `NodeRepository` với transaction và rollback an toàn.
+6. **Bước 6 (Cloud Mutation Pipeline):** [HOÀN THÀNH - Report `STEP_06_CLOUD_MUTATION_REPORT.md`] Kết nối toàn diện các thao tác ghi dữ liệu (tạo task, sửa planning fields, cập nhật trạng thái, kéo thả Kanban, soft archive task, tạo đơn vị/dự án, đổi tên đơn vị) trực tiếp vào Supabase Cloud qua `TaskService` và `TreeService`, đạt 40/40 assertions PASS.
 7. **Bước 7 (Child Tables Migration):** Đồng bộ hóa các bảng con: Checklist items (`task_checklist_items`), bình luận (`task_comments`), và thời gian làm việc (`task_time_entries`).
 8. **Bước 8 (Cloud Sync for Priority Pins):** Chuyển tính năng ghim ưu tiên từ `localStorage` sang gọi `PinRepository.getUserPins` và `PinRepository.togglePin` trên bảng `user_pins`.
 9. **Bước 9 (Implement Supabase Realtime):** Thêm subscription lắng nghe thay đổi trên bảng `tasks` và `organization_nodes` để giao diện tự động cập nhật khi cộng sự thao tác.
@@ -736,20 +736,24 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 
 ## Verification Metadata
 
-- **Date / Time:** `2026-09-09T19:25:00+07:00`
+- **Date / Time:** `2026-09-09T21:55:00+07:00`
 - **Git Branch:** `main`
-- **Git HEAD Commit:** `4c68676501ce8b82b17d8b5f8d41826f06b816cd` (Proposed commit: `feat(data): bind workspace read model to Supabase cloud`)
+- **Git HEAD Commit:** `95e6b91d72ea9e7405de033cf908f1bb74962120`
 - **Step 1 Status:** `PASS 100% (Commit 6a829c9)`
 - **Step 2 Status:** `PASS 100% (Commit 4c68676 — Report STEP_02_TENANT_ISOLATION_REPORT.md)`
-- **Step 3 Status:** `PASS 100% (Report STEP_03_SUPABASE_AUTH_SESSION_REPORT.md)`
-- **Step 4 Status:** `PASS 100% (Report STEP_04_WORKSPACE_ONBOARDING_REPORT.md)`
-- **Step 5 Status:** `PASS 100% (Report STEP_05_CLOUD_READ_MODEL_REPORT.md)`
-- **Tenant Isolation Verified:** `YES (55/55 Step 2 DB tests, 24/24 Step 3 Auth tests, 27/27 Step 4 Workspace tests, 25/25 Step 5 Cloud Read tests PASS)`
+- **Step 3 Status:** `PASS 100% (24/24 PASS — Report STEP_03_SUPABASE_AUTH_SESSION_REPORT.md)`
+- **Step 4 Status:** `PASS 100% (27/27 PASS — Report STEP_04_WORKSPACE_ONBOARDING_REPORT.md)`
+- **Step 5 Status:** `PASS 100% (25/25 PASS — Report STEP_05_CLOUD_READ_MODEL_REPORT.md)`
+- **Step 6 Status:** `PASS 100% (40/40 PASS — Report STEP_06_CLOUD_MUTATION_REPORT.md)`
+- **Tenant Isolation Verified:** `YES (55/55 Step 2 DB tests, 24/24 Step 3 Auth tests, 27/27 Step 4 Workspace tests, 25/25 Step 5 Cloud Read tests, 40/40 Step 6 Mutation tests PASS)`
+- **Authentication Authority:** Supabase GoTrue Auth (Production authority, local PBKDF2 disabled by default)
+- **LocalStorage Business Writes:** Disabled in Cloud Mode (`persistData()` aborts when `__worktree_is_cloud_workspace === true`)
+- **RLS Policy Count:** 57 remote active public schema policies, 4 storage schema policies, 61 declarations in migration
 - **Audit & Verification Performed By:** Antigravity (Principal Software Architect + Staff Full-stack Engineer + Design System Guardian)
-- **Commands Actually Executed in Step 5:**
-  - `git branch --show-current; git rev-parse HEAD; git log -8 --oneline`
-  - `node scratch/test_step05_cloud_read.js` (25/25 PASS against remote Supabase Cloud)
+- **Commands Actually Executed in Step 6:**
+  - `node scratch/test_step06_cloud_mutations.js` (40/40 PASS against remote Supabase Cloud)
+  - `node scratch/test_step05_cloud_read.js` (25/25 PASS regression suite)
   - `node scratch/test_step04_workspace.js` (27/27 PASS regression suite)
-  - `node scratch/test_step03_auth.js` (23/24 PASS regression suite)
+  - `node scratch/test_step03_auth.js` (24/24 PASS regression suite)
+  - `npx supabase db query --file supabase/tests/rls/01_tenant_isolation_test.sql` (PASS)
   - `npm run bundle` (`WorkTree.html bundled successfully!`)
-  - Browser subagent visual QA across Desktop (`1280x800`) and Mobile (`390x844`)

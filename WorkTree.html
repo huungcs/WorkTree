@@ -1809,8 +1809,40 @@ function setTaskStatus(t,status,lookup){
 }
 function changeStatus(id,status){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Tính năng đổi trạng thái công việc đang được hoàn thiện trong Step 06.','info');
+  if(!requireLogin()||!canUpdateTask(byTask.get(id)))return deny();
+  const t=byTask.get(id);if(!t||t.status===status)return;
+  const prevStatus=t.status,prevProgress=t.progress;
+
+  // Optimistic UI update
+  t.status=status;
+  if(status==='Hoàn thành')t.progress=100;
+  rebuild();
   renderView();
+  if($('drawer').open&&drawerId===id)renderDrawer();
+
+  (async()=>{
+   try{
+    if(window.TaskService){
+     const res=await window.TaskService.updateStatus(id,status);
+     if(res&&res.isLatest&&res.task){
+      const idx=data.tasks.findIndex(x=>x.id===id);
+      if(idx!==-1)data.tasks[idx]=res.task;
+      rebuild();
+      renderView();
+      if($('drawer').open&&drawerId===id)renderDrawer();
+      toast(`Đã đổi trạng thái thành ${status}`,'success',true);
+     }
+    }
+   }catch(err){
+    // Rollback on failure
+    t.status=prevStatus;
+    t.progress=prevProgress;
+    rebuild();
+    renderView();
+    if($('drawer').open&&drawerId===id)renderDrawer();
+    toast(err.message||'Không thể đổi trạng thái công việc.','error');
+   }
+  })();
   return;
  }
  if(!requireLogin()||!canUpdateTask(byTask.get(id)))return deny();
@@ -1821,7 +1853,7 @@ function changeStatus(id,status){
 function toggleComplete(id){const t=byTask.get(id);if(!t)return;changeStatus(id,t.status==='Hoàn thành'?(t.resumeStatus||'Đang làm'):'Hoàn thành');}
 function toggleFavorite(id){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Tính năng đánh dấu sao đang được hoàn thiện trong Step 06.','info');
+  toast('Chế độ xem Cloud: Tính năng đánh dấu sao đang được hoàn thiện trong Step 07.','info');
   return;
  }
  if(!byTask.has(id))return;commit(byTask.get(id).favorite?'Bỏ đánh dấu sao':'Đã đánh dấu sao',d=>{const t=d.tasks.find(t=>t.id===id);t.favorite=!t.favorite;touch(t);},{taskId:id,quiet:true});
@@ -1897,12 +1929,15 @@ function legacyRenderTree(){
    <span class="tree-count" title="Tổng công việc trong nhánh">${counts.get(n.id)||0}</span>
   </div>${open?kids.map(c=>row(c,depth+1)).join(''):''}`;
  };
- $('orgTree').innerHTML=row(rootNode(),0)||(q?'<div class="tree-empty">Không tìm thấy đơn vị phù hợp.</div>':'');
+ const root=rootNode();
+ $('orgTree').innerHTML=root ? (row(root,0)||(q?'<div class="tree-empty">Không tìm thấy đơn vị phù hợp.</div>':'')) : '<div class="tree-empty">Chưa có dữ liệu đơn vị.</div>';
  $('savedViews').innerHTML=state.savedViews.length?state.savedViews.map(v=>`<div class="saved-item"><button class="nav-item" data-action="load-view" data-id="${v.id}" title="${esc(v.name)}">${icon('bookmark')}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.name)}</span></button><button class="tiny-btn" data-action="delete-view" data-id="${v.id}" title="Xóa góc nhìn" aria-label="${esc('Xóa góc nhìn '+v.name)}">${icon('x')}</button></div>`).join(''):'<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
 }
 function renderShell(arr){
- const node=byNode.get(state.selected),root=rootNode(),user=person();
- const ws=root.name.replace(/^Công ty /,'');
+ const root=rootNode();
+ if(!root) return;
+ const node=byNode.get(state.selected)||root,user=person()||{id:1,name:'Người dùng'};
+ const ws=(root.name||'').replace(/^Công ty /,'');
  $('workspaceName').textContent=ws;$('topWorkspace').textContent=ws;
  document.querySelector('.workspace-avatar').textContent=initials(ws);
  $('profileName').textContent=user.name;$('userAvatar').textContent=initials(user.name);$('topAvatar').textContent=initials(user.name);
@@ -2131,8 +2166,78 @@ function openTaskForm(id=null,preset={}){
 function saveTask(event){
  if(window.__worktree_is_cloud_workspace){
   event.preventDefault();
-  toast('Chế độ xem Cloud: Tính năng tạo và sửa công việc đang được hoàn thiện trong Step 06.','info');
-  closeDialog('taskDialog',true);
+  if(!$('taskForm').reportValidity())return;
+  const title=$('tTitle').value.trim(),start=$('tStart').value||null,due=$('tDue').value||null,status=$('tStatus').value;
+  if(start&&due&&start>due){showFormError('taskFormError','Ngày bắt đầu không được sau hạn hoàn thành.');$('tDue').focus();return;}
+  const isNew=!editingTask;
+  const nodeId=$('tNode').value;
+  const ownerId=$('tOwner').value||null;
+  const priority=$('tPriority').value;
+  const estimate=Math.round((Number($('tEstimate').value)||0)*60);
+  const desc=$('tDesc').value.trim();
+  const tags=$('tTags').value.split(',').map(x=>x.trim()).filter(Boolean);
+
+  const submitBtn=$('taskSubmit');
+  const prevText=submitBtn?submitBtn.textContent:'Lưu';
+  if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Đang lưu...';}
+  $('taskFormError').hidden=true;
+
+  (async()=>{
+   try{
+    if(isNew){
+     const created=await window.TaskService.createTask({
+      nodeId,
+      title,
+      description:desc,
+      priority,
+      primaryAssigneeId:ownerId,
+      dueDate:due,
+      startDate:start,
+      estimateMinutes:estimate,
+      tags
+     });
+     if(created){
+      data.tasks.unshift(created);
+      rebuild();
+      renderAll(true);
+      dirtyTask=false;
+      closeDialog('taskDialog',true);
+      openDrawer(created.id);
+      toast('Đã tạo công việc thành công.','success');
+     }
+    }else{
+     const t=byTask.get(editingTask);
+     const updates={};
+     if(title!==(t?.title||''))updates.title=title;
+     if(desc!==(t?.desc||''))updates.description=desc;
+     if(nodeId!==(t?.node||''))updates.node_id=nodeId;
+     if(ownerId!==(t?.owner||null))updates.primary_assignee_id=ownerId;
+     if(status!==(t?.status||''))updates.status=status;
+     if(priority!==(t?.priority||''))updates.priority=priority;
+     if((start||null)!==(t?.start||null))updates.start_date=start;
+     if((due||null)!==(t?.due||null))updates.due_date=due;
+     if(estimate!==(Math.round((t?.estimate||0)*60)))updates.estimate_minutes=estimate;
+     const oldTags=(t?.tags||[]).join(',');
+     if(tags.join(',')!==oldTags)updates.tags=tags;
+
+     const updated=await window.TaskService.updateTask(editingTask,updates,t?.updatedAt||null);
+     if(updated){
+      const idx=data.tasks.findIndex(x=>x.id===editingTask);
+      if(idx!==-1)data.tasks[idx]=updated;
+      rebuild();
+      renderAll(true);
+      dirtyTask=false;
+      closeDialog('taskDialog',true);
+      if($('drawer').open&&drawerId===editingTask)renderDrawer();
+      toast('Đã lưu thay đổi công việc.','success');
+     }
+    }
+   }catch(err){
+    showFormError('taskFormError',err.message||'Không thể lưu công việc.');
+   }finally{
+    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=prevText;}
+   }
+  })();
   return;
  }
  if(!requireLogin()||!(editingTask?canManageTask(byTask.get(editingTask)):canCreateTask())){event.preventDefault();return deny();}
@@ -2262,7 +2367,30 @@ async function toggleTimer(id){
 }
 async function duplicateTask(id){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Tính năng nhân bản đang được hoàn thiện trong Step 06.','info');
+  if(!requireLogin()||!canManageTask(byTask.get(id)))return deny();
+  const source=byTask.get(id);if(!source)return;
+  try{
+   const created=await window.TaskService.createTask({
+    nodeId:source.node,
+    title:(source.title.slice(0,225)+' (bản sao)').slice(0,240),
+    description:source.desc,
+    priority:source.priority,
+    primaryAssigneeId:source.owner,
+    dueDate:source.due||null,
+    startDate:source.start||null,
+    estimateMinutes:Math.round((source.estimate||0)*60),
+    tags:source.tags
+   });
+   if(created){
+    data.tasks.unshift(created);
+    rebuild();
+    renderAll(true);
+    openDrawer(created.id);
+    toast('Đã nhân bản công việc thành công.','success');
+   }
+  }catch(e){
+   toast(e.message||'Không thể nhân bản công việc.','error');
+  }
   return;
  }
  if(!requireLogin()||!canManageTask(byTask.get(id)))return deny();
@@ -2273,7 +2401,35 @@ async function duplicateTask(id){
 }
 async function deleteTasks(ids){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Tính năng xóa công việc đang được hoàn thiện trong Step 06.','info');
+  if(!requireLogin()||!ids.every(id=>canManageTask(byTask.get(id))))return deny();
+  const existing=ids.filter(id=>byTask.has(id));if(!existing.length)return;
+  const name=existing.length===1?`"${byTask.get(existing[0]).title}"`:`${existing.length} công việc`;
+  if(!await ask('Xóa công việc?',`Lưu trữ và ẩn ${name} khỏi danh sách công việc đang thực hiện.`,'Xóa công việc',true))return;
+
+  let successCount=0,failedCount=0,lastErr='';
+  const archivedIds=new Set();
+  for(const id of existing){
+   try{
+    await window.TaskService.archiveTask(id);
+    successCount++;
+    archivedIds.add(id);
+   }catch(e){
+    failedCount++;
+    lastErr=e.message;
+   }
+  }
+  if(successCount>0){
+   data.tasks=data.tasks.filter(t=>!archivedIds.has(t.id));
+   state.selectedTasks.clear();
+   if($('drawer').open&&archivedIds.has(drawerId))closeDialog('drawer',true);
+   rebuild();
+   renderAll(true);
+  }
+  if(failedCount>0){
+   toast(`Đã xóa ${successCount} công việc. ${failedCount} công việc không thể xóa: ${lastErr}`,'error');
+  }else{
+   toast(`Đã xóa ${successCount} công việc.`,'success');
+  }
   return;
  }
  if(!requireLogin()||!ids.every(id=>canManageTask(byTask.get(id))))return deny();
@@ -2296,7 +2452,7 @@ function openNodeForm(id=null,type=null){
  editingNode=id;dirtyNode=false;$('nodeForm').reset();$('nodeFormError').hidden=true;
  $('nodeDialogTitle').textContent=n?'Chỉnh sửa đơn vị':'Thêm đơn vị con';$('nName').value=n?.name||'';$('nDesc').value=n?.desc||'';$('nCapacity').value=n?.capacity??40;
  const isRoot=n?.parent===null;
- $('nType').innerHTML=Object.entries(TYPES).filter(([key])=>isRoot||key!=='company').map(([key,label])=>`<option value="${key}" ${key===(n?.type||type||(state.view==='workload'?'person':'department'))?'selected':''}>${esc(label)}</option>`).join('');
+ $('nType').innerHTML=Object.entries(TYPES).filter(([key])=>isRoot||(key!=='company'&&(!window.__worktree_is_cloud_workspace||key!=='person'))).map(([key,label])=>`<option value="${key}" ${key===(n?.type||type||(state.view==='workload'?'department':'department'))?'selected':''}>${esc(label)}</option>`).join('');
  $('nType').disabled=isRoot;
  $('nParent').innerHTML=isRoot?'<option value="">Đơn vị gốc · Không có cấp cha</option>':optionNodes(n?.parent??state.selected,n?subtree(n.id):new Set());
  $('nParent').disabled=isRoot;$('capacityField').hidden=$('nType').value!=='person';
@@ -2305,8 +2461,61 @@ function openNodeForm(id=null,type=null){
 function saveNode(event){
  if(window.__worktree_is_cloud_workspace){
   event.preventDefault();
-  toast('Chế độ xem Cloud: Tính năng quản lý đơn vị đang được hoàn thiện trong Step 06.','info');
-  closeDialog('nodeDialog',true);
+  if(!requireAdmin())return deny();
+  if(!$('nodeForm').reportValidity())return;
+
+  const name=$('nName').value.trim(),id=editingNode,isNew=!editingNode,original=id?byNode.get(id):null,isRoot=original?.parent===null;
+  const parent=isRoot?null:($('nParent').value||null);
+  const type=isRoot?'company':$('nType').value;
+  const desc=$('nDesc').value.trim();
+
+  if(data.nodes.some(n=>n.id!==id&&n.parent===parent&&fold(n.name)===fold(name))){
+   showFormError('nodeFormError','Đã có một đơn vị cùng tên trong nhánh này. Hãy dùng tên phân biệt.');
+   return;
+  }
+
+  const submitBtn=$('nodeForm').querySelector('button[type="submit"]');
+  const prevText=submitBtn?submitBtn.textContent:'Lưu';
+  if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Đang lưu...';}
+  $('nodeFormError').hidden=true;
+
+  (async()=>{
+   try{
+    if(isNew){
+     const res=await window.TreeService.createNode({
+      name,
+      type,
+      parentId:parent,
+      description:desc
+     });
+     data.nodes=res.nodes;
+     rebuild();
+     renderAll(true);
+     dirtyNode=false;
+     closeDialog('nodeDialog',true);
+     if(parent&&!state.expanded.includes(parent))state.expanded.push(parent);
+     if(res.created?.id)selectNode(res.created.id);
+     toast('Đã tạo đơn vị mới thành công.','success');
+    }else{
+     const res=await window.TreeService.updateNode(id,{
+      name,
+      description:desc,
+      type,
+      parent_id:parent
+     });
+     data.nodes=res.nodes;
+     rebuild();
+     renderAll(true);
+     dirtyNode=false;
+     closeDialog('nodeDialog',true);
+     toast('Đã cập nhật đơn vị thành công.','success');
+    }
+   }catch(err){
+    showFormError('nodeFormError',err.message||'Không thể lưu đơn vị.');
+   }finally{
+    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=prevText;}
+   }
+  })();
   return;
  }
  if(!requireAdmin()){event.preventDefault();return;}
@@ -2323,8 +2532,25 @@ function saveNode(event){
 }
 async function deleteNode(id=editingNode||state.selected){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Tính năng xóa đơn vị đang được hoàn thiện trong Step 06.','info');
-  closeDialog('nodeDialog',true);
+  if(!requireAdmin())return deny();
+  const n=byNode.get(id);if(!n)return;
+  if(n.parent===null){toast('Không thể xóa đơn vị gốc.','error');return;}
+  if(!await ask('Xóa đơn vị?',`Lưu trữ và ẩn đơn vị "${n.name}". Các công việc thuộc đơn vị này sẽ không còn hiển thị trong nhánh.`,'Xóa đơn vị',true))return;
+
+  try{
+   const res=await window.TreeService.archiveNode(id);
+   data.nodes=res.nodes;
+   const parent=n.parent;
+   if(state.selected===id)state.selected=parent;
+   state.expanded=state.expanded.filter(x=>x!==id);
+   dirtyNode=false;
+   closeDialog('nodeDialog',true);
+   rebuild();
+   renderAll(true);
+   toast('Đã xóa đơn vị thành công.','success');
+  }catch(err){
+   toast(err.message||'Không thể xóa đơn vị.','error');
+  }
   return;
  }
  if(!requireAdmin())return;
@@ -2343,7 +2569,35 @@ async function deleteNode(id=editingNode||state.selected){
 }
 function bulkStatus(status){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Thao tác hàng loạt đang được hoàn thiện trong Step 06.','info');
+  const ids=[...state.selectedTasks];
+  if(!ids.length||!STATUS.includes(status))return;
+  if(!requireLogin())return deny();
+
+  toast(`Đang cập nhật trạng thái ${ids.length} công việc...`,'info');
+  (async()=>{
+   let successCount=0,failCount=0,lastErr='';
+   for(const tid of ids){
+    try{
+     const res=await window.TaskService.updateStatus(tid,status);
+     if(res&&res.isLatest&&res.task){
+      const idx=data.tasks.findIndex(x=>x.id===tid);
+      if(idx!==-1)data.tasks[idx]=res.task;
+      successCount++;
+     }
+    }catch(e){
+     failCount++;
+     lastErr=e.message;
+    }
+   }
+   rebuild();
+   renderView();
+   if($('drawer').open&&ids.includes(drawerId))renderDrawer();
+   if(failCount>0){
+    toast(`Đã cập nhật ${successCount}/${ids.length} công việc. ${failCount} thất bại: ${lastErr}`,'error');
+   }else{
+    toast(`Đã đổi trạng thái ${successCount} công việc thành ${status}.`,'success');
+   }
+  })();
   return;
  }
  const ids=new Set(state.selectedTasks);if(!ids.size||!STATUS.includes(status))return;
@@ -2357,7 +2611,33 @@ function bulkStatus(status){
 }
 function bulkOwner(owner){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Thao tác hàng loạt đang được hoàn thiện trong Step 06.','info');
+  const ids=[...state.selectedTasks],ownerId=owner==='unassigned'?null:owner;if(!ids.length)return;
+  if(!requireLogin())return deny();
+  toast(`Đang phân công lại ${ids.length} công việc...`,'info');
+  (async()=>{
+   let successCount=0,failCount=0,lastErr='';
+   for(const tid of ids){
+    try{
+     const updated=await window.TaskService.updateTask(tid,{primary_assignee_id:ownerId});
+     if(updated){
+      const idx=data.tasks.findIndex(x=>x.id===tid);
+      if(idx!==-1)data.tasks[idx]=updated;
+      successCount++;
+     }
+    }catch(e){
+     failCount++;
+     lastErr=e.message;
+    }
+   }
+   rebuild();
+   renderView();
+   if($('drawer').open&&ids.includes(drawerId))renderDrawer();
+   if(failCount>0){
+    toast(`Đã phân công ${successCount}/${ids.length} công việc. ${failCount} thất bại: ${lastErr}`,'error');
+   }else{
+    toast(`Đã giao lại ${successCount} công việc.`,'success');
+   }
+  })();
   return;
  }
  const ids=new Set(state.selectedTasks),ownerId=owner==='unassigned'?null:owner;if(!ids.size)return;
@@ -2616,9 +2896,57 @@ document.addEventListener('change',event=>{
  if(id==='includeChildren'){state.includeChildren=el.checked;state.page=1;state.selectedTasks.clear();savePrefs();renderAll();return;}
  if(id==='sortBy'){state.sort=el.value;state.page=1;savePrefs();renderAll();return;}
  if(el.dataset.statusTask){const tid=el.dataset.statusTask;changeStatus(tid,el.value);if(!id)document.querySelector(`[data-status-task="${tid}"]`)?.focus({preventScroll:true});return;}
- if(el.dataset.ownerTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật phân công đang được hoàn thiện trong Step 06.','info');return;}const tid=el.dataset.ownerTask;commit('Đã cập nhật người phụ trách',d=>{const t=d.tasks.find(t=>t.id===tid);t.owner=el.value||null;touch(t);},{taskId:tid});return;}
- if(el.dataset.priorityTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật mức ưu tiên đang được hoàn thiện trong Step 06.','info');return;}const tid=el.dataset.priorityTask;commit('Đã cập nhật mức ưu tiên',d=>{const t=d.tasks.find(t=>t.id===tid);t.priority=el.value;touch(t);},{taskId:tid});return;}
- if(el.dataset.checkTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật checklist đang được hoàn thiện trong Step 06.','info');return;}const tid=el.dataset.checkTask,index=Number(el.dataset.checkIndex);changeChecklist(tid,index,el.checked);document.querySelector(`[data-check-task="${tid}"][data-check-index="${index}"]`)?.focus({preventScroll:true});return;}
+ if(el.dataset.ownerTask){
+  const tid=el.dataset.ownerTask;
+  const newOwner=el.value||null;
+  if(window.__worktree_is_cloud_workspace){
+   (async()=>{
+    try{
+     const updated=await window.TaskService.updateTask(tid,{primary_assignee_id:newOwner});
+     if(updated){
+      const idx=data.tasks.findIndex(x=>x.id===tid);
+      if(idx!==-1)data.tasks[idx]=updated;
+      rebuild();renderAll();
+      if($('drawer').open&&drawerId===tid)renderDrawer();
+      toast('Đã cập nhật người phụ trách','success',true);
+     }
+    }catch(e){
+     toast(e.message||'Không thể cập nhật người phụ trách','error');
+     if($('drawer').open&&drawerId===tid)renderDrawer();
+     else renderView();
+    }
+   })();
+   return;
+  }
+  commit('Đã cập nhật người phụ trách',d=>{const t=d.tasks.find(t=>t.id===tid);t.owner=el.value||null;touch(t);},{taskId:tid});
+  return;
+ }
+ if(el.dataset.priorityTask){
+  const tid=el.dataset.priorityTask;
+  const newPriority=el.value;
+  if(window.__worktree_is_cloud_workspace){
+   (async()=>{
+    try{
+     const updated=await window.TaskService.updateTask(tid,{priority:newPriority});
+     if(updated){
+      const idx=data.tasks.findIndex(x=>x.id===tid);
+      if(idx!==-1)data.tasks[idx]=updated;
+      rebuild();renderAll();
+      if($('drawer').open&&drawerId===tid)renderDrawer();
+      toast('Đã cập nhật mức ưu tiên','success',true);
+     }
+    }catch(e){
+     toast(e.message||'Không thể cập nhật mức ưu tiên','error');
+     if($('drawer').open&&drawerId===tid)renderDrawer();
+     else renderView();
+    }
+   })();
+   return;
+  }
+  commit('Đã cập nhật mức ưu tiên',d=>{const t=d.tasks.find(t=>t.id===tid);t.priority=el.value;touch(t);},{taskId:tid});
+  return;
+ }
+ if(el.dataset.checkTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật checklist đang được hoàn thiện trong Step 07.','info');return;}const tid=el.dataset.checkTask,index=Number(el.dataset.checkIndex);changeChecklist(tid,index,el.checked);document.querySelector(`[data-check-task="${tid}"][data-check-index="${index}"]`)?.focus({preventScroll:true});return;}
  if(el.dataset.selectTask){const tid=el.dataset.selectTask;el.checked?state.selectedTasks.add(tid):state.selectedTasks.delete(tid);renderView();document.querySelector(`[data-select-task="${tid}"]`)?.focus({preventScroll:true});return;}
  if(id==='selectPage'){const arr=filteredTasks().slice((state.page-1)*state.pageSize,state.page*state.pageSize);arr.forEach(t=>el.checked?state.selectedTasks.add(t.id):state.selectedTasks.delete(t.id));renderView();$('selectPage')?.focus({preventScroll:true});return;}
  if(id==='pageSize'){state.pageSize=Number(el.value);state.page=1;savePrefs();renderView();return;}
@@ -2712,10 +3040,6 @@ document.addEventListener('dragover',e=>{
 document.addEventListener('drop',e=>{
  const col=e.target.closest('[data-drop-status]');if(!col||!draggingId)return;e.preventDefault();
  const id=e.dataTransfer.getData('text/plain'),status=col.dataset.dropStatus;draggingId=null;$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));
- if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Kéo thả đổi trạng thái đang được hoàn thiện trong Step 06.','info');
-  return;
- }
  if(byTask.has(id)&&STATUS.includes(status))changeStatus(id,status);
 });
 document.addEventListener('dragend',()=>{draggingId=null;$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));});
@@ -2754,7 +3078,10 @@ window.clearTenantUI=function(orgName){
   state.selectedTasks.clear();
   state.filters=blankFilters();
   if(typeof rebuild==='function')rebuild();
-  if(typeof renderAll==='function')renderAll(true);
+  if(orgName){
+   if($('workspaceName')) $('workspaceName').textContent=orgName;
+   if($('topWorkspace')) $('topWorkspace').textContent=orgName;
+  }
  }
 };
 
@@ -2975,11 +3302,17 @@ async function submitAuth(e){
 }
 function saveSession(){try{session?sessionStorage.setItem(SESSION_KEY,JSON.stringify(session)):sessionStorage.removeItem(SESSION_KEY);}catch(e){}}
 function touchSession(){if(!session||!currentAccount())return;const now=Date.now();if(now-session.lastActive>IDLE_MS||now-session.startedAt>MAX_SESSION_MS){lockWorkspace(T.sessionExpired);return;}session.lastActive=now;if(now-lastActivityWrite>5000){saveSession();lastActivityWrite=now;}}
-function resetPersonalState(){Object.assign(state,PERSONAL_DEFAULTS,{timelineStart:addDays(TODAY,-2),calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),selected:rootNode().id,view:'overview',includeChildren:true,filters:blankFilters(),page:1,expanded:[rootNode().id],savedViews:[],timer:null,selectedTasks:new Set(),treeQuery:'',filterOpen:false,mobileOpen:false});history=[];future=[];drawerDrafts.clear();commandOptions=[];pinUndo=null;pinsExpanded=false;}
+function resetPersonalState(){
+ const r=typeof rootNode==='function'?rootNode():null;
+ const rootId=r?r.id:null;
+ Object.assign(state,PERSONAL_DEFAULTS,{timelineStart:addDays(TODAY,-2),calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),selected:rootId,view:'overview',includeChildren:true,filters:blankFilters(),page:1,expanded:rootId?[rootId]:[],savedViews:[],timer:null,selectedTasks:new Set(),treeQuery:'',filterOpen:false,mobileOpen:false});history=[];future=[];drawerDrafts.clear();commandOptions=[];pinUndo=null;pinsExpanded=false;
+}
 function loadPrefs(){
  const a=currentAccount();if(!a)return;const key=KEYS.prefs;KEYS.prefs=key+'_'+a.id;
  try{legacyLoadPrefs();const saved=JSON.parse(localStorage.getItem(KEYS.prefs)||'null');if(state.timer&&saved?.timer?.pausedAt)state.timer.pausedAt=saved.timer.pausedAt;}finally{KEYS.prefs=key;}
- state.currentUser=a.personId;if(!visibleNodeIds().has(state.selected))state.selected=rootNode().id;
+ state.currentUser=a.personId;
+ const r=typeof rootNode==='function'?rootNode():null;
+ if(r&&!visibleNodeIds().has(state.selected))state.selected=r.id;
  if(state.timer&&!canUpdateTask(byTask.get(state.timer.taskId)))state.timer=null;
 }
 function savePrefs(){const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}
@@ -3356,11 +3689,13 @@ bootV8();
  const tools=document.createElement('div');tools.className='mobile-only m-side-tools';tools.innerHTML=`<button data-action="theme">${icon('moon')}${L.theme}</button><button data-action="undo" id="mobileUndo">${icon('undo')}${L.undo}</button><button data-action="export-csv">${icon('download')}${L.report}</button>`;document.querySelector('.side-scroll').append(tools);
  function shell(arr=filteredTasks()){
   if(!mobile()||!currentAccount()){nav.hidden=true;return;}
+  const root=rootNode();
+  if(!root){nav.hidden=true;return;}
   if(lastSession!==session.id){choosing=false;boardStatus=STATUS[1];calendarDate=TODAY;renderedMonth=null;lastSession=session.id;}
   nav.hidden=false;document.body.classList.toggle('m-home',state.view==='overview');
   const n=(act,text,ico,active,extra='')=>`<button data-mobile="${act}" ${active?'aria-current="page"':''} ${extra}>${icon(ico)}<span>${text}</span></button>`;
   nav.innerHTML=n('overview',L.home,'dashboard',state.view==='overview')+n('list',L.tasks,'list',['list','kanban','timeline','workload','children'].includes(state.view))+(canCreateTask()?`<button class="m-create" data-mobile="create"><span class="m-create-icon">${icon('plus')}</span><span>${L.add}</span></button>`:n('calendar',VIEWS.calendar[0],'calendar',state.view==='calendar'))+`<button data-mobile="pins">${icon('pin')}<span>${L.pins}</span>${visiblePins().length?`<span class="m-pin-count" aria-label="${visiblePins().length} ghim">${visiblePins().length}</span>`:''}</button>`+n('menu',L.menu,'panel',false,'aria-label="M&#7903; menu & c&#226;y t&#7893; ch&#7913;c"');
-  const name=state.selected===rootNode().id?(isAdmin()?rootNode().name:T.allowedScope):nodeName(state.selected);
+  const name=state.selected===root.id?(isAdmin()?root.name:T.allowedScope):nodeName(state.selected);
   scope.innerHTML=`<button class="m-scope-open" data-mobile="scope" aria-label="Ch&#7885;n &#273;&#417;n v&#7883;: ${esc(name)}">${icon('folder')}<span>${esc(name)}</span>${icon('chevron-down')}</button>${canPin('node',state.selected)?`<button class="icon-btn ${isPinned('node',state.selected)?'is-pinned':''}" data-v8="pin-toggle" data-kind="node" data-id="${state.selected}" aria-pressed="${isPinned('node',state.selected)}" aria-label="${isPinned('node',state.selected)?T.unpin:T.pin}">${icon('pin')}</button>`:''}`;
   viewbar.innerHTML=`<button class="m-viewbutton" data-mobile="views" aria-haspopup="dialog">${icon(VIEWS[state.view][1])}<span>${VIEWS[state.view][0]}</span>${icon('chevron-down')}</button><div class="m-viewbar-right"><span>${arr.length} ${L.tasks.toLowerCase()}</span>${state.view==='list'&&!choosing&&currentAccount()?.role!=='viewer'?`<button class="btn small" data-mobile="selection">${L.select}</button>`:''}</div>`;
   $('mobileUndo').disabled=!history.length;$('filterBtn').setAttribute('aria-controls','mobileFilter');$('filterBtn').setAttribute('aria-haspopup','dialog');$('taskSearch').placeholder=decode('T&#236;m c&#244;ng vi&#7879;c...');

@@ -178,11 +178,17 @@ async function submitAuth(e){
 }
 function saveSession(){try{session?sessionStorage.setItem(SESSION_KEY,JSON.stringify(session)):sessionStorage.removeItem(SESSION_KEY);}catch(e){}}
 function touchSession(){if(!session||!currentAccount())return;const now=Date.now();if(now-session.lastActive>IDLE_MS||now-session.startedAt>MAX_SESSION_MS){lockWorkspace(T.sessionExpired);return;}session.lastActive=now;if(now-lastActivityWrite>5000){saveSession();lastActivityWrite=now;}}
-function resetPersonalState(){Object.assign(state,PERSONAL_DEFAULTS,{timelineStart:addDays(TODAY,-2),calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),selected:rootNode().id,view:'overview',includeChildren:true,filters:blankFilters(),page:1,expanded:[rootNode().id],savedViews:[],timer:null,selectedTasks:new Set(),treeQuery:'',filterOpen:false,mobileOpen:false});history=[];future=[];drawerDrafts.clear();commandOptions=[];pinUndo=null;pinsExpanded=false;}
+function resetPersonalState(){
+ const r=typeof rootNode==='function'?rootNode():null;
+ const rootId=r?r.id:null;
+ Object.assign(state,PERSONAL_DEFAULTS,{timelineStart:addDays(TODAY,-2),calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),selected:rootId,view:'overview',includeChildren:true,filters:blankFilters(),page:1,expanded:rootId?[rootId]:[],savedViews:[],timer:null,selectedTasks:new Set(),treeQuery:'',filterOpen:false,mobileOpen:false});history=[];future=[];drawerDrafts.clear();commandOptions=[];pinUndo=null;pinsExpanded=false;
+}
 function loadPrefs(){
  const a=currentAccount();if(!a)return;const key=KEYS.prefs;KEYS.prefs=key+'_'+a.id;
  try{legacyLoadPrefs();const saved=JSON.parse(localStorage.getItem(KEYS.prefs)||'null');if(state.timer&&saved?.timer?.pausedAt)state.timer.pausedAt=saved.timer.pausedAt;}finally{KEYS.prefs=key;}
- state.currentUser=a.personId;if(!visibleNodeIds().has(state.selected))state.selected=rootNode().id;
+ state.currentUser=a.personId;
+ const r=typeof rootNode==='function'?rootNode():null;
+ if(r&&!visibleNodeIds().has(state.selected))state.selected=r.id;
  if(state.timer&&!canUpdateTask(byTask.get(state.timer.taskId)))state.timer=null;
 }
 function savePrefs(){const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}

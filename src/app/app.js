@@ -9,6 +9,8 @@ import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
 import { NodeRepository, EmployeeRepository, TaskRepository } from '../lib/supabase/repositories.js';
+import { TaskService } from '../features/tasks/index.js';
+import { TreeService } from '../features/organization-tree/index.js';
 
 let authViewInstance = null;
 let workspaceDialogInstance = null;
@@ -334,7 +336,10 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
     window.clearTenantUI(targetOrg.name);
   }
 
-  // 6. Vào workspace
+  // 6. STEP 05/06 READ MODEL: Tải dữ liệu đám mây thật cho workspace
+  await loadWorkspaceData(targetOrg.organizationId);
+
+  // 7. Vào workspace
   if (typeof window.enterWorkspace === 'function') {
     await window.enterWorkspace(accountAdapter, false, true);
   } else {
@@ -346,9 +351,6 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
       appEl.inert = false;
     }
   }
-
-  // 7. STEP 05 READ MODEL: Tải dữ liệu đám mây thật cho workspace
-  await loadWorkspaceData(targetOrg.organizationId);
 
   if (shouldShowToast && typeof window.toast === 'function') {
     window.toast('Đã chuyển sang workspace: ' + targetOrg.name);
@@ -659,6 +661,8 @@ export async function bootstrapApp() {
 if (typeof window !== 'undefined') {
   window.loadWorkspaceData = loadWorkspaceData;
   window.getWorkspaceLoadGeneration = () => workspaceLoadGeneration;
+  window.TaskService = TaskService;
+  window.TreeService = TreeService;
 }
 
 // Tự khởi chạy khi file được nạp

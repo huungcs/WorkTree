@@ -149,7 +149,7 @@ export const AuthService = {
     const sb = await getSupabase();
     const { data, error } = await sb
       .from('profiles')
-      .select('id, display_name, avatar_url, created_at, updated_at')
+      .select('id, display_name, avatar_path, created_at, updated_at')
       .eq('id', userId)
       .maybeSingle();
 
@@ -157,7 +157,7 @@ export const AuthService = {
       console.warn('Lỗi khi tải profile từ Supabase:', error.message);
       return null;
     }
-    return data;
+    return data ? { ...data, avatar_url: data.avatar_path } : null;
   },
 
   /**
