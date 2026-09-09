@@ -8,7 +8,8 @@ import { appState } from './state.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
-import { NodeRepository, EmployeeRepository, TaskRepository } from '../lib/supabase/repositories.js';
+import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository } from '../lib/supabase/repositories.js';
+import { EmployeeService } from '../features/employees/index.js';
 import { TaskService } from '../features/tasks/index.js';
 import { TreeService } from '../features/organization-tree/index.js';
 import { ChecklistService } from '../features/checklists/index.js';
@@ -663,6 +664,7 @@ export async function bootstrapApp() {
 }
 
 if (typeof window !== 'undefined') {
+  window.appState = appState;
   window.loadWorkspaceData = loadWorkspaceData;
   window.getWorkspaceLoadGeneration = () => workspaceLoadGeneration;
   window.TaskService = TaskService;
@@ -671,6 +673,9 @@ if (typeof window !== 'undefined') {
   window.DependencyService = DependencyService;
   window.CommentService = CommentService;
   window.TimeEntryService = TimeEntryService;
+  window.EmployeeService = EmployeeService;
+  window.EmployeeRepository = EmployeeRepository;
+  window.InvitationRepository = InvitationRepository;
 }
 
 // Tự khởi chạy khi file được nạp

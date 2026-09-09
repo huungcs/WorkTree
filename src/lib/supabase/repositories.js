@@ -314,9 +314,80 @@ export const EmployeeRepository = {
     // Explicit domain mapping: expose canonical fields and legacy aliases
     return (data || []).map(emp => ({
       ...emp,
+      name: emp.full_name,
       department_id: emp.home_node_id,
       is_active: emp.employment_status === 'active'
     }));
+  },
+
+  async getEmployeesWithAccountStatus(organizationId) {
+    if (!organizationId) return [];
+    const sb = await getSupabase();
+
+    // 1. Fetch employees
+    const employeesPromise = this.getEmployees(organizationId);
+
+    // 2. Fetch active members
+    const membersPromise = sb
+      .from('organization_members')
+      .select('id, user_id, employee_id, role, status')
+      .eq('organization_id', organizationId)
+      .eq('status', 'active');
+
+    // 3. Fetch pending invitations
+    const invitationsPromise = sb
+      .from('invitations')
+      .select('id, email, employee_id, role, status, expires_at')
+      .eq('organization_id', organizationId)
+      .eq('status', 'pending');
+
+    const [employees, { data: members, error: memErr }, { data: invitations, error: invErr }] = await Promise.all([
+      employeesPromise,
+      membersPromise,
+      invitationsPromise
+    ]);
+
+    if (memErr) console.warn('Could not fetch members for account status:', memErr);
+    if (invErr) console.warn('Could not fetch invitations for account status:', invErr);
+
+    const membersByEmployeeId = new Map();
+    (members || []).forEach(m => {
+      if (m.employee_id) membersByEmployeeId.set(m.employee_id, m);
+    });
+
+    const invitationsByEmployeeId = new Map();
+    const invitationsByEmail = new Map();
+    (invitations || []).forEach(inv => {
+      if (inv.employee_id) invitationsByEmployeeId.set(inv.employee_id, inv);
+      if (inv.email) invitationsByEmail.set(inv.email.toLowerCase(), inv);
+    });
+
+    return employees.map(emp => {
+      const member = membersByEmployeeId.get(emp.id);
+      const invitation = invitationsByEmployeeId.get(emp.id) || (emp.email ? invitationsByEmail.get(emp.email.toLowerCase()) : null);
+
+      let accountStatus = 'uninvited';
+      let role = null;
+      let accountEmail = emp.email || null;
+
+      if (member) {
+        accountStatus = 'linked';
+        role = member.role;
+      } else if (invitation) {
+        accountStatus = 'pending';
+        role = invitation.role;
+        accountEmail = invitation.email || accountEmail;
+      }
+
+      return {
+        ...emp,
+        accountStatus,
+        role: role || 'member',
+        accountEmail,
+        membership: member || null,
+        invitation: invitation || null
+      };
+    });
   },
 
   async createEmployee({
@@ -327,15 +398,17 @@ export const EmployeeRepository = {
     jobTitle = null,
     homeNodeId = null
   }) {
+    if (!organizationId) throw new Error('Missing organizationId for createEmployee');
+    if (!fullName || !fullName.trim()) throw new Error('Họ và tên nhân viên là bắt buộc');
     const sb = await getSupabase();
     const { data, error } = await sb
       .from('employees')
       .insert({
         organization_id: organizationId,
-        full_name: fullName,
-        email: email ? email.toLowerCase() : null,
-        employee_code: employeeCode,
-        job_title: jobTitle,
+        full_name: fullName.trim(),
+        email: email && email.trim() ? email.trim().toLowerCase() : null,
+        employee_code: employeeCode && employeeCode.trim() ? employeeCode.trim() : null,
+        job_title: jobTitle && jobTitle.trim() ? jobTitle.trim() : null,
         home_node_id: homeNodeId,
         employment_status: 'active'
       })
@@ -344,6 +417,7 @@ export const EmployeeRepository = {
     if (error) throw error;
     return {
       ...data,
+      name: data.full_name,
       department_id: data.home_node_id,
       is_active: data.employment_status === 'active'
     };
@@ -372,9 +446,69 @@ export const EmployeeRepository = {
     if (error) throw error;
     return {
       ...data,
+      name: data.full_name,
       department_id: data.home_node_id,
       is_active: data.employment_status === 'active'
     };
+  }
+};
+
+// ============================================================================
+// 3b. INVITATION REPOSITORY (Table: public.invitations / RPC: create_invitation, accept_invitation)
+// Schema: id, organization_id, email, employee_id, role, scope_node_ids,
+//         token_hash, status, invited_by, accepted_by, expires_at, accepted_at, created_at
+// ============================================================================
+
+export const InvitationRepository = {
+  async getInvitations(organizationId) {
+    if (!organizationId) return [];
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from('invitations')
+      .select('id, organization_id, email, employee_id, role, scope_node_ids, status, expires_at, created_at')
+      .eq('organization_id', organizationId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createInvitation({
+    organizationId,
+    email,
+    fullName,
+    homeNodeId,
+    role = 'member',
+    scopeNodeIds = [],
+    employeeId = null
+  }) {
+    if (!organizationId) throw new Error('Missing organizationId for createInvitation');
+    if (!email || !email.trim()) throw new Error('Email đăng nhập là bắt buộc');
+    if (!homeNodeId) throw new Error('Phòng ban trực thuộc là bắt buộc');
+    if (role === 'owner') throw new Error('Vai trò Chủ sở hữu không thể cấp từ lời mời');
+
+    const sb = await getSupabase();
+    const { data, error } = await sb.rpc('create_invitation', {
+      p_organization_id: organizationId,
+      p_email: email.trim().toLowerCase(),
+      p_full_name: fullName || '',
+      p_home_node_id: homeNodeId,
+      p_role: role,
+      p_scope_node_ids: scopeNodeIds || [],
+      p_employee_id: employeeId || null
+    });
+    if (error) throw error;
+    return data; // returns invite token
+  },
+
+  async acceptInvitation(token) {
+    if (!token) throw new Error('Missing invitation token');
+    const sb = await getSupabase();
+    const { data, error } = await sb.rpc('accept_invitation', {
+      p_token: token
+    });
+    if (error) throw error;
+    return data; // returns organization_id
   }
 };
 
