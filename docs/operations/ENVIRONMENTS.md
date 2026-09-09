@@ -1,0 +1,7 @@
+# WorkTree X — Environment Configuration
+
+## Environment Variables
+- `SUPABASE_URL`: Supabase REST API endpoint.
+- `SUPABASE_PUBLISHABLE_KEY`: Public client key safe for browser exposure.
+- `SUPABASE_SECRET_KEY`: Service role secret key; NEVER expose to browser.
+- `PORT`: Server port (default `8080`).
