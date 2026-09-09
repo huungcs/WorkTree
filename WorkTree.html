@@ -374,6 +374,10 @@ html[data-theme="dark"] .btn.primary{color:#111426}
 .board-card:hover{border-color:var(--line-strong);box-shadow:0 4px 12px #00000006}
 .board-card.dragging{opacity:.45}
 .board-card-header{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:7px}
+.board-card-actions{display:flex;align-items:center;gap:3px;margin-left:auto}
+.board-card-actions .task-pin-btn{width:24px!important;height:24px!important;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
+.board-card-actions .task-pin-btn .icon{width:13px!important;height:13px!important}
+.board-card-header .task-pin-btn{margin-left:auto}
 .board-card .task-name{background:transparent;text-align:left;font-size:11px;font-weight:600;line-height:1.65;padding:0;margin:0 0 6px;display:block}
 .board-path{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:10px}
 .board-card .tags{margin-bottom:11px}
@@ -2045,7 +2049,7 @@ function renderList(arr){
 }
 function boardCard(t){
  const checks=t.checklist.length,checked=t.checklist.filter(c=>c[1]).length;
- return `<article class="board-card" draggable="true" data-drag-task="${t.id}" aria-label="${esc(t.title)}"><div class="board-card-header">${priorityBadge(t.priority)}<button class="icon-btn small favorite-btn ${t.favorite?'is-favorite':''}" data-action="favorite" data-id="${t.id}" title="${t.favorite?'Bỏ đánh dấu sao':'Đánh dấu sao'}" aria-label="${esc('Đánh dấu sao: '+t.title)}" aria-pressed="${t.favorite}">${icon('star')}</button></div><button class="task-name" data-action="open-task" data-id="${t.id}">${esc(t.title)}</button><div class="board-path" title="${esc(pathName(t.node))}">${esc(nodeName(t.node))}</div><div class="tags">${t.tags.slice(0,3).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}${blockers(t).length?`<span class="tag" style="color:var(--amber)">${icon('link')} Chờ phụ thuộc</span>`:''}</div><div class="progress" role="progressbar" aria-label="Tiến độ" aria-valuenow="${t.progress}" aria-valuemin="0" aria-valuemax="100"><i style="width:${t.progress}%;${t.status==='Hoàn thành'?'background:var(--green)':''}"></i></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--muted);margin-bottom:8px">${dateLabel(t,true)}<span title="Checklist đã xong">${checks?`${checked}/${checks} mục`:t.progress+'%'}</span></div><div class="board-footer">${avatar(t.owner)}<select data-status-task="${t.id}" aria-label="${esc('Chuyển trạng thái: '+t.title)}">${STATUS.map(s=>`<option ${t.status===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div></article>`;
+ return `<article class="board-card" draggable="true" data-drag-task="${t.id}" aria-label="${esc(t.title)}"><div class="board-card-header">${priorityBadge(t.priority)}<div class="board-card-actions"><button class="icon-btn small favorite-btn ${t.favorite?'is-favorite':''}" data-action="favorite" data-id="${t.id}" title="${t.favorite?'Bỏ đánh dấu sao':'Đánh dấu sao'}" aria-label="${esc('Đánh dấu sao: '+t.title)}" aria-pressed="${t.favorite}">${icon('star')}</button></div></div><button class="task-name" data-action="open-task" data-id="${t.id}">${esc(t.title)}</button><div class="board-path" title="${esc(pathName(t.node))}">${esc(nodeName(t.node))}</div><div class="tags">${t.tags.slice(0,3).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}${blockers(t).length?`<span class="tag" style="color:var(--amber)">${icon('link')} Chờ phụ thuộc</span>`:''}</div><div class="progress" role="progressbar" aria-label="Tiến độ" aria-valuenow="${t.progress}" aria-valuemin="0" aria-valuemax="100"><i style="width:${t.progress}%;${t.status==='Hoàn thành'?'background:var(--green)':''}"></i></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--muted);margin-bottom:8px">${dateLabel(t,true)}<span title="Checklist đã xong">${checks?`${checked}/${checks} mục`:t.progress+'%'}</span></div><div class="board-footer">${avatar(t.owner)}<select data-status-task="${t.id}" aria-label="${esc('Chuyển trạng thái: '+t.title)}">${STATUS.map(s=>`<option ${t.status===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div></article>`;
 }
 function renderKanban(arr){
  return `<div class="board" aria-label="Bảng Kanban">${STATUS.map((s,i)=>{
@@ -4155,6 +4159,11 @@ function decoratePinButtons(){
  $('#viewContent [data-drag-task]').forEach(card=>{
   const rawId=card.dataset.dragTask;
   if(!rawId)return;
+  const actions=card.querySelector('.board-card-actions');
+  if(actions){
+   const strays=card.querySelectorAll('.board-card-header > .task-pin-btn');
+   strays.forEach(s=>s.remove());
+  }
   const existing=card.querySelectorAll('.task-pin-btn');
   if(existing.length>1){
    for(let i=1;i<existing.length;i++)existing[i].remove();

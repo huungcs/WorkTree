@@ -393,6 +393,11 @@ function decoratePinButtons(){
  $$('#viewContent [data-drag-task]').forEach(card=>{
   const rawId=card.dataset.dragTask;
   if(!rawId)return;
+  const actions=card.querySelector('.board-card-actions');
+  if(actions){
+   const strays=card.querySelectorAll('.board-card-header > .task-pin-btn');
+   strays.forEach(s=>s.remove());
+  }
   const existing=card.querySelectorAll('.task-pin-btn');
   if(existing.length>1){
    for(let i=1;i<existing.length;i++)existing[i].remove();
