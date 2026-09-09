@@ -110,6 +110,56 @@ export const OrganizationRepository = {
     });
     if (error) throw error;
     return data;
+  },
+
+  async getUserMemberships() {
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return [];
+    const { data, error } = await sb
+      .from('organization_members')
+      .select(`
+        id,
+        role,
+        status,
+        employee_id,
+        organization_id,
+        organizations (
+          id,
+          name,
+          slug,
+          timezone,
+          status,
+          root_node_id
+        )
+      `)
+      .eq('user_id', user.id)
+      .eq('status', 'active');
+    if (error) throw error;
+    return (data || []).map(m => ({
+      membershipId: m.id,
+      role: m.role,
+      status: m.status,
+      employeeId: m.employee_id,
+      organizationId: m.organization_id,
+      organization: m.organizations
+    }));
+  },
+
+  async getMembership(organizationId) {
+    if (!organizationId) return null;
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await sb
+      .from('organization_members')
+      .select('id, role, status, employee_id, organization_id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   }
 };
 

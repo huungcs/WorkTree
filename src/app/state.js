@@ -1,13 +1,19 @@
 /**
  * WorkTree X — Reactive Application State
  * Scoped to current tenant (activeOrganizationId).
+ * Invariants: activeOrganizationId is UI context, not security boundary.
  */
+
+const PREF_ORG_KEY = 'worktree_active_organization_id';
 
 export const appState = {
   user: null,
   activeOrganizationId: null,
-  organizations: [],
+  activeMembership: null, // { role, status, employeeId, organizationId }
+  organizations: [],     // Array of organizations user has active membership in
   nodes: [],
+  employees: [],
+  tasks: [],
   selectedNodeId: null,
   currentView: 'overview',
   theme: localStorage.getItem('worktree_theme') || 'light',
@@ -21,11 +27,58 @@ export const appState = {
   },
 
   notify() {
-    this.listeners.forEach(fn => fn(this));
+    this.listeners.forEach(fn => {
+      try {
+        fn(this);
+      } catch (err) {
+        console.error('Lỗi state listener:', err);
+      }
+    });
   },
 
-  setActiveOrg(orgId) {
+  /**
+   * Thiết lập tổ chức đang hoạt động và lưu preference
+   */
+  setActiveOrg(orgId, membership = null) {
     this.activeOrganizationId = orgId;
+    this.activeMembership = membership;
+    if (orgId) {
+      localStorage.setItem(PREF_ORG_KEY, orgId);
+    } else {
+      localStorage.removeItem(PREF_ORG_KEY);
+    }
+    this.notify();
+  },
+
+  /**
+   * Lấy ID tổ chức ưa thích đã lưu, chỉ trả về nếu hợp lệ trong danh sách memberships
+   */
+  getPreferredOrgId() {
+    const saved = localStorage.getItem(PREF_ORG_KEY);
+    if (!saved || !this.organizations.length) return null;
+    const exists = this.organizations.some(o => (o.organizationId || o.id) === saved);
+    return exists ? saved : null;
+  },
+
+  /**
+   * Xóa sạch toàn bộ dữ liệu tenant trong bộ nhớ (khi switch workspace hoặc logout)
+   * Ngăn chặn rò rỉ hoặc chớp nháy dữ liệu giữa Công ty A và Công ty B.
+   */
+  purgeTenantData() {
+    this.nodes = [];
+    this.employees = [];
+    this.tasks = [];
+    this.selectedNodeId = null;
+    this.currentView = 'overview';
+    this.activeMembership = null;
+    // Gọi hook dọn dẹp legacy nếu có
+    if (typeof window.clearTenantUI === 'function') {
+      try {
+        window.clearTenantUI();
+      } catch (e) {
+        console.warn('Lỗi gọi clearTenantUI:', e);
+      }
+    }
     this.notify();
   },
 

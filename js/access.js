@@ -22,33 +22,43 @@ let pinDB={version:1,users:{}},pinRaw=null,pinUndo=null,accessTab='accounts',acc
 const PERSONAL_DEFAULTS={collapsed:false,sort:'smart',pageSize:15,focusTab:'attention',theme:'light',density:'comfortable',currentUser:null,timelineDays:14};
 let authBusy=false,lastActivityWrite=0,appReady=false,pinsExpanded=false,scopeSearch='';
 Object.assign(ICONS,{'arrow-top':'<path d="M4 3h16M7 12l5-5 5 5M12 7v14"/>',pin:'<path d="m16 3 5 5-4 2-3 6-3-3-6 6-1-1 6-6-3-3 6-3Z"/>',logout:'<path d="M9 4H4v16h5M14 8l4 4-4 4M8 12h10"/>',key:'<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-5-5 2-2m-5-1 2-2"/>','arrow-up':'<path d="m6 10 6-6 6 6M12 4v16"/>','arrow-down':'<path d="m6 14 6 6 6-6M12 4v16"/>'});
-function currentAccount(){const a=session&&identity.accounts.find(a=>a.id===session.id&&a.active&&a.version===session.version);return a&&!a.mustChange?a:null;}
+function currentAccount(){
+ if(window.__worktree_supabase_user) return window.__worktree_supabase_user;
+ if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
+  const a=session&&identity.accounts.find(a=>a.id===session.id&&a.active&&a.version===session.version);
+  return a&&!a.mustChange?a:null;
+ }
+ return null;
+}
 function currentPerson(){const a=currentAccount();return a?{id:byNode.has(a.personId)?a.personId:null,name:a.name}:{id:null,name:T.account};}
-function isAdmin(){return currentAccount()?.role==='admin';}
+function isAdmin(){const r=currentAccount()?.role;return r==='admin'||r==='owner';}
 function inScope(nodeId,a=currentAccount()){
- if(!a)return false;if(a.role==='admin')return byNode.has(nodeId);
+ if(!a)return false;if(a.role==='admin'||a.role==='owner')return byNode.has(nodeId);
  return a.scopes.some(root=>byNode.has(root)&&subtree(root).has(nodeId));
 }
 function canReadTask(t,a=currentAccount()){return !!(a&&t&&inScope(t.node,a)&&(a.role!=='member'||(a.personId&&t.owner===a.personId)));}
 function canUpdateTask(t){const a=currentAccount();return !!(a&&a.role!=='viewer'&&canReadTask(t));}
-function canManageTask(t){const a=currentAccount();return !!(a&&['admin','manager'].includes(a.role)&&canReadTask(t));}
-function canCreateTask(){const a=currentAccount();return !!(a&&['admin','manager'].includes(a.role)&&data.nodes.some(n=>inScope(n.id)));}
+function canManageTask(t){const a=currentAccount();return !!(a&&['owner','admin','manager'].includes(a.role)&&canReadTask(t));}
+function canCreateTask(){const a=currentAccount();return !!(a&&['owner','admin','manager'].includes(a.role)&&data.nodes.some(n=>inScope(n.id)));}
 function canPlaceTask(id){return isAdmin()||currentAccount()?.role==='manager'&&inScope(id);}
-function canReport(){return ['admin','manager'].includes(currentAccount()?.role);}
+function canReport(){return ['owner','admin','manager'].includes(currentAccount()?.role);}
 function readableTasks(){return data?.tasks.filter(t=>canReadTask(t))||[];}
 function visibleNodeIds(){
  const a=currentAccount(),set=new Set();if(!a||!data)return set;
  for(const n of data.nodes){if(inScope(n.id)&&(a.role!=='member'||n.type!=='person'||n.id===a.personId)){for(const p of pathNodes(n.id))set.add(p.id);}}
  for(const t of readableTasks()){for(const p of pathNodes(t.node))set.add(p.id);}
- set.add(rootNode().id);return set;
+ const r=rootNode();if(r)set.add(r.id);return set;
 }
 function visibleNodes(){const ids=visibleNodeIds();return data.nodes.filter(n=>ids.has(n.id));}
 function visibleChildren(id){const ids=visibleNodeIds();return childrenOf(id).filter(n=>ids.has(n.id));}
 function permittedPeople(){
+ if(window.__worktree_is_cloud_workspace&&Array.isArray(window.cloudEmployees)){
+  return window.cloudEmployees;
+ }
  if(!data)return [];
  const a=currentAccount();if(!a)return data.nodes.filter(n=>n.type==='person');
  const owners=new Set(readableTasks().map(t=>t.owner));
- return data.nodes.filter(n=>n.type==='person'&&(a.role==='admin'||(a.role==='member'?n.id===a.personId:inScope(n.id)||owners.has(n.id))));
+ return data.nodes.filter(n=>n.type==='person'&&(a.role==='admin'||a.role==='owner'||(a.role==='member'?n.id===a.personId:inScope(n.id)||owners.has(n.id))));
 }
 function canReadActivity(a){if(isAdmin())return true;return a.taskId?canReadTask(byTask.get(a.taskId)):currentAccount()?.role!=='member'&&!!a.nodeId&&inScope(a.nodeId);}
 function deny(){toast(T.denied,'error');return false;}
@@ -58,9 +68,13 @@ function refreshIdentity(){
  if(session&&!currentAccount()){lockWorkspace(T.sessionExpired);return false;}return true;
 }
 function requireLogin(){
- if(!refreshIdentity())return false;
- if(!currentAccount()||Date.now()-session.lastActive>IDLE_MS||Date.now()-session.startedAt>MAX_SESSION_MS){if(session)lockWorkspace(T.sessionExpired);return false;}
- return true;
+ if(window.__worktree_supabase_user) return true;
+ if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
+  if(!refreshIdentity())return false;
+  if(!currentAccount()||Date.now()-session.lastActive>IDLE_MS||Date.now()-session.startedAt>MAX_SESSION_MS){if(session)lockWorkspace(T.sessionExpired);return false;}
+  return true;
+ }
+ return false;
 }
 function requireAdmin(){return requireLogin()&&(isAdmin()||deny());}
 function assertMutation(before,after){
@@ -128,6 +142,10 @@ function passwordField(label,id,autocomplete='new-password'){return `<label clas
 function dialogHead(title,id,dialog,overline='WORKTREE X'){return `<div class="dialog-head"><div><p class="overline">${overline}</p><h2 id="${id}">${title}</h2></div><button type="button" class="icon-btn" data-action="close" data-dialog="${dialog}" aria-label="${T.close}">${icon('x')}</button></div>`;}
 function authError(message){const el=$('authError');if(el){el.textContent=message;el.hidden=false;}}
 function renderAuth(message=''){
+ if(typeof window.renderSupabaseAuth==='function'){
+  window.renderSupabaseAuth(message);
+  return;
+ }
  const setup=!identity.accounts.length&&!identityIssue;
  $('authScreen').innerHTML=`<div class="auth-brand"><div class="auth-logo">${icon('network')}</div><strong>WorkTree<span>X</span></strong><span class="auth-version">V8 / TEAM ACCESS</span></div><div class="auth-layout"><div class="auth-story"><p class="auth-eyebrow">WORK TOGETHER. STAY FOCUSED.</p><h1>${T.heroTitle.replace(/\n/g,'<br>')}</h1><p class="auth-description">${T.heroSub}</p><div class="auth-illustration"><div class="auth-mini-top">${icon('pin')}<span>${T.pins}</span><small>${T.personal}</small></div><div class="auth-focus-card"><span class="auth-card-icon">${icon('flag')}</span><div><strong>${T.urgent}</strong><small>${T.project}</small></div><span class="auth-ready">01</span></div><div class="auth-thread"></div><div class="auth-roles">${ROLES.slice(0,3).map(r=>`<span>${icon(r==='admin'?'shield':'user')}${T[r]}</span>`).join('')}</div></div><p class="auth-story-footer">${icon('lock')} ${T.local}</p></div><div class="auth-card"><div class="auth-card-header"><span class="auth-chip">${icon(setup?'key':'shield')}${setup?T.setup:T.account}</span><h2>${setup?T.setupTitle:T.loginTitle}</h2><p>${setup?T.setupSub:T.loginSub}</p></div><div class="form-error" id="authError" role="alert" ${message||identityIssue?'':'hidden'}>${esc(message||identityIssue)}</div>${identityIssue?'':`<form id="authForm" autocomplete="on"><div class="auth-fields">${setup?field(T.name,'authName','text','', 'required maxlength="180" autocomplete="name"'):''}${field(T.username,'authUsername','text','', 'required maxlength="80" autocomplete="username" autocapitalize="none" spellcheck="false"')}${passwordField(T.password,'authPassword',setup?'new-password':'current-password')}${setup?passwordField(T.confirmPassword,'authConfirm'):''}${setup?`<label class="field">${T.person}<select id="authPerson"><option value="">${T.noPerson}</option>${data.nodes.filter(n=>n.type==='person').map(n=>`<option value="${n.id}" ${n.id===306?'selected':''}>${esc(n.name)}</option>`).join('')}</select></label><p class="field-hint">${T.passwordHint}</p>`:''}</div><button type="submit" id="authSubmit" class="btn primary auth-submit">${setup?T.setup:T.login}${icon('arrow-right')}</button></form>${!setup?`<button class="link-btn auth-forgot" data-v8="forgot">${T.forgot}</button>`:''}`}<div class="auth-local-note">${icon('info')}<p>${T.localWarning}</p></div><p class="auth-session-note">${T.idle}</p></div></div><footer class="auth-footer">WorkTree X V8 <span>${T.local}</span></footer>`;
  $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
@@ -187,13 +205,21 @@ function lockWorkspace(message=T.sessionExpired){
  renderAuth(message);
 }
 async function logout(){
+ if(typeof window.supabaseSignOut==='function'){
+  await window.supabaseSignOut();
+  return;
+ }
  if(!requireLogin())return;
  if((dirtyTask||dirtyNode)&&!await ask(T.logout,T.unsavedLogout,T.logout,true))return;
  if(state.timer&&!await stopTimer())return;
  try{const next=clone(identity);auditEvent(next,T.logout,currentAccount().username);writeIdentity(next);}catch(e){toast(e.message,'error');return;}
  lockWorkspace(T.loggedOut);
 }
-function accountSummary(a){return a.role==='admin'?T.allScope:a.scopes.map(id=>byNode.get(id)?.name||('#'+id)).join(' / ');}
+function accountSummary(a){
+ if(a.role==='admin'||a.role==='owner')return T.allScope;
+ if(a.scopes&&a.scopes.length)return a.scopes.map(id=>byNode.get(id)?.name||('#'+id)).join(' / ');
+ return a.organization?.name||T.allScope;
+}
 function roleDescription(r){return {admin:'Điều hành toàn bộ, cấp tài khoản, sửa cây và sao lưu.',manager:'Xem, tạo, giao và chỉnh sửa công việc trong nhánh được cấp.',member:T.memberHint,viewer:'Xem công việc trong phạm vi được cấp. Không thay đổi dữ liệu.'}[r];}
 function accessAuditHTML(){return `<p class="view-note">${T.local} · Đây không phải nhật ký chống chỉnh sửa.</p><div class="access-audit">${identity.audit.slice().reverse().map(a=>`<div><span class="access-audit-icon">${icon('shield')}</span><p><strong>${esc(a.actor)}</strong> ${esc(a.action)}<small>${esc(a.target)} · ${esc(timeAgo(a.at))}</small></p></div>`).join('')||T.noAudit}</div>`;}
 function matrixHTML(){
@@ -392,10 +418,10 @@ function applyPermissionUI(){
   if($('drawerAutoProgress'))$('drawerAutoProgress').disabled=!canUpdateTask(t);
   $$('#drawerContent [data-action="delete-comment"]').forEach(b=>{const c=t.comments.find(c=>c.id===Number(b.dataset.comment));b.hidden=!canUpdateTask(t)||a.role==='member'&&c?.authorId!==a.personId;});
  }
- if($('bulkOwner'))$('bulkOwner').disabled=!['admin','manager'].includes(a.role);
- if($('bulkStatus'))$('bulkStatus').disabled=a.role==='viewer';
- $$('[data-select-task],#selectPage').forEach(el=>el.disabled=a.role==='viewer');
- $$('[data-drag-task]').forEach(el=>el.draggable=canUpdateTask(byTask.get(Number(el.dataset.dragTask))));
+  if($('bulkOwner'))$('bulkOwner').disabled=!['owner','admin','manager'].includes(a.role);
+  if($('bulkStatus'))$('bulkStatus').disabled=a.role==='viewer';
+  $$('[data-select-task],#selectPage').forEach(el=>el.disabled=a.role==='viewer');
+  $$('[data-drag-task]').forEach(el=>el.draggable=canUpdateTask(byTask.get(el.dataset.dragTask)));
  decoratePinButtons();
 }
 function handleV8Click(e){
@@ -460,9 +486,15 @@ function bootV8(){
  if(typeof $('toastRegion').showPopover==='function')$('toastRegion').setAttribute('popover','manual');
  $('viewTabs').innerHTML=Object.entries(VIEWS).map(([key,[label,ico]])=>`<button class="view-tab" role="tab" id="tab-${key}" aria-selected="${key===state.view}" aria-controls="viewContent" tabindex="${key===state.view?0:-1}" data-action="view" data-view="${key}">${icon(ico)}${label}${key==='list'?'<span class="tab-count">0</span>':''}</button>`).join('');
  window.WorkTree=Object.freeze({version:8,exportJSON,getSnapshot:safeSnapshot,validate:input=>validateData(input)});
- let previous=null;try{previous=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch(e){}
- if(!identityIssue&&previous&&Number.isFinite(previous.lastActive)&&Number.isFinite(previous.startedAt)&&Date.now()-previous.lastActive<IDLE_MS&&Date.now()-previous.startedAt<MAX_SESSION_MS){session=previous;if(currentAccount())enterWorkspace(currentAccount(),false,true);else{session=null;renderAuth();}}
- else renderAuth();
- let tick=0;setInterval(()=>{if(session){if(!requireLogin())return;if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
+ if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
+  let previous=null;try{previous=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch(e){}
+  if(!identityIssue&&previous&&Number.isFinite(previous.lastActive)&&Number.isFinite(previous.startedAt)&&Date.now()-previous.lastActive<IDLE_MS&&Date.now()-previous.startedAt<MAX_SESSION_MS){session=previous;if(currentAccount())enterWorkspace(currentAccount(),false,true);else{session=null;renderAuth();}}
+  else renderAuth();
+ } else {
+  // Production Path: Supabase Auth in src/app/app.js handles authoritative session bootstrap
+  $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
+  if(typeof window.renderSupabaseAuth==='function') window.renderSupabaseAuth();
+ }
+ let tick=0;setInterval(()=>{if(session||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
 }
 bootV8();

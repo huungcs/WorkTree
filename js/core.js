@@ -227,28 +227,52 @@ let state={
  focusTab:'attention',expanded:[1,10,11,12,13],treeQuery:'',theme:'light',density:'comfortable',currentUser:306,savedViews:[],
  timelineStart:addDays(TODAY,-2),timelineDays:14,calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),timer:null,selectedTasks:new Set()
 };
+function getAvatarIndex(id) {
+ if (typeof id === 'number') return Math.abs(id) % 6;
+ if (typeof id === 'string') {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+   hash = ((hash << 5) - hash) + id.charCodeAt(i);
+   hash |= 0;
+  }
+  return Math.abs(hash) % 6;
+ }
+ return 0;
+}
 function rebuild(){
+ if(!data || !Array.isArray(data.nodes)) return;
  byNode=new Map(data.nodes.map(n=>[n.id,n]));byTask=new Map(data.tasks.map(t=>[t.id,t]));byParent=new Map();subtreeCache=new Map();
  data.nodes.forEach(n=>{if(!byParent.has(n.parent))byParent.set(n.parent,[]);byParent.get(n.parent).push(n);});
- if(!byNode.has(state.selected))state.selected=rootNode().id;
- if(!byNode.has(state.currentUser)||byNode.get(state.currentUser).type!=='person')state.currentUser=people()[0]?.id??null;
- if(state.filters.owner&&state.filters.owner!=='unassigned'&&!byNode.has(Number(state.filters.owner)))state.filters.owner='';
+ if(!byNode.has(state.selected))state.selected=rootNode()?.id ?? null;
+ if(!byNode.has(state.currentUser)||(byNode.get(state.currentUser)?.type!=='person' && !window.__worktree_is_cloud_workspace))state.currentUser=people()[0]?.id??null;
+ if(state.filters.owner&&state.filters.owner!=='unassigned'&&!byNode.has(state.filters.owner)&&!window.employeesById?.has(state.filters.owner))state.filters.owner='';
  state.selectedTasks=new Set([...state.selectedTasks].filter(id=>byTask.has(id)));
  if(state.timer&&!byTask.has(state.timer.taskId))state.timer=null;
 }
-function rootNode(){return data.nodes.find(n=>n.parent===null);}
+function rootNode(){return data?.nodes?.find(n=>n.parent===null) || null;}
 function childrenOf(id){return byParent.get(id)||[];}
 function subtree(id){
  if(subtreeCache.has(id))return subtreeCache.get(id);
  const ids=new Set([id]),stack=[id];while(stack.length){for(const n of childrenOf(stack.pop())){if(!ids.has(n.id)){ids.add(n.id);stack.push(n.id);}}}
  subtreeCache.set(id,ids);return ids;
 }
-function people(){return permittedPeople();}
-function nodeName(id){return byNode.get(id)?.name||'Chưa giao';}
+function people(){
+ if (window.__worktree_is_cloud_workspace && Array.isArray(window.cloudEmployees)) {
+  return window.cloudEmployees;
+ }
+ return permittedPeople();
+}
+function nodeName(id){
+ return byNode.get(id)?.name || window.employeesById?.get(id)?.full_name || window.employeesById?.get(id)?.name || 'Chưa giao';
+}
 function person(){return currentPerson();}
 
 function initials(name){return String(name||'?').trim().split(/\s+/).slice(-2).map(x=>x[0]||'').join('').toUpperCase();}
-function avatar(id,extra=''){return `<span class="avatar av-${Math.abs(Number(id)||0)%6} ${extra}" title="${esc(nodeName(id))}" aria-label="${esc(nodeName(id))}">${esc(id?initials(nodeName(id)):'?')}</span>`;}
+function avatar(id,extra=''){
+ const name=nodeName(id);
+ const colorIdx=getAvatarIndex(id);
+ return `<span class="avatar av-${colorIdx} ${extra}" title="${esc(name)}" aria-label="${esc(name)}">${esc(id?initials(name):'?')}</span>`;
+}
 function nodeIcon(type){return {company:'building',department:'network',project:'folder',team:'users',person:'user',folder:'folder'}[type]||'folder';}
 function pathNodes(id){const arr=[];let n=byNode.get(id);const seen=new Set();while(n&&!seen.has(n.id)){arr.unshift(n);seen.add(n.id);n=byNode.get(n.parent);}return arr;}
 function pathName(id){return pathNodes(id).map(n=>n.name).join(' / ');}
@@ -291,6 +315,10 @@ function legacyLoadPrefs(){
  }catch(e){/* A damaged preference file must never prevent opening the workspace. */}
 }
 function loadData(){
+ if(window.__worktree_is_cloud_workspace){
+  data = { nodes: [], tasks: [], activities: [] };
+  return;
+ }
  try{
   lastRaw=localStorage.getItem(KEYS.data);
   if(lastRaw){try{data=validateData(JSON.parse(lastRaw)).data;return;}catch(e){
@@ -307,6 +335,11 @@ function loadData(){
 function prefsObject(){return {selected:state.selected,view:state.view,includeChildren:state.includeChildren,collapsed:state.collapsed,filterOpen:state.filterOpen,filters:state.filters,sort:state.sort,pageSize:state.pageSize,theme:state.theme,density:state.density,currentUser:state.currentUser,expanded:state.expanded,savedViews:state.savedViews,timer:state.timer};}
 function legacySavePrefs(){try{localStorage.setItem(KEYS.prefs,JSON.stringify(prefsObject()));}catch(e){/* Dataset save status is handled independently. */}}
 function persistData(force=false){
+ if(window.__worktree_is_cloud_workspace){
+  if($('saveStatus')) $('saveStatus').textContent='Đồng bộ đám mây Supabase';
+  if($('saveDot')) $('saveDot').classList.remove('error');
+  return true;
+ }
  if(storageProtected&&!force){renderStorage();return false;}
  try{
   const current=localStorage.getItem(KEYS.data);
@@ -432,13 +465,24 @@ function setTaskStatus(t,status,lookup){
  t.status=status;touch(t);
 }
 function changeStatus(id,status){
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Tính năng đổi trạng thái công việc đang được hoàn thiện trong Step 06.','info');
+  renderView();
+  return;
+ }
  if(!requireLogin()||!canUpdateTask(byTask.get(id)))return deny();
  const t=byTask.get(id);if(!t||t.status===status)return;
  const ok=commit(`Đổi trạng thái thành ${status}`,d=>{const map=new Map(d.tasks.map(t=>[t.id,t]));setTaskStatus(map.get(id),status,map);},{taskId:id});
  if(!ok){renderView();if($('drawer').open)refreshDrawer();}
 }
 function toggleComplete(id){const t=byTask.get(id);if(!t)return;changeStatus(id,t.status==='Hoàn thành'?(t.resumeStatus||'Đang làm'):'Hoàn thành');}
-function toggleFavorite(id){if(!byTask.has(id))return;commit(byTask.get(id).favorite?'Bỏ đánh dấu sao':'Đã đánh dấu sao',d=>{const t=d.tasks.find(t=>t.id===id);t.favorite=!t.favorite;touch(t);},{taskId:id,quiet:true});}
+function toggleFavorite(id){
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Tính năng đánh dấu sao đang được hoàn thiện trong Step 06.','info');
+  return;
+ }
+ if(!byTask.has(id))return;commit(byTask.get(id).favorite?'Bỏ đánh dấu sao':'Đã đánh dấu sao',d=>{const t=d.tasks.find(t=>t.id===id);t.favorite=!t.favorite;touch(t);},{taskId:id,quiet:true});
+}
 function currentScopeTasks(){const ids=state.includeChildren?subtree(state.selected):new Set([state.selected]);return readableTasks().filter(t=>ids.has(t.node));}
 function filteredTasks(){
  const f=state.filters,q=fold(f.q);let arr=currentScopeTasks().filter(t=>{
@@ -454,10 +498,10 @@ function filteredTasks(){
  const due=t=>t.due||'9999-12-31',pr=t=>PRIORITY.indexOf(t.priority);
  const cmp=(a,b)=>{
   if(state.sort==='title')return a.title.localeCompare(b.title,'vi');
-  if(state.sort==='updated')return (b.updatedAt||'').localeCompare(a.updatedAt||'')||b.id-a.id;
+  if(state.sort==='updated')return (b.updatedAt||'').localeCompare(a.updatedAt||'')||String(b.id).localeCompare(String(a.id));
   if(state.sort==='priority')return pr(a)-pr(b)||due(a).localeCompare(due(b));
   if(state.sort==='due')return due(a).localeCompare(due(b))||pr(a)-pr(b);
-  return (a.status==='Hoàn thành')-(b.status==='Hoàn thành')||Number(isLate(b))-Number(isLate(a))||Number(isToday(b))-Number(isToday(a))||pr(a)-pr(b)||due(a).localeCompare(due(b))||a.id-b.id;
+  return (a.status==='Hoàn thành')-(b.status==='Hoàn thành')||Number(isLate(b))-Number(isLate(a))||Number(isToday(b))-Number(isToday(a))||pr(a)-pr(b)||due(a).localeCompare(due(b))||String(a.id).localeCompare(String(b.id));
  };
  return arr.sort(cmp);
 }
@@ -742,6 +786,12 @@ function openTaskForm(id=null,preset={}){
  closeSidebar();showDialog('taskDialog','#tTitle');
 }
 function saveTask(event){
+ if(window.__worktree_is_cloud_workspace){
+  event.preventDefault();
+  toast('Chế độ xem Cloud: Tính năng tạo và sửa công việc đang được hoàn thiện trong Step 06.','info');
+  closeDialog('taskDialog',true);
+  return;
+ }
  if(!requireLogin()||!(editingTask?canManageTask(byTask.get(editingTask)):canCreateTask())){event.preventDefault();return deny();}
  event.preventDefault();if(!$('taskForm').reportValidity())return;
  const id=editingTask||uid(),isNew=!editingTask;
@@ -868,6 +918,10 @@ async function toggleTimer(id){
  state.timer={taskId:id,startedAt:Date.now()};savePrefs();renderTimer();if($('drawer').open)refreshDrawer();toast('Đã bắt đầu bấm giờ. Thời gian sẽ được ghi khi bạn bấm Dừng.');
 }
 async function duplicateTask(id){
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Tính năng nhân bản đang được hoàn thiện trong Step 06.','info');
+  return;
+ }
  if(!requireLogin()||!canManageTask(byTask.get(id)))return deny();
  const source=byTask.get(id);if(!source)return;const newId=uid();
  if(commit('Đã nhân bản công việc',d=>{
@@ -875,6 +929,10 @@ async function duplicateTask(id){
  },{taskId:newId}))openDrawer(newId);
 }
 async function deleteTasks(ids){
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Tính năng xóa công việc đang được hoàn thiện trong Step 06.','info');
+  return;
+ }
  if(!requireLogin()||!ids.every(id=>canManageTask(byTask.get(id))))return deny();
  const existing=ids.filter(id=>byTask.has(id));if(!existing.length)return;
  const linked=data.tasks.filter(t=>!existing.includes(t.id)&&t.dependencies.some(id=>existing.includes(id))).length;
@@ -902,6 +960,12 @@ function openNodeForm(id=null,type=null){
  $('deleteNodeBtn').hidden=!n||isRoot;closeSidebar();showDialog('nodeDialog','#nName');
 }
 function saveNode(event){
+ if(window.__worktree_is_cloud_workspace){
+  event.preventDefault();
+  toast('Chế độ xem Cloud: Tính năng quản lý đơn vị đang được hoàn thiện trong Step 06.','info');
+  closeDialog('nodeDialog',true);
+  return;
+ }
  if(!requireAdmin()){event.preventDefault();return;}
  event.preventDefault();if(!$('nodeForm').reportValidity())return;
  const name=$('nName').value.trim(),id=editingNode||uid(),isNew=!editingNode,original=byNode.get(id),isRoot=original?.parent===null;
@@ -915,6 +979,11 @@ function saveNode(event){
  if(ok){dirtyNode=false;closeDialog('nodeDialog',true);if(parent&&!state.expanded.includes(parent))state.expanded.push(parent);if(isNew)selectNode(id);else{savePrefs();renderAll(true);}}
 }
 async function deleteNode(id=editingNode||state.selected){
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Tính năng xóa đơn vị đang được hoàn thiện trong Step 06.','info');
+  closeDialog('nodeDialog',true);
+  return;
+ }
  if(!requireAdmin())return;
  const n=byNode.get(id);if(!n)return;if(n.parent===null){toast('Không thể xóa đơn vị gốc.','error');return;}
  const ids=subtree(id),taskIds=new Set(data.tasks.filter(t=>ids.has(t.node)).map(t=>t.id)),otherAssigned=data.tasks.filter(t=>!taskIds.has(t.id)&&ids.has(t.owner)).length;
@@ -930,6 +999,10 @@ async function deleteNode(id=editingNode||state.selected){
  }
 }
 function bulkStatus(status){
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Thao tác hàng loạt đang được hoàn thiện trong Step 06.','info');
+  return;
+ }
  const ids=new Set(state.selectedTasks);if(!ids.size||!STATUS.includes(status))return;
  commit(`Đã đổi trạng thái ${ids.size} công việc`,d=>{
   const map=new Map(d.tasks.map(t=>[t.id,t])),tasks=d.tasks.filter(t=>ids.has(t.id));
@@ -940,7 +1013,11 @@ function bulkStatus(status){
  });
 }
 function bulkOwner(owner){
- const ids=new Set(state.selectedTasks),ownerId=owner==='unassigned'?null:Number(owner);if(!ids.size)return;
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Thao tác hàng loạt đang được hoàn thiện trong Step 06.','info');
+  return;
+ }
+ const ids=new Set(state.selectedTasks),ownerId=owner==='unassigned'?null:owner;if(!ids.size)return;
  commit(`Đã giao lại ${ids.size} công việc`,d=>d.tasks.forEach(t=>{if(ids.has(t.id)){t.owner=ownerId;touch(t);}}));
 }
 
@@ -1102,15 +1179,18 @@ function selectCommand(index){
 function executeCommand(index=commandIndex){const action=commandOptions[index];if(!action)return;closeDialog('commandDialog',true);action.run();}
 function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';applyTheme();savePrefs();if($('settingsDialog').open)openSettings();}
 
-document.addEventListener('click',async event=>{
- const command=event.target.closest('[data-command-index]');if(command){executeCommand(Number(command.dataset.commandIndex));return;}
- const el=event.target.closest('[data-action]');if(!el||el.disabled)return;event.preventDefault();
- const action=el.dataset.action,id=Number(el.dataset.id);
+ document.addEventListener('click',async event=>{
+  const command=event.target.closest('[data-command-index]');if(command){executeCommand(Number(command.dataset.commandIndex));return;}
+  const el=event.target.closest('[data-action]');if(!el||el.disabled)return;event.preventDefault();
+  const action=el.dataset.action;
+  const rawId=el.dataset.id;
+  const id=(rawId && !isNaN(rawId)) ? Number(rawId) : rawId;
  try{
   switch(action){
    case 'sidebar':toggleSidebar();break;
    case 'sidebar-close':closeSidebar(true);break;
-   case 'workspace':case 'settings':openSettings();break;case 'profile':openProfile();break;
+   case 'workspace':if(typeof window.openWorkspaceSwitcher==='function'){window.openWorkspaceSwitcher();}else{openSettings();}break;
+   case 'settings':openSettings();break;case 'profile':openProfile();break;
    case 'nav':navigate(el.dataset.nav);break;
    case 'new-task':if($('infoDialog').open)closeDialog('infoDialog',true);openTaskForm(null,{status:el.dataset.status,due:el.dataset.due,node:el.dataset.node?Number(el.dataset.node):undefined});break;
    case 'edit-task':openTaskForm(id);break;
@@ -1192,11 +1272,11 @@ document.addEventListener('change',event=>{
  if(id==='filterFavorite'){updateFilter('favorite',el.checked);return;}
  if(id==='includeChildren'){state.includeChildren=el.checked;state.page=1;state.selectedTasks.clear();savePrefs();renderAll();return;}
  if(id==='sortBy'){state.sort=el.value;state.page=1;savePrefs();renderAll();return;}
- if(el.dataset.statusTask){const tid=Number(el.dataset.statusTask);changeStatus(tid,el.value);if(!id)document.querySelector(`[data-status-task="${tid}"]`)?.focus({preventScroll:true});return;}
- if(el.dataset.ownerTask){const tid=Number(el.dataset.ownerTask);commit('Đã cập nhật người phụ trách',d=>{const t=d.tasks.find(t=>t.id===tid);t.owner=el.value?Number(el.value):null;touch(t);},{taskId:tid});return;}
- if(el.dataset.priorityTask){const tid=Number(el.dataset.priorityTask);commit('Đã cập nhật mức ưu tiên',d=>{const t=d.tasks.find(t=>t.id===tid);t.priority=el.value;touch(t);},{taskId:tid});return;}
- if(el.dataset.checkTask){const tid=Number(el.dataset.checkTask),index=Number(el.dataset.checkIndex);changeChecklist(tid,index,el.checked);document.querySelector(`[data-check-task="${tid}"][data-check-index="${index}"]`)?.focus({preventScroll:true});return;}
- if(el.dataset.selectTask){const tid=Number(el.dataset.selectTask);el.checked?state.selectedTasks.add(tid):state.selectedTasks.delete(tid);renderView();document.querySelector(`[data-select-task="${tid}"]`)?.focus({preventScroll:true});return;}
+ if(el.dataset.statusTask){const tid=el.dataset.statusTask;changeStatus(tid,el.value);if(!id)document.querySelector(`[data-status-task="${tid}"]`)?.focus({preventScroll:true});return;}
+ if(el.dataset.ownerTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật phân công đang được hoàn thiện trong Step 06.','info');return;}const tid=el.dataset.ownerTask;commit('Đã cập nhật người phụ trách',d=>{const t=d.tasks.find(t=>t.id===tid);t.owner=el.value||null;touch(t);},{taskId:tid});return;}
+ if(el.dataset.priorityTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật mức ưu tiên đang được hoàn thiện trong Step 06.','info');return;}const tid=el.dataset.priorityTask;commit('Đã cập nhật mức ưu tiên',d=>{const t=d.tasks.find(t=>t.id===tid);t.priority=el.value;touch(t);},{taskId:tid});return;}
+ if(el.dataset.checkTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật checklist đang được hoàn thiện trong Step 06.','info');return;}const tid=el.dataset.checkTask,index=Number(el.dataset.checkIndex);changeChecklist(tid,index,el.checked);document.querySelector(`[data-check-task="${tid}"][data-check-index="${index}"]`)?.focus({preventScroll:true});return;}
+ if(el.dataset.selectTask){const tid=el.dataset.selectTask;el.checked?state.selectedTasks.add(tid):state.selectedTasks.delete(tid);renderView();document.querySelector(`[data-select-task="${tid}"]`)?.focus({preventScroll:true});return;}
  if(id==='selectPage'){const arr=filteredTasks().slice((state.page-1)*state.pageSize,state.page*state.pageSize);arr.forEach(t=>el.checked?state.selectedTasks.add(t.id):state.selectedTasks.delete(t.id));renderView();$('selectPage')?.focus({preventScroll:true});return;}
  if(id==='pageSize'){state.pageSize=Number(el.value);state.page=1;savePrefs();renderView();return;}
  if(id==='bulkStatus'&&el.value){bulkStatus(el.value);$('bulkStatus')?.focus();return;}
@@ -1276,9 +1356,11 @@ document.addEventListener('keydown',e=>{
 });
 let draggingId=null;
 document.addEventListener('dragstart',e=>{
- const card=e.target.closest('[data-drag-task]');if(!card)return;if(!canUpdateTask(byTask.get(Number(card.dataset.dragTask)))){e.preventDefault();return;}
+ const card=e.target.closest('[data-drag-task]');if(!card)return;
+ const cardTaskId=card.dataset.dragTask;
+ if(!canUpdateTask(byTask.get(cardTaskId))){e.preventDefault();return;}
  if(e.target.closest('select,input')){e.preventDefault();return;}
- draggingId=Number(card.dataset.dragTask);e.dataTransfer.setData('text/plain',String(draggingId));e.dataTransfer.effectAllowed='move';card.classList.add('dragging');
+ draggingId=cardTaskId;e.dataTransfer.setData('text/plain',String(draggingId));e.dataTransfer.effectAllowed='move';card.classList.add('dragging');
 });
 document.addEventListener('dragover',e=>{
  const col=e.target.closest('[data-drop-status]');if(!col||!draggingId)return;e.preventDefault();e.dataTransfer.dropEffect='move';
@@ -1286,7 +1368,11 @@ document.addEventListener('dragover',e=>{
 });
 document.addEventListener('drop',e=>{
  const col=e.target.closest('[data-drop-status]');if(!col||!draggingId)return;e.preventDefault();
- const id=Number(e.dataTransfer.getData('text/plain')),status=col.dataset.dropStatus;draggingId=null;$$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));
+ const id=e.dataTransfer.getData('text/plain'),status=col.dataset.dropStatus;draggingId=null;$$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));
+ if(window.__worktree_is_cloud_workspace){
+  toast('Chế độ xem Cloud: Kéo thả đổi trạng thái đang được hoàn thiện trong Step 06.','info');
+  return;
+ }
  if(byTask.has(id)&&STATUS.includes(status))changeStatus(id,status);
 });
 document.addEventListener('dragend',()=>{draggingId=null;$$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));});
@@ -1312,5 +1398,55 @@ function boot(){
  if(!lastRaw&&!storageProtected)persistData();else renderStorage();
  if(migrationMessage)setTimeout(()=>toast(migrationMessage),300);
  let tick=0;setInterval(()=>{if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());if(++tick%30===0)checkDate();},1000);
- window.WorkTree=Object.freeze({version:APP_VERSION,exportJSON,getSnapshot:()=>clone(data),validate:input=>validateData(input)});
+  window.WorkTree=Object.freeze({version:APP_VERSION,exportJSON,getSnapshot:()=>clone(data),validate:input=>validateData(input)});
 }
+window.clearTenantUI=function(orgName){
+ if(typeof data!=='undefined'){
+  data.tasks=[];
+  data.nodes=[];
+  data.activities=[];
+  window.cloudEmployees=[];
+  window.employeesById=new Map();
+  state.selected=null;
+  state.selectedTasks.clear();
+  state.filters=blankFilters();
+  if(typeof rebuild==='function')rebuild();
+  if(typeof renderAll==='function')renderAll(true);
+ }
+};
+
+window.setCloudWorkspaceData=function({nodes,employees,tasks,orgName}){
+ window.__worktree_is_cloud_workspace=true;
+ window.cloudEmployees=employees||[];
+ window.employeesById=new Map((employees||[]).map(e=>[e.id,e]));
+
+ data={
+  nodes:nodes||[],
+  tasks:tasks||[],
+  activities:[]
+ };
+
+ const root=rootNode();
+ if(root){
+  state.selected=root.id;
+  state.expanded=[root.id,...(nodes||[]).filter(n=>n.parent===root.id).map(n=>n.id)];
+ }else{
+  state.selected=null;
+  state.expanded=[];
+ }
+
+ state.selectedTasks.clear();
+ state.filters=blankFilters();
+ state.page=1;
+
+ rebuild();
+ syncFilters(true);
+ renderAll(true);
+
+ if($('saveStatus')){
+  $('saveStatus').textContent='Đồng bộ đám mây Supabase';
+ }
+ if($('saveDot')){
+  $('saveDot').classList.remove('error');
+ }
+};
