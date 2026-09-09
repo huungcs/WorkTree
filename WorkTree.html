@@ -3130,7 +3130,7 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,orgName}){
  */
 const T={
  login:'Đăng nhập',logout:'Đăng xuất',close:'Đóng',cancel:'Hủy',save:'Lưu thay đổi',create:'Tạo tài khoản',name:'Họ và tên',username:'Tên đăng nhập',password:'Mật khẩu',confirmPassword:'Nhập lại mật khẩu',currentPassword:'Mật khẩu hiện tại',newPassword:'Mật khẩu mới',passwordHint:'Tối thiểu 12 ký tự. Nên dùng một cụm từ dài, dễ nhớ.',
- admin:'Quản trị viên',manager:'Quản lý',member:'Nhân viên',viewer:'Chỉ xem',role:'Vai trò',scope:'Phạm vi được cấp',allScope:'Toàn bộ không gian',allowedScope:'Phạm vi được cấp',account:'Tài khoản',accounts:'Tài khoản & phân quyền',matrix:'Ma trận quyền',audit:'Nhật ký tài khoản',active:'Hoạt động',inactive:'Đã vô hiệu',edit:'Chỉnh sửa',disable:'Vô hiệu hóa',enable:'Kích hoạt',resetPassword:'Đặt lại mật khẩu',changePassword:'Đổi mật khẩu',person:'Liên kết nhân sự',noPerson:'Không liên kết',
+ admin:'Quản trị viên',manager:'Quản lý',member:'Nhân viên',viewer:'Chỉ xem',owner:'Chủ sở hữu',role:'Vai trò',scope:'Phạm vi được cấp',allScope:'Toàn bộ không gian',allowedScope:'Phạm vi được cấp',account:'Tài khoản',accounts:'Tài khoản & phân quyền',matrix:'Ma trận quyền',audit:'Nhật ký tài khoản',active:'Hoạt động',inactive:'Đã vô hiệu',edit:'Chỉnh sửa',disable:'Vô hiệu hóa',enable:'Kích hoạt',resetPassword:'Đặt lại mật khẩu',changePassword:'Đổi mật khẩu',person:'Liên kết nhân sự',noPerson:'Không liên kết',
  local:'Cục bộ trên trình duyệt này',localWarning:'Đây là quy trình đăng nhập và phân quyền cục bộ. Người có quyền truy cập tệp, DevTools hoặc bộ nhớ trình duyệt vẫn có thể đọc/sửa dữ liệu. Chưa có máy chủ hay đồng bộ giữa các máy.',
  setupTitle:'Thiết lập người quản trị',setupSub:'Tạo tài khoản đầu tiên. Dữ liệu công việc hiện có được giữ nguyên.',loginTitle:'Chào mừng trở lại.',loginSub:'Đăng nhập để vào đúng không gian của bạn.',heroTitle:'Đúng người.\nĐúng việc.\nĐúng ưu tiên.',heroSub:'Một nơi để đội ngũ tập trung vào điều quan trọng nhất.',setup:'Tạo quản trị viên',showPassword:'Hiện / ẩn mật khẩu',forgot:'Quên mật khẩu?',forgotHelp:'Nhờ quản trị viên đặt mật khẩu tạm trong Tài khoản & quyền. Không có email khôi phục tự động. Không xóa dữ liệu trình duyệt để tránh mất công việc.',
  denied:'Thao tác không thuộc quyền của bạn.',badLogin:'Tên đăng nhập hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa.',locked:'Thử sai quá nhiều lần. Vui lòng thử lại sau 60 giây.',passwordMismatch:'Hai mật khẩu chưa trùng khớp.',usernameInvalid:'Tên đăng nhập cần 3–80 ký tự: chữ không dấu, số, dấu chấm, @, _ hoặc -.',duplicateUsername:'Tên đăng nhập này đã tồn tại.',storageError:'Không lưu được. Hãy cho phép bộ nhớ trình duyệt và kiểm tra dung lượng.',cryptoError:'Trình duyệt chưa cấp Web Crypto. Mở tệp bằng Chrome/Edge hiện đại, hoặc chạy qua localhost/HTTPS. Ứng dụng không hạ cấp sang mật khẩu văn bản.',identityError:'Dữ liệu tài khoản không đọc được. Bản gốc chưa bị ghi đè. Hãy khôi phục bộ nhớ từ bản sao của thiết bị; không tự động tạo lại quản trị.',sessionExpired:'Phiên làm việc đã khóa. Vui lòng đăng nhập lại.',
@@ -3195,7 +3195,7 @@ function requireLogin(){
  if(window.__worktree_supabase_user) return true;
  if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
   if(!refreshIdentity())return false;
-  if(!currentAccount()||Date.now()-session.lastActive>IDLE_MS||Date.now()-session.startedAt>MAX_SESSION_MS){if(session)lockWorkspace(T.sessionExpired);return false;}
+  if(!currentAccount()||(session && (Date.now()-session.lastActive>IDLE_MS||Date.now()-session.startedAt>MAX_SESSION_MS))){if(session)lockWorkspace(T.sessionExpired);return false;}
   return true;
  }
  return false;
@@ -3356,20 +3356,39 @@ function matrixHTML(){
  const rows=[['Xem công việc','Toàn bộ','Trong nhánh','Việc được giao','Trong nhánh'],['Tạo, giao, sửa kế hoạch','yes','yes','no','no'],['Cập nhật, checklist, ghi giờ','yes','yes','Việc được giao','no'],['Xóa công việc','yes','Trong nhánh*','no','no'],['Sửa cây, cấp tài khoản','yes','no','no','no'],['Nhập / sao lưu JSON','yes','no','no','no'],['Xuất CSV theo bộ lọc','yes','yes','no','no'],[T.pins+' · '+T.personal,'yes','yes','yes','yes']];
  return `<div class="role-cards">${ROLES.map(r=>`<article><span class="role-badge role-${r}">${icon(r==='admin'?'shield':r==='viewer'?'eye':'user')}${T[r]}</span><p>${roleDescription(r)}</p></article>`).join('')}</div><div class="access-table-scroll"><table class="access-matrix"><thead><tr><th>Thao tác</th>${ROLES.map(r=>`<th>${T[r]}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i===0?`<th>${v}</th>`:`<td>${v==='yes'?`<span class="matrix-yes" aria-label="Có">${icon('check')}</span>`:v==='no'?'<span class="muted" aria-label="Không">—</span>':v}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="view-note">* Không xóa nếu thao tác đó làm thay đổi liên kết của công việc ngoài phạm vi. Cần quản trị viên xử lý.</p>`;
 }
+function getAccountsList(){
+ const list = [...identity.accounts];
+ const cur = currentAccount();
+ if(cur && !list.some(a => a.id === cur.id)){
+  list.unshift({
+   id: cur.id,
+   name: cur.name,
+   username: cur.username || cur.email || 'admin',
+   role: cur.role || 'admin',
+   personId: cur.personId,
+   scopes: cur.scopes || [],
+   active: true,
+   isCloudUser: !!window.__worktree_supabase_user
+  });
+ }
+ return list;
+}
 function openAccess(tab=accessTab){
  if(!requireAdmin())return;accessTab=tab;$('accessTitle').textContent=T.accounts;
- const count=identity.accounts.filter(a=>a.active).length;
+ const count=getAccountsList().filter(a=>a.active).length;
  $('accessContent').innerHTML=`<div class="access-banner"><div><span class="access-banner-icon">${icon('shield')}</span><h3>Rõ vai trò. Đúng phạm vi.</h3><p>Cấp quyền theo công việc thực tế, không chia sẻ một tài khoản chung.</p></div><div class="access-stat"><strong>${count}</strong><span>${T.active}</span></div></div><div class="access-tabs" role="tablist">${[['accounts',T.accounts],['matrix',T.matrix],['audit',T.audit]].map(([key,label])=>`<button role="tab" aria-selected="${key===tab}" data-v8="access-tab" data-tab="${key}">${label}</button>`).join('')}</div><div id="accessPanel" role="tabpanel">${tab==='matrix'?matrixHTML():tab==='audit'?accessAuditHTML():`<div class="access-toolbar"><label class="access-search">${icon('search')}<input id="accountSearch" type="search" value="${esc(accountQuery)}" placeholder="${T.searchAccounts}" aria-label="${T.searchAccounts}"></label><button class="btn primary" data-v8="account-new">${icon('plus')}${T.create}</button></div><div id="accountList"></div><p class="view-note">${T.credentialsHint}</p>`}</div><details class="access-limits"><summary>${icon('info')}${T.local}</summary><p>${T.localWarning}</p></details>`;
  if(tab==='accounts'){renderAccountList();$('accountSearch').addEventListener('input',e=>{accountQuery=e.target.value;renderAccountList();});}
  closeSidebar();showDialog('accessDialog');
 }
 function renderAccountList(){
- const q=fold(accountQuery),users=identity.accounts.filter(a=>fold(a.name+' '+a.username+' '+T[a.role]).includes(q));
- $('accountList').innerHTML=users.map(a=>`<article class="account-row ${a.active?'':'is-inactive'}"><span class="avatar av-${ROLES.indexOf(a.role)}">${esc(initials(a.name))}</span><div class="account-main"><div><strong>${esc(a.name)}</strong>${a.id===session.id?'<span class="you-badge">Bạn</span>':''}<span class="role-badge role-${a.role}">${T[a.role]}</span></div><p>@${esc(a.username)} · ${a.personId?esc(nodeName(a.personId)):T.noPerson}</p><small title="${esc(accountSummary(a))}">${icon('network')}${esc(accountSummary(a))}</small>${a.mustChange?`<span class="access-pending">${T.forceChange}</span>`:''}</div><div class="account-ops"><span class="access-status ${a.active?'active':''}">${a.active?T.active:T.inactive}</span><div><button class="icon-btn" data-v8="account-edit" data-user="${a.id}" title="${T.edit}" aria-label="${T.edit}: ${esc(a.name)}">${icon('edit')}</button><button class="icon-btn" data-v8="account-reset" data-user="${a.id}" title="${T.resetPassword}" aria-label="${T.resetPassword}: ${esc(a.name)}">${icon('key')}</button><button class="icon-btn" data-v8="account-toggle" data-user="${a.id}" ${a.id===session.id?'disabled':''} title="${a.active?T.disable:T.enable}" aria-label="${a.active?T.disable:T.enable}: ${esc(a.name)}">${icon(a.active?'lock':'check-circle')}</button></div></div></article>`).join('')||`<p class="empty-state">${T.noResults}</p>`;
+ const q=fold(accountQuery),users=getAccountsList().filter(a=>fold(a.name+' '+a.username+' '+(T[a.role]||a.role)).includes(q));
+ const curId=session?.id||currentAccount()?.id;
+ $('accountList').innerHTML=users.map(a=>`<article class="account-row ${a.active?'':'is-inactive'}"><span class="avatar av-${Math.max(0,ROLES.indexOf(a.role))}">${esc(initials(a.name))}</span><div class="account-main"><div><strong>${esc(a.name)}</strong>${a.id===curId?'<span class="you-badge">Bạn</span>':''}<span class="role-badge role-${a.role}">${T[a.role]||a.role}</span>${a.isCloudUser?'<span class="badge" style="font-size:11px;background:var(--primary-soft);color:var(--primary);padding:2px 6px;border-radius:4px;margin-left:4px">Cloud</span>':''}</div><p>@${esc(a.username)} · ${a.personId?esc(nodeName(a.personId)):T.noPerson}</p><small title="${esc(accountSummary(a))}">${icon('network')}${esc(accountSummary(a))}</small>${a.mustChange?`<span class="access-pending">${T.forceChange}</span>`:''}</div><div class="account-ops"><span class="access-status ${a.active?'active':''}">${a.active?T.active:T.inactive}</span><div><button class="icon-btn" data-v8="account-edit" data-user="${a.id}" ${a.isCloudUser?'disabled':''} title="${a.isCloudUser?'Tài khoản đám mây (Supabase)':T.edit}" aria-label="${T.edit}: ${esc(a.name)}">${icon('edit')}</button><button class="icon-btn" data-v8="account-reset" data-user="${a.id}" ${a.isCloudUser?'disabled':''} title="${a.isCloudUser?'Đổi mật khẩu trên đám mây':T.resetPassword}" aria-label="${T.resetPassword}: ${esc(a.name)}">${icon('key')}</button><button class="icon-btn" data-v8="account-toggle" data-user="${a.id}" ${a.id===curId||a.isCloudUser?'disabled':''} title="${a.active?T.disable:T.enable}" aria-label="${a.active?T.disable:T.enable}: ${esc(a.name)}">${icon(a.active?'lock':'check-circle')}</button></div></div></article>`).join('')||`<p class="empty-state">${T.noResults}</p>`;
 }
 function openAccount(id=null){
  if(!requireAdmin())return;const a=identity.accounts.find(a=>a.id===id);accountEditing=id;
- $('accountContent').innerHTML=`<form id="accountForm">${dialogHead(a?T.edit:T.newAccount,'accountTitle','accountDialog')}<div class="dialog-scroll"><div class="form-error" id="accountError" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field(T.name,'accountName','text',a?.name||'','required maxlength="180" autocomplete="name"')}${field(T.username,'accountUsername','text',a?.username||'','required maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false"')}<label class="field">${T.role}<select id="accountRole" ${a?.id===session.id?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${(a?.role||'member')===r?'selected':''}>${T[r]}</option>`).join('')}</select></label><label class="field">${T.person}<select id="accountPerson"><option value="">${T.noPerson}</option>${data.nodes.filter(n=>n.type==='person').map(n=>`<option value="${n.id}" ${n.id===a?.personId?'selected':''}>${esc(n.name)}</option>`).join('')}</select></label>${a?'':`<div class="field full">${passwordField(T.temporary,'accountPassword')}<p class="field-hint">${T.passwordHint}</p><label class="checkbox-label account-force-change"><input id="accountForceChange" type="checkbox" checked><span>${T.forceChange}</span></label></div>`}<div class="field full" id="scopeField"><div class="scope-label"><strong>${T.scope}</strong><small id="scopeSelectedCount"></small></div><p class="field-hint">${T.scopeHint}</p><input type="search" id="scopeSearch" placeholder="Tìm nhánh..." aria-label="Tìm nhánh phân quyền"><div class="scope-picker">${data.nodes.map(n=>`<label class="scope-option" data-scope-name="${esc(fold(pathName(n.id)))}"><input type="checkbox" name="scope" value="${n.id}" ${a?.scopes.includes(n.id)?'checked':''}><span class="scope-option-main" style="--scope-indent:${Math.min(36,(pathNodes(n.id).length-1)*10)}px">${icon(nodeIcon(n.type))}<span class="scope-option-name">${esc(n.name)}</span></span><small>${TYPES[n.type]}</small></label>`).join('')}</div></div><div class="role-explanation full" id="roleExplanation"></div></div></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="accountDialog">${T.cancel}</button><button type="submit" class="btn primary" id="accountSave">${a?T.save:T.create}</button></div></form>`;
+ const curId=session?.id||currentAccount()?.id;
+ $('accountContent').innerHTML=`<form id="accountForm">${dialogHead(a?T.edit:T.newAccount,'accountTitle','accountDialog')}<div class="dialog-scroll"><div class="form-error" id="accountError" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field(T.name,'accountName','text',a?.name||'','required maxlength="180" autocomplete="name"')}${field(T.username,'accountUsername','text',a?.username||'','required maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false"')}<label class="field">${T.role}<select id="accountRole" ${a?.id===curId?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${(a?.role||'member')===r?'selected':''}>${T[r]}</option>`).join('')}</select></label><label class="field">${T.person}<select id="accountPerson"><option value="">${T.noPerson}</option>${permittedPeople().map(n=>`<option value="${n.id}" ${n.id===a?.personId?'selected':''}>${esc(n.name)}</option>`).join('')}</select></label>${a?'':`<div class="field full">${passwordField(T.temporary,'accountPassword')}<p class="field-hint">${T.passwordHint}</p><label class="checkbox-label account-force-change"><input id="accountForceChange" type="checkbox" checked><span>${T.forceChange}</span></label></div>`}<div class="field full" id="scopeField"><div class="scope-label"><strong>${T.scope}</strong><small id="scopeSelectedCount"></small></div><p class="field-hint">${T.scopeHint}</p><input type="search" id="scopeSearch" placeholder="Tìm nhánh..." aria-label="Tìm nhánh phân quyền"><div class="scope-picker">${data.nodes.map(n=>`<label class="scope-option" data-scope-name="${esc(fold(pathName(n.id)))}"><input type="checkbox" name="scope" value="${n.id}" ${(a?.scopes||[]).includes(n.id)?'checked':''}><span class="scope-option-main" style="--scope-indent:${Math.min(36,(pathNodes(n.id).length-1)*10)}px">${icon(nodeIcon(n.type))}<span class="scope-option-name">${esc(n.name)}</span></span><small>${TYPES[n.type]}</small></label>`).join('')}</div></div><div class="role-explanation full" id="roleExplanation"></div></div></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="accountDialog">${T.cancel}</button><button type="submit" class="btn primary" id="accountSave">${a?T.save:T.create}</button></div></form>`;
  $('accountForm').addEventListener('submit',saveAccount);$('accountRole').addEventListener('change',updateScopeForm);$('accountPerson').addEventListener('change',()=>{if(!$('accountName').value.trim()&&$('accountPerson').value)$('accountName').value=nodeName(Number($('accountPerson').value));});
  $('scopeSearch').addEventListener('input',e=>{const q=fold(e.target.value);$('.scope-option').forEach(el=>el.hidden=!el.dataset.scopeName.includes(q));});
  $('#accountForm [name="scope"]').forEach(el=>el.addEventListener('change',updateScopeForm));updateScopeForm();showDialog('accountDialog','#accountName');
@@ -3385,19 +3404,20 @@ async function saveAccount(e){
   if(role==='member'&&!personId)throw Error(T.personRequired);
   if(identity.accounts.some(a=>a.id!==accountEditing&&a.username===username))throw Error(T.duplicateUsername);
   if(personId&&identity.accounts.some(a=>a.id!==accountEditing&&a.personId===personId))throw Error(T.personTaken);
-  const original=identity.accounts.find(a=>a.id===accountEditing);if(original?.id===session.id&&role!=='admin')throw Error(T.selfGuard);
+  const curId=session?.id||currentAccount()?.id;
+  const original=identity.accounts.find(a=>a.id===accountEditing);if(original?.id===curId&&role!=='admin')throw Error(T.selfGuard);
   const revision=identityRaw;let credential=original?.credential;
   if(!original){if(identity.accounts.length>=500)throw Error('Tối đa 500 tài khoản trong bản cục bộ.');checkPassword($('accountPassword').value);credential=await makeCredential($('accountPassword').value);}
   if(!requireAdmin()||identityRaw!==revision)throw Error(T.scopeChanged);
   const next=clone(identity),a=next.accounts.find(a=>a.id===accountEditing)||{id:'u_'+crypto.randomUUID(),version:0,active:true,createdAt:new Date().toISOString(),failures:0,lockedUntil:0,mustChange:$('accountForceChange')?.checked!==false};
   Object.assign(a,{username,name,role,personId,scopes,credential,version:a.version+1});if(!original)next.accounts.push(a);
   auditEvent(next,original?T.edit:T.create,a.username);writeIdentity(next);
-  if(a.id===session.id){session.version=a.version;saveSession();state.currentUser=a.personId;}
+  if(a.id===curId){if(session)session.version=a.version;saveSession();state.currentUser=a.personId;}
   closeDialog('accountDialog',true);$('accountContent').innerHTML='';openAccess('accounts');renderAll(true);toast(T.accountSaved);
  }catch(err){if($('accountError')){$('accountError').textContent=err.message;$('accountError').hidden=false;$('accountError').focus({preventScroll:true});$('accountError').closest('.dialog-scroll').scrollTop=0;}}finally{if($('accountSave'))$('accountSave').disabled=false;}
 }
 async function toggleAccount(id){
- if(!requireAdmin())return;const a=identity.accounts.find(a=>a.id===id);if(!a)return;if(a.id===session.id)return toast(T.selfGuard,'error');
+ if(!requireAdmin())return;const a=identity.accounts.find(a=>a.id===id);if(!a)return;const curId=session?.id||currentAccount()?.id;if(a.id===curId)return toast(T.selfGuard,'error');
  if(a.active&&!await ask(T.disable,T.confirmDisable,T.disable,true))return;
  if(!requireAdmin())return;
  const next=clone(identity),u=next.accounts.find(a=>a.id===id);u.active=!u.active;u.version++;u.failures=0;u.lockedUntil=0;
@@ -3420,7 +3440,8 @@ async function savePassword(e,forced,reset){
  try{
   if(forced&&!pendingUser||!forced&&!requireLogin())throw Error(T.denied);
   if(reset&&!requireAdmin())throw Error(T.denied);
-  const id=forced?pendingUser.id:passwordTarget||session.id,a=identity.accounts.find(a=>a.id===id);
+  const curId=session?.id||currentAccount()?.id;
+  const id=forced?pendingUser.id:passwordTarget||curId,a=identity.accounts.find(a=>a.id===id);
   if(!a||!a.active||forced&&a.version!==pendingUser.version)throw Error(T.sessionExpired);
   const password=$('newPassword').value;checkPassword(password);if(password!==$('newPasswordConfirm').value)throw Error(T.passwordMismatch);
   const revision=identityRaw;
@@ -3432,7 +3453,7 @@ async function savePassword(e,forced,reset){
   const next=clone(identity),u=next.accounts.find(u=>u.id===id);u.credential=credential;u.mustChange=reset;u.version++;u.failures=0;u.lockedUntil=0;
   auditEvent(next,reset?T.resetPassword:T.changePassword,u.username,forced?u.name:currentAccount().name);writeIdentity(next);
   closeDialog('passwordDialog',true);$('passwordContent').innerHTML='';pendingUser=null;
-  if(forced)await enterWorkspace(u);else if(id===session.id){session.version=u.version;saveSession();}
+  if(forced)await enterWorkspace(u);else if(id===curId){if(session){session.version=u.version;saveSession();}}
   if($('accessDialog').open)openAccess();toast(T.passwordSaved);
  }catch(err){if($('passwordError')){$('passwordError').textContent=err.message;$('passwordError').hidden=false;}}finally{if($('passwordSave'))$('passwordSave').disabled=false;}
 }
@@ -3445,7 +3466,7 @@ function savePins(list,remember=true){
  if(!requireLogin())return false;
  try{
   const raw=localStorage.getItem(PIN_KEY);if(raw!==pinRaw){const loaded=JSON.parse(raw||'null');pinDB=loaded?.version===1&&isObject(loaded.users)?loaded:{version:1,users:{}};pinRaw=raw;throw Error(T.scopeChanged);}
-  const before=ownPins(),next=clone(pinDB);next.users[session.id]=normalPins(list);const packed=JSON.stringify(next);localStorage.setItem(PIN_KEY,packed);pinDB=next;pinRaw=packed;if(remember)pinUndo={user:session.id,list:before};renderPins();decoratePinButtons();return true;
+   const before=ownPins(),next=clone(pinDB);const curId=session?.id||currentAccount()?.id;if(curId)next.users[curId]=normalPins(list);const packed=JSON.stringify(next);localStorage.setItem(PIN_KEY,packed);pinDB=next;pinRaw=packed;if(remember&&curId)pinUndo={user:curId,list:before};renderPins();decoratePinButtons();return true;
  }catch(e){toast(e.message===T.scopeChanged?T.scopeChanged:T.storageError,'error');renderPins();return false;}
 }
 function restorePins(pins){savePins(normalPins(pins).filter(p=>canPin(p.kind,p.id)));}
@@ -3484,7 +3505,7 @@ function decoratePinButtons(){
 }
 function openPins(){
  if(!requireLogin())return;$('pinTitle').textContent=T.pins;const pins=visiblePins();
- $('pinContent').innerHTML=`<p class="pin-description">${T.pinHint}</p><div class="pins-management">${pins.map((p,i)=>`<article class="pin-manage-row"><span class="pin-order">${String(i+1).padStart(2,'0')}</span><button class="pin-manage-open" data-v8="pin-open" data-kind="${p.kind}" data-id="${p.id}"><strong>${esc(pinTitle(p))}</strong><small>${esc(pinMeta(p))}</small></button><div class="pin-manage-controls"><button class="icon-btn ${p.urgent?'pin-urgent-active':''}" data-v8="pin-urgent" data-kind="${p.kind}" data-id="${p.id}" aria-pressed="${p.urgent}" aria-label="${T.urgent}" title="${T.urgent}">${icon('flag')}</button><button class="icon-btn" data-v8="pin-top" data-kind="${p.kind}" data-id="${p.id}" ${i===0?'disabled':''} title="${T.pinTop}" aria-label="${T.pinTop}">${icon('arrow-top')}</button><button class="icon-btn" data-v8="pin-up" data-kind="${p.kind}" data-id="${p.id}" ${i===0?'disabled':''} title="${T.up}" aria-label="${T.up}">${icon('arrow-up')}</button><button class="icon-btn" data-v8="pin-down" data-kind="${p.kind}" data-id="${p.id}" ${i===pins.length-1?'disabled':''} title="${T.down}" aria-label="${T.down}">${icon('arrow-down')}</button><button class="icon-btn" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}" title="${T.unpin}" aria-label="${T.unpin}">${icon('x')}</button></div></article>`).join('')||`<div class="empty-state mini">${icon('pin')}<p>${T.pinEmpty}</p></div>`}</div>${pinUndo?.user===session.id?`<button class="link-btn pin-undo" data-v8="pin-undo">${icon('undo')}${T.undo}</button>`:''}<div class="pin-picker-head"><h3>${T.addPin}</h3><span>${T.personal}</span></div><label class="access-search">${icon('search')}<input id="pinSearch" type="search" placeholder="${T.pinSearch}" aria-label="${T.pinSearch}" autocomplete="off"></label><div id="pinSearchResults" class="pin-search-results"></div>`;
+ $('pinContent').innerHTML=`<p class="pin-description">${T.pinHint}</p><div class="pins-management">${pins.map((p,i)=>`<article class="pin-manage-row"><span class="pin-order">${String(i+1).padStart(2,'0')}</span><button class="pin-manage-open" data-v8="pin-open" data-kind="${p.kind}" data-id="${p.id}"><strong>${esc(pinTitle(p))}</strong><small>${esc(pinMeta(p))}</small></button><div class="pin-manage-controls"><button class="icon-btn ${p.urgent?'pin-urgent-active':''}" data-v8="pin-urgent" data-kind="${p.kind}" data-id="${p.id}" aria-pressed="${p.urgent}" aria-label="${T.urgent}" title="${T.urgent}">${icon('flag')}</button><button class="icon-btn" data-v8="pin-top" data-kind="${p.kind}" data-id="${p.id}" ${i===0?'disabled':''} title="${T.pinTop}" aria-label="${T.pinTop}">${icon('arrow-top')}</button><button class="icon-btn" data-v8="pin-up" data-kind="${p.kind}" data-id="${p.id}" ${i===0?'disabled':''} title="${T.up}" aria-label="${T.up}">${icon('arrow-up')}</button><button class="icon-btn" data-v8="pin-down" data-kind="${p.kind}" data-id="${p.id}" ${i===pins.length-1?'disabled':''} title="${T.down}" aria-label="${T.down}">${icon('arrow-down')}</button><button class="icon-btn" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}" title="${T.unpin}" aria-label="${T.unpin}">${icon('x')}</button></div></article>`).join('')||`<div class="empty-state mini">${icon('pin')}<p>${T.pinEmpty}</p></div>`}</div>${pinUndo?.user===(session?.id||currentAccount()?.id)?`<button class="link-btn pin-undo" data-v8="pin-undo">${icon('undo')}${T.undo}</button>`:''}<div class="pin-picker-head"><h3>${T.addPin}</h3><span>${T.personal}</span></div><label class="access-search">${icon('search')}<input id="pinSearch" type="search" placeholder="${T.pinSearch}" aria-label="${T.pinSearch}" autocomplete="off"></label><div id="pinSearchResults" class="pin-search-results"></div>`;
  $('pinSearch').addEventListener('input',renderPinSearch);renderPinSearch();showDialog('pinDialog');
 }
 function renderPinSearch(){
@@ -3578,7 +3599,7 @@ function handleV8Click(e){
     case 'pins-expand':pinsExpanded=!pinsExpanded;renderPins();break;
     case 'pin-open':if(!canPin(kind,id))return deny();closeDialog('pinDialog',true);closeDialog('profileDialog',true);if(kind==='task'){closeSidebar();openDrawer(id);}else selectNode(id);break;
     case 'pin-up':case 'pin-down':case 'pin-top':case 'pin-urgent':reorderPin(action,kind,id);break;
-    case 'pin-undo':if(pinUndo?.user===session.id){const list=pinUndo.list;if(savePins(list,false)){pinUndo=null;openPins();renderTree();}}break;
+    case 'pin-undo':if(pinUndo?.user===(session?.id||currentAccount()?.id)){const list=pinUndo.list;if(savePins(list,false)){pinUndo=null;openPins();renderTree();}}break;
    }
   }).catch(err=>toast(err.message,'error'));return;
  }
@@ -3691,7 +3712,8 @@ bootV8();
   if(!mobile()||!currentAccount()){nav.hidden=true;return;}
   const root=rootNode();
   if(!root){nav.hidden=true;return;}
-  if(lastSession!==session.id){choosing=false;boardStatus=STATUS[1];calendarDate=TODAY;renderedMonth=null;lastSession=session.id;}
+  const currentSessId = session?.id || currentAccount()?.id;
+  if(lastSession!==currentSessId){choosing=false;boardStatus=STATUS[1];calendarDate=TODAY;renderedMonth=null;lastSession=currentSessId;}
   nav.hidden=false;document.body.classList.toggle('m-home',state.view==='overview');
   const n=(act,text,ico,active,extra='')=>`<button data-mobile="${act}" ${active?'aria-current="page"':''} ${extra}>${icon(ico)}<span>${text}</span></button>`;
   nav.innerHTML=n('overview',L.home,'dashboard',state.view==='overview')+n('list',L.tasks,'list',['list','kanban','timeline','workload','children'].includes(state.view))+(canCreateTask()?`<button class="m-create" data-mobile="create"><span class="m-create-icon">${icon('plus')}</span><span>${L.add}</span></button>`:n('calendar',VIEWS.calendar[0],'calendar',state.view==='calendar'))+`<button data-mobile="pins">${icon('pin')}<span>${L.pins}</span>${visiblePins().length?`<span class="m-pin-count" aria-label="${visiblePins().length} ghim">${visiblePins().length}</span>`:''}</button>`+n('menu',L.menu,'panel',false,'aria-label="M&#7903; menu & c&#226;y t&#7893; ch&#7913;c"');

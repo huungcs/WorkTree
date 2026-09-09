@@ -59,7 +59,8 @@
   if(!mobile()||!currentAccount()){nav.hidden=true;return;}
   const root=rootNode();
   if(!root){nav.hidden=true;return;}
-  if(lastSession!==session.id){choosing=false;boardStatus=STATUS[1];calendarDate=TODAY;renderedMonth=null;lastSession=session.id;}
+  const currentSessId = session?.id || currentAccount()?.id;
+  if(lastSession!==currentSessId){choosing=false;boardStatus=STATUS[1];calendarDate=TODAY;renderedMonth=null;lastSession=currentSessId;}
   nav.hidden=false;document.body.classList.toggle('m-home',state.view==='overview');
   const n=(act,text,ico,active,extra='')=>`<button data-mobile="${act}" ${active?'aria-current="page"':''} ${extra}>${icon(ico)}<span>${text}</span></button>`;
   nav.innerHTML=n('overview',L.home,'dashboard',state.view==='overview')+n('list',L.tasks,'list',['list','kanban','timeline','workload','children'].includes(state.view))+(canCreateTask()?`<button class="m-create" data-mobile="create"><span class="m-create-icon">${icon('plus')}</span><span>${L.add}</span></button>`:n('calendar',VIEWS.calendar[0],'calendar',state.view==='calendar'))+`<button data-mobile="pins">${icon('pin')}<span>${L.pins}</span>${visiblePins().length?`<span class="m-pin-count" aria-label="${visiblePins().length} ghim">${visiblePins().length}</span>`:''}</button>`+n('menu',L.menu,'panel',false,'aria-label="M&#7903; menu & c&#226;y t&#7893; ch&#7913;c"');
