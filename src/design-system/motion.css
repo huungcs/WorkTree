@@ -1,0 +1,28 @@
+/**
+ * WorkTree X Motion & Transitions
+ */
+
+:root {
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-quick: 0.15s;
+  --duration-normal: 0.25s;
+}
+
+.transition-fast {
+  transition: all var(--duration-quick) var(--ease-standard);
+}
+
+.transition-normal {
+  transition: all var(--duration-normal) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
