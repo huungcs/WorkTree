@@ -748,25 +748,46 @@ export const TaskRepository = {
 //         created_at, updated_at
 // Constraint: user_pins_exactly_one_target check ((node_id is null) <> (task_id is null))
 // ============================================================================
+// 5. USER PINS REPOSITORY (Table: public.user_pins)
+// Schema: id, organization_id, user_id, node_id, task_id, position, is_urgent,
+//         created_at, updated_at
+// Constraint: user_pins_exactly_one_target check ((node_id is null) <> (task_id is null))
+// ============================================================================
 
 export const PinRepository = {
   async getUserPins(organizationId) {
     if (!organizationId) return [];
     const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) return [];
+
     const { data, error } = await sb
       .from('user_pins')
       .select('*')
       .eq('organization_id', organizationId)
+      .eq('user_id', userId)
       .order('position', { ascending: true });
     if (error) throw error;
 
-    // Explicit domain mapping: targetType, targetId, sort_order
+    // Explicit domain mapping: targetType, targetId, sort_order, urgent
     return (data || []).map(p => ({
-      ...p,
+      id: p.id,
+      pinId: p.id,
+      organization_id: p.organization_id,
+      user_id: p.user_id,
+      node_id: p.node_id,
+      task_id: p.task_id,
+      kind: p.task_id ? 'task' : 'node',
       targetType: p.task_id ? 'task' : 'node',
       targetId: p.task_id || p.node_id,
+      position: p.position,
       sort_order: p.position,
-      sortOrder: p.position
+      sortOrder: p.position,
+      urgent: Boolean(p.is_urgent),
+      is_urgent: Boolean(p.is_urgent),
+      created_at: p.created_at,
+      updated_at: p.updated_at
     }));
   },
 
@@ -811,13 +832,25 @@ export const PinRepository = {
       checkQuery = checkQuery.eq('node_id', resolvedNodeId);
     }
 
-    const { data: existing } = await checkQuery.maybeSingle();
+    const { data: existing, error: checkErr } = await checkQuery.maybeSingle();
+    if (checkErr) throw checkErr;
 
     if (existing) {
-      const { error } = await sb.from('user_pins').delete().eq('id', existing.id);
-      if (error) throw error;
-      return { pinned: false };
+      const { error: delErr } = await sb.from('user_pins').delete().eq('id', existing.id);
+      if (delErr) throw delErr;
+      return { pinned: false, id: existing.id };
     } else {
+      // Product limit check: max 100 pins per user in this organization
+      const { count, error: countErr } = await sb
+        .from('user_pins')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
+        .eq('user_id', userId);
+      if (countErr) throw countErr;
+      if (count != null && count >= 100) {
+        throw new Error('Tối đa 100 mục ghim mỗi tài khoản.');
+      }
+
       const { data, error } = await sb
         .from('user_pins')
         .insert({
@@ -825,7 +858,7 @@ export const PinRepository = {
           user_id: userId,
           node_id: resolvedNodeId || null,
           task_id: resolvedTaskId || null,
-          position: 0,
+          position: (count || 0),
           is_urgent: Boolean(isUrgent)
         })
         .select()
@@ -834,13 +867,147 @@ export const PinRepository = {
       return {
         pinned: true,
         pin: {
-          ...data,
+          id: data.id,
+          pinId: data.id,
+          organization_id: data.organization_id,
+          user_id: data.user_id,
+          node_id: data.node_id,
+          task_id: data.task_id,
+          kind: data.task_id ? 'task' : 'node',
           targetType: data.task_id ? 'task' : 'node',
           targetId: data.task_id || data.node_id,
+          position: data.position,
           sort_order: data.position,
-          sortOrder: data.position
+          sortOrder: data.position,
+          urgent: Boolean(data.is_urgent),
+          is_urgent: Boolean(data.is_urgent),
+          created_at: data.created_at,
+          updated_at: data.updated_at
         }
       };
+    }
+  },
+
+  async setPinUrgent({ organizationId, targetType, targetId, isUrgent }) {
+    if (!organizationId || !targetType || !targetId) {
+      throw new Error('Thiếu tham số bắt buộc để đổi trạng thái khẩn cấp.');
+    }
+    const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) throw new Error('Yêu cầu đăng nhập.');
+
+    let query = sb
+      .from('user_pins')
+      .update({ is_urgent: Boolean(isUrgent), updated_at: new Date().toISOString() })
+      .eq('organization_id', organizationId)
+      .eq('user_id', userId);
+
+    if (targetType === 'task') {
+      query = query.eq('task_id', targetId);
+    } else {
+      query = query.eq('node_id', targetId);
+    }
+
+    const { data, error } = await query.select();
+    if (error) throw error;
+    return data || [];
+  },
+
+  async reorderPins({ organizationId, pinIdsInOrder }) {
+    if (!organizationId || !Array.isArray(pinIdsInOrder)) return;
+    const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) throw new Error('Yêu cầu đăng nhập.');
+
+    const updates = pinIdsInOrder.map((pinId, index) =>
+      sb
+        .from('user_pins')
+        .update({ position: index, updated_at: new Date().toISOString() })
+        .eq('id', pinId)
+        .eq('organization_id', organizationId)
+        .eq('user_id', userId)
+    );
+    await Promise.all(updates);
+    return { success: true };
+  },
+
+  async deletePin({ organizationId, pinId }) {
+    if (!pinId) throw new Error('Thiếu pinId.');
+    const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) throw new Error('Yêu cầu đăng nhập.');
+
+    let query = sb.from('user_pins').delete().eq('id', pinId).eq('user_id', userId);
+    if (organizationId) query = query.eq('organization_id', organizationId);
+    const { error } = await query;
+    if (error) throw error;
+    return { success: true };
+  }
+};
+
+// ============================================================================
+// 5.1 TASK STARS REPOSITORY (Table: public.task_stars)
+// Schema: organization_id, task_id, user_id, created_at
+// Primary Key: (task_id, user_id)
+// ============================================================================
+
+export const StarRepository = {
+  async getStarredTaskIds(organizationId) {
+    if (!organizationId) return [];
+    const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) return [];
+
+    const { data, error } = await sb
+      .from('task_stars')
+      .select('task_id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    return (data || []).map(r => r.task_id);
+  },
+
+  async toggleStar({ organizationId, taskId }) {
+    if (!organizationId || !taskId) {
+      throw new Error('Thiếu organizationId hoặc taskId.');
+    }
+    const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) throw new Error('Yêu cầu đăng nhập để đánh dấu sao.');
+
+    const { data: existing, error: checkErr } = await sb
+      .from('task_stars')
+      .select('task_id')
+      .eq('organization_id', organizationId)
+      .eq('task_id', taskId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (checkErr) throw checkErr;
+
+    if (existing) {
+      const { error: delErr } = await sb
+        .from('task_stars')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('task_id', taskId)
+        .eq('user_id', userId);
+      if (delErr) throw delErr;
+      return { starred: false, taskId };
+    } else {
+      const { error: insErr } = await sb
+        .from('task_stars')
+        .insert({
+          organization_id: organizationId,
+          task_id: taskId,
+          user_id: userId
+        });
+      if (insErr) throw insErr;
+      return { starred: true, taskId };
     }
   }
 };
@@ -851,17 +1018,43 @@ export const PinRepository = {
 //         filters, sort_key, include_children, created_at, updated_at
 // ============================================================================
 
+export function mapCloudSavedView(v) {
+  if (!v) return null;
+  return {
+    id: v.id,
+    name: v.name,
+    selected: v.selected_node_id,
+    selected_node_id: v.selected_node_id,
+    view: v.view_type || 'overview',
+    view_type: v.view_type || 'overview',
+    filters: v.filters || {},
+    sort: v.sort_key || 'smart',
+    sort_key: v.sort_key || 'smart',
+    includeChildren: v.include_children !== false,
+    include_children: v.include_children !== false,
+    organization_id: v.organization_id,
+    user_id: v.user_id,
+    created_at: v.created_at,
+    updated_at: v.updated_at
+  };
+}
+
 export const SavedViewRepository = {
   async getSavedViews(organizationId) {
     if (!organizationId) return [];
     const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) return [];
+
     const { data, error } = await sb
       .from('saved_views')
       .select('*')
       .eq('organization_id', organizationId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+    return (data || []).map(mapCloudSavedView);
   },
 
   async createSavedView({
@@ -871,35 +1064,87 @@ export const SavedViewRepository = {
     selectedNodeId = null,
     filters = {},
     sortKey = 'smart',
+    sortBy = null,
     includeChildren = true
   }) {
+    const trimmedName = (name || '').trim();
+    if (!trimmedName) throw new Error('Tên góc nhìn không được để trống.');
+    if (trimmedName.length > 120) throw new Error('Tên góc nhìn tối đa 120 ký tự.');
+
     const sb = await getSupabase();
     const { data: userRes } = await sb.auth.getUser();
     const userId = userRes?.user?.id;
     if (!userId) throw new Error('Yêu cầu đăng nhập để lưu chế độ xem.');
+
+    // Limit check: max 20 saved views per user in this org
+    const { count, error: countErr } = await sb
+      .from('saved_views')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('user_id', userId);
+    if (countErr) throw countErr;
+    if (count != null && count >= 20) {
+      throw new Error('Đã có 20 góc nhìn. Xóa một góc nhìn cũ trước khi tạo mới.');
+    }
 
     const { data, error } = await sb
       .from('saved_views')
       .insert({
         organization_id: organizationId,
         user_id: userId,
-        name,
+        name: trimmedName,
         view_type: viewType,
-        selected_node_id: selectedNodeId,
+        selected_node_id: selectedNodeId || null,
         filters: filters || {},
-        sort_key: sortKey,
+        sort_key: sortKey || sortBy || 'smart',
         include_children: includeChildren
       })
       .select()
       .single();
     if (error) throw error;
-    return data;
+    return mapCloudSavedView(data);
+  },
+
+  async updateSavedView(viewId, patch = {}) {
+    if (!viewId) throw new Error('Thiếu viewId.');
+    const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) throw new Error('Yêu cầu đăng nhập.');
+
+    const updatePayload = { updated_at: new Date().toISOString() };
+    if (patch.name !== undefined) updatePayload.name = patch.name.trim();
+    if (patch.viewType !== undefined) updatePayload.view_type = patch.viewType;
+    if (patch.selectedNodeId !== undefined) updatePayload.selected_node_id = patch.selectedNodeId;
+    if (patch.filters !== undefined) updatePayload.filters = patch.filters;
+    if (patch.sortKey !== undefined || patch.sortBy !== undefined) {
+      updatePayload.sort_key = patch.sortKey !== undefined ? patch.sortKey : patch.sortBy;
+    }
+    if (patch.includeChildren !== undefined) updatePayload.include_children = patch.includeChildren;
+
+    const { data, error } = await sb
+      .from('saved_views')
+      .update(updatePayload)
+      .eq('id', viewId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    if (error) throw error;
+    return mapCloudSavedView(data);
   },
 
   async deleteSavedView(viewId) {
     if (!viewId) throw new Error('Missing viewId for deleteSavedView');
     const sb = await getSupabase();
-    const { error } = await sb.from('saved_views').delete().eq('id', viewId);
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+    if (!userId) throw new Error('Yêu cầu đăng nhập.');
+
+    const { error } = await sb
+      .from('saved_views')
+      .delete()
+      .eq('id', viewId)
+      .eq('user_id', userId);
     if (error) throw error;
     return { success: true };
   }

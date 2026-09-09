@@ -507,10 +507,53 @@ function changeStatus(id,status){
  const ok=commit(`Đổi trạng thái thành ${status}`,d=>{const map=new Map(d.tasks.map(t=>[t.id,t]));setTaskStatus(map.get(id),status,map);},{taskId:id});
  if(!ok){renderView();if($('drawer').open)refreshDrawer();}
 }
-function toggleComplete(id){const t=byTask.get(id);if(!t)return;changeStatus(id,t.status==='Hoàn thành'?(t.resumeStatus||'Đang làm'):'Hoàn thành');}
-function toggleFavorite(id){
+async function toggleFavorite(id){
  if(window.__worktree_is_cloud_workspace){
-  toast('Chế độ xem Cloud: Tính năng đánh dấu sao đang được hoàn thiện trong Step 07.','info');
+  if(window.__starMutationBusy) return;
+  window.__starMutationBusy = true;
+  const orgId = window.appState?.activeOrganizationId;
+  if(!orgId){
+   window.__starMutationBusy = false;
+   return toast('Không tìm thấy không gian làm việc.', 'error');
+  }
+  try {
+   const res = await window.StarService.toggleStar({ organizationId: orgId, taskId: id });
+   const isStarred = res.starred === true;
+   if(isStarred) {
+    if(window.__worktree_starred_task_ids) window.__worktree_starred_task_ids.add(id);
+    if(window.appState?.starredTaskIds) window.appState.starredTaskIds.add(id);
+   } else {
+    if(window.__worktree_starred_task_ids) window.__worktree_starred_task_ids.delete(id);
+    if(window.appState?.starredTaskIds) window.appState.starredTaskIds.delete(id);
+   }
+   const t = byTask.get(id);
+   if(t) {
+    t.favorite = isStarred;
+   }
+   document.querySelectorAll(`[data-action="favorite"][data-id="${id}"]`).forEach(b => {
+    b.classList.toggle('is-favorite', isStarred);
+    b.setAttribute('aria-pressed', String(isStarred));
+    b.title = isStarred ? 'Bỏ đánh dấu sao' : 'Đánh dấu sao';
+    b.setAttribute('aria-label', (isStarred ? 'Bỏ sao: ' : 'Đánh dấu sao: ') + (t?.title || ''));
+   });
+   if($('drawer')?.open && window.__taskDetailData?.taskId === id) {
+    const drawerFav = $('drawer')?.querySelector('.drawer-tools .favorite-btn');
+    if(drawerFav) {
+     drawerFav.classList.toggle('is-favorite', isStarred);
+     drawerFav.setAttribute('aria-pressed', String(isStarred));
+     drawerFav.title = isStarred ? 'Bỏ đánh dấu sao' : 'Đánh dấu sao';
+    }
+   }
+   toast(isStarred ? 'Đã đánh dấu sao' : 'Bỏ đánh dấu sao');
+   if(state.filters.favorite) {
+    renderView();
+   }
+  } catch(err) {
+   console.error('Lỗi khi cập nhật đánh dấu sao đám mây:', err);
+   toast(err.message || 'Không thể cập nhật đánh dấu sao.', 'error');
+  } finally {
+   window.__starMutationBusy = false;
+  }
   return;
  }
  if(!byTask.has(id))return;commit(byTask.get(id).favorite?'Bỏ đánh dấu sao':'Đã đánh dấu sao',d=>{const t=d.tasks.find(t=>t.id===id);t.favorite=!t.favorite;touch(t);},{taskId:id,quiet:true});
@@ -2022,15 +2065,87 @@ function saveViewDialog(){
 function saveView(event){
  event.preventDefault();const name=$('savedViewName').value.trim();if(!name)return;
  if(state.savedViews.some(v=>fold(v.name)===fold(name))){$('savedViewName').setCustomValidity('Tên góc nhìn đã tồn tại.');$('savedViewName').reportValidity();return;}
+ if(window.__worktree_is_cloud_workspace){
+  const orgId = window.appState?.activeOrganizationId;
+  if(!orgId) return toast('Không tìm thấy không gian làm việc.', 'error');
+  (async()=>{
+   try{
+    await window.SavedViewService.createSavedView({
+     organizationId: orgId,
+     name,
+     selectedNodeId: state.selected,
+     viewType: state.view,
+     filters: clone(state.filters),
+     sortBy: state.sort,
+     includeChildren: state.includeChildren
+    });
+    const freshViews = await window.SavedViewRepository.getSavedViews(orgId);
+    if(orgId === window.appState?.activeOrganizationId){
+     window.__worktree_saved_views = (freshViews||[]).map(sv => ({
+      id: sv.id,
+      name: sv.name,
+      selected: sv.selected_node_id,
+      view: sv.view_type || 'overview',
+      filters: sv.filters || blankFilters(),
+      sort: sv.sort_by || 'priority',
+      includeChildren: sv.include_children !== false,
+      rawSavedView: sv
+     }));
+     state.savedViews = window.__worktree_saved_views;
+     if(window.appState) window.appState.savedViews = freshViews;
+     closeDialog('nameDialog',true);
+     if(typeof renderTree==='function') renderTree();
+     else if(typeof legacyRenderTree==='function') legacyRenderTree();
+     toast('Đã lưu góc nhìn: '+name);
+    }
+   }catch(err){
+    toast(err.message||'Không thể lưu góc nhìn đám mây.','error');
+   }
+  })();
+  return;
+ }
  state.savedViews.push({id:uid(),name,selected:state.selected,view:state.view,filters:clone(state.filters),sort:state.sort,includeChildren:state.includeChildren});
  savePrefs();closeDialog('nameDialog',true);renderTree();toast('Đã lưu góc nhìn: '+name);
 }
 function loadView(id){
- const v=state.savedViews.find(v=>v.id===id);if(!v)return;if(!byNode.has(v.selected)){toast('Đơn vị của góc nhìn này không còn tồn tại.','error');return;}
- state.selected=v.selected;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();closeSidebar();savePrefs();renderAll(true);
+ const v=state.savedViews.find(v=>v.id===id);if(!v)return;
+ const fallbackNode = rootNode()?.id || null;
+ const targetNode = byNode.has(v.selected) ? v.selected : fallbackNode;
+ if(!targetNode){toast('Đơn vị của góc nhìn này không còn tồn tại.','error');return;}
+ state.selected=targetNode;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();closeSidebar();
+ if(!window.__worktree_is_cloud_workspace) savePrefs();
+ renderAll(true);
 }
 async function deleteView(id){
  const v=state.savedViews.find(v=>v.id===id);if(!v)return;if(!await ask('Xóa góc nhìn đã lưu?',`Xóa "${v.name}". Công việc và đơn vị không bị ảnh hưởng.`,'Xóa góc nhìn'))return;
+ if(window.__worktree_is_cloud_workspace){
+  const orgId = window.appState?.activeOrganizationId;
+  if(!orgId) return toast('Không tìm thấy không gian làm việc.', 'error');
+  try{
+   await window.SavedViewService.deleteSavedView({ organizationId: orgId, viewId: id });
+   const freshViews = await window.SavedViewRepository.getSavedViews(orgId);
+   if(orgId === window.appState?.activeOrganizationId){
+    window.__worktree_saved_views = (freshViews||[]).map(sv => ({
+     id: sv.id,
+     name: sv.name,
+     selected: sv.selected_node_id,
+     view: sv.view_type || 'overview',
+     filters: sv.filters || blankFilters(),
+     sort: sv.sort_by || 'priority',
+     includeChildren: sv.include_children !== false,
+     rawSavedView: sv
+    }));
+    state.savedViews = window.__worktree_saved_views;
+    if(window.appState) window.appState.savedViews = freshViews;
+    if(typeof renderTree==='function') renderTree();
+    else if(typeof legacyRenderTree==='function') legacyRenderTree();
+    toast('Đã xóa góc nhìn.');
+   }
+  }catch(err){
+   toast(err.message||'Không thể xóa góc nhìn đám mây.','error');
+  }
+  return;
+ }
  state.savedViews=state.savedViews.filter(v=>v.id!==id);savePrefs();renderTree();toast('Đã xóa góc nhìn.');
 }
 function openCommand(){
@@ -2363,16 +2478,24 @@ window.clearTenantUI=function(orgName){
   data.activities=[];
   window.cloudEmployees=[];
   window.employeesById=new Map();
+  window.__worktree_cloud_pins=[];
+  window.__worktree_starred_task_ids=new Set();
+  window.__worktree_saved_views=[];
+  state.savedViews=[];
   state.selected=null;
   state.selectedTasks.clear();
   state.filters=blankFilters();
   state.timer=null;
-  if(typeof savePrefs==='function')savePrefs();
+  if($('savedViews')) $('savedViews').innerHTML='<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
+  if($('pinSection')) $('pinSection').innerHTML='';
+  if(typeof savePrefs==='function'&&!window.__worktree_is_cloud_workspace)savePrefs();
   if(typeof renderTimer==='function')renderTimer();
   window.__taskDetailData={taskId:null,checklist:[],dependencies:[],comments:[],logs:[],loading:{},errors:{}};
   window.__taskDetailLoadGen=(window.__taskDetailLoadGen||0)+1;
   if(typeof closeDialog==='function'&&$('drawer')?.open)closeDialog('drawer',true);
   if(typeof rebuild==='function')rebuild();
+  if(typeof renderPins==='function')renderPins();
+  if(typeof decoratePinButtons==='function')decoratePinButtons();
   if(orgName){
    if($('workspaceName')) $('workspaceName').textContent=orgName;
    if($('topWorkspace')) $('topWorkspace').textContent=orgName;
@@ -2380,14 +2503,42 @@ window.clearTenantUI=function(orgName){
  }
 };
 
-window.setCloudWorkspaceData=function({nodes,employees,tasks,orgName}){
+window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds,savedViews,orgName}){
  window.__worktree_is_cloud_workspace=true;
  window.cloudEmployees=employees||[];
  window.employeesById=new Map((employees||[]).map(e=>[e.id,e]));
 
+ // Personal Cloud Data: Pins, Stars, Saved Views
+ window.__worktree_cloud_pins = (pins||[]).map(p => ({
+  kind: p.task_id ? 'task' : 'node',
+  id: p.task_id || p.node_id,
+  urgent: p.is_urgent === true,
+  createdAt: p.created_at || new Date().toISOString(),
+  position: p.position || 0,
+  rawPin: p
+ }));
+ window.__worktree_starred_task_ids = new Set(starredTaskIds || []);
+ window.__worktree_saved_views = (savedViews || []).map(sv => ({
+  id: sv.id,
+  name: sv.name,
+  selected: sv.selected_node_id,
+  view: sv.view_type || 'overview',
+  filters: sv.filters || blankFilters(),
+  sort: sv.sort_by || 'priority',
+  includeChildren: sv.include_children !== false,
+  rawSavedView: sv
+ }));
+ state.savedViews = window.__worktree_saved_views;
+
+ // Project task favorite status from personal stars
+ const taskList = (tasks||[]).map(t => ({
+  ...t,
+  favorite: window.__worktree_starred_task_ids.has(t.id)
+ }));
+
  data={
   nodes:nodes||[],
-  tasks:tasks||[],
+  tasks:taskList,
   activities:[]
  };
 
@@ -2407,6 +2558,9 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,orgName}){
  rebuild();
  syncFilters(true);
  renderAll(true);
+
+ if(typeof renderPins==='function') renderPins();
+ if(typeof decoratePinButtons==='function') decoratePinButtons();
 
  if($('saveStatus')){
   $('saveStatus').textContent='Đồng bộ đám mây Supabase';

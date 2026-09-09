@@ -14,6 +14,9 @@ export const appState = {
   nodes: [],
   employees: [],
   tasks: [],
+  userPins: [],
+  starredTaskIds: new Set(),
+  savedViews: [],
   taskDetail: {
     taskId: null,
     checklist: [],
@@ -87,6 +90,9 @@ export const appState = {
     this.nodes = [];
     this.employees = [];
     this.tasks = [];
+    this.userPins = [];
+    this.starredTaskIds = new Set();
+    this.savedViews = [];
     this.taskDetail = {
       taskId: null,
       checklist: [],

@@ -8,14 +8,16 @@ import { appState } from './state.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
-import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository } from '../lib/supabase/repositories.js';
+import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository } from '../lib/supabase/repositories.js';
 import { EmployeeService } from '../features/employees/index.js';
-import { TaskService } from '../features/tasks/index.js';
+import { TaskService, StarService } from '../features/tasks/index.js';
 import { TreeService } from '../features/organization-tree/index.js';
 import { ChecklistService } from '../features/checklists/index.js';
 import { DependencyService } from '../features/dependencies/index.js';
 import { CommentService } from '../features/comments/index.js';
 import { TimeEntryService } from '../features/time-tracking/index.js';
+import { PinService } from '../features/pins/index.js';
+import { SavedViewService } from '../features/saved-views/index.js';
 
 let authViewInstance = null;
 let workspaceDialogInstance = null;
@@ -225,11 +227,14 @@ export async function loadWorkspaceData(orgId) {
       window.clearTenantUI(membership.name);
     }
 
-    // 4, 5, 6. Fetch song song từ canonical repositories
-    const [rawNodes, rawEmployees, rawTasks] = await Promise.all([
+    // 4, 5, 6. Fetch song song từ canonical repositories (kể cả personal cloud data: pins, stars, saved views)
+    const [rawNodes, rawEmployees, rawTasks, rawPins, rawStarredTaskIds, rawSavedViews] = await Promise.all([
       NodeRepository.getNodes(orgId),
       EmployeeRepository.getEmployees(orgId),
-      TaskRepository.getTasks(orgId)
+      TaskRepository.getTasks(orgId),
+      PinRepository.getUserPins(orgId),
+      StarRepository.getStarredTaskIds(orgId),
+      SavedViewRepository.getSavedViews(orgId)
     ]);
 
     // 7. Security / Data Leak Guard: Xác nhận toàn bộ bản ghi thuộc đúng activeOrganizationId
@@ -244,6 +249,14 @@ export async function loadWorkspaceData(orgId) {
     const leakedTask = rawTasks.find(t => t.organization_id !== orgId);
     if (leakedTask) {
       throw new Error(`SECURITY ALERT: Task ${leakedTask.id} organization mismatch (${leakedTask.organization_id} !== ${orgId})`);
+    }
+    const leakedPin = (rawPins || []).find(p => p.organization_id !== orgId);
+    if (leakedPin) {
+      throw new Error(`SECURITY ALERT: Pin ${leakedPin.id} organization mismatch (${leakedPin.organization_id} !== ${orgId})`);
+    }
+    const leakedSavedView = (rawSavedViews || []).find(sv => sv.organization_id !== orgId);
+    if (leakedSavedView) {
+      throw new Error(`SECURITY ALERT: Saved view ${leakedSavedView.id} organization mismatch (${leakedSavedView.organization_id} !== ${orgId})`);
     }
 
     // 8. REQUEST CONCURRENCY / RACE CONDITION GUARD
@@ -261,6 +274,9 @@ export async function loadWorkspaceData(orgId) {
     appState.nodes = mappedNodes;
     appState.employees = mappedEmployees;
     appState.tasks = mappedTasks;
+    appState.userPins = rawPins || [];
+    appState.starredTaskIds = rawStarredTaskIds || new Set();
+    appState.savedViews = rawSavedViews || [];
 
     // 11. Cập nhật UI projection layer
     if (typeof window.setCloudWorkspaceData === 'function') {
@@ -268,6 +284,9 @@ export async function loadWorkspaceData(orgId) {
         nodes: mappedNodes,
         employees: mappedEmployees,
         tasks: mappedTasks,
+        pins: rawPins || [],
+        starredTaskIds: rawStarredTaskIds || new Set(),
+        savedViews: rawSavedViews || [],
         orgName: membership.name
       });
     }
@@ -676,6 +695,12 @@ if (typeof window !== 'undefined') {
   window.EmployeeService = EmployeeService;
   window.EmployeeRepository = EmployeeRepository;
   window.InvitationRepository = InvitationRepository;
+  window.PinRepository = PinRepository;
+  window.StarRepository = StarRepository;
+  window.SavedViewRepository = SavedViewRepository;
+  window.PinService = PinService;
+  window.StarService = StarService;
+  window.SavedViewService = SavedViewService;
 }
 
 // Tự khởi chạy khi file được nạp

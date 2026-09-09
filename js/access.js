@@ -841,20 +841,72 @@ async function savePassword(e,forced,reset){
  }catch(err){if($('passwordError')){$('passwordError').textContent=err.message;$('passwordError').hidden=false;}}finally{if($('passwordSave'))$('passwordSave').disabled=false;}
 }
 function normalPins(list){const seen=new Set();return (Array.isArray(list)?list:[]).filter(p=>{if(!p||!['node','task'].includes(p.kind)||!(Number.isSafeInteger(p.id)||(typeof p.id==='string'&&p.id.trim()))||seen.has(p.kind+':'+p.id))return false;seen.add(p.kind+':'+p.id);return true;}).slice(0,100).map(p=>({kind:p.kind,id:p.id,urgent:p.urgent===true,createdAt:typeof p.createdAt==='string'?p.createdAt:new Date().toISOString()}));}
-function ownPins(){const a=currentAccount();return a?normalPins(pinDB.users[a.id]):[];}
+function ownPins(){
+ if(window.__worktree_is_cloud_workspace){
+  return (window.__worktree_cloud_pins||[]).map(p=>({kind:p.kind,id:p.id,urgent:p.urgent===true,createdAt:p.createdAt||new Date().toISOString()}));
+ }
+ const a=currentAccount();return a?normalPins(pinDB.users[a.id]):[];
+}
 function canPin(kind,id){return kind==='task'?canReadTask(byTask.get(id)):byNode.has(id)&&inScope(id);}
 function visiblePins(){return ownPins().filter(p=>canPin(p.kind,p.id));}
 function isPinned(kind,id){return ownPins().some(p=>p.kind===kind&&String(p.id)===String(id));}
 function savePins(list,remember=true){
  if(!requireLogin())return false;
+ if(window.__worktree_is_cloud_workspace){
+  return true;
+ }
  try{
   const raw=localStorage.getItem(PIN_KEY);if(raw!==pinRaw){const loaded=JSON.parse(raw||'null');pinDB=loaded?.version===1&&isObject(loaded.users)?loaded:{version:1,users:{}};pinRaw=raw;throw Error(T.scopeChanged);}
    const before=ownPins(),next=clone(pinDB);const curId=session?.id||currentAccount()?.id;if(curId)next.users[curId]=normalPins(list);const packed=JSON.stringify(next);localStorage.setItem(PIN_KEY,packed);pinDB=next;pinRaw=packed;if(remember&&curId)pinUndo={user:curId,list:before};renderPins();decoratePinButtons();return true;
  }catch(e){toast(e.message===T.scopeChanged?T.scopeChanged:T.storageError,'error');renderPins();return false;}
 }
 function restorePins(pins){savePins(normalPins(pins).filter(p=>canPin(p.kind,p.id)));}
-function togglePin(kind,id){
- if(!requireLogin()||!canPin(kind,id))return deny();const list=ownPins(),found=list.some(p=>p.kind===kind&&String(p.id)===String(id));
+async function togglePin(kind,id){
+ if(!requireLogin()||!canPin(kind,id))return deny();
+ if(window.__worktree_is_cloud_workspace){
+  if(window.__pinMutationBusy)return;
+  window.__pinMutationBusy=true;
+  const orgId=window.appState?.activeOrganizationId;
+  if(!orgId){
+   window.__pinMutationBusy=false;
+   return toast('Không tìm thấy không gian làm việc.','error');
+  }
+  const list=ownPins();
+  const found=list.some(p=>p.kind===kind&&String(p.id)===String(id));
+  if(!found&&list.length>=100){
+   window.__pinMutationBusy=false;
+   return toast(T.pinsLimit,'error');
+  }
+  try{
+   if(window.PinService?.togglePin){
+    await window.PinService.togglePin({organizationId:orgId,kind,targetId:id});
+    const freshPins=await window.PinRepository.getUserPins(orgId);
+    if(orgId===window.appState?.activeOrganizationId){
+     window.__worktree_cloud_pins=(freshPins||[]).map(p=>({
+      kind:p.task_id?'task':'node',
+      id:p.task_id||p.node_id,
+      urgent:p.is_urgent===true,
+      createdAt:p.created_at||new Date().toISOString(),
+      position:p.position||0,
+      rawPin:p
+     }));
+     if(window.appState)window.appState.userPins=freshPins;
+     renderPins();
+     decoratePinButtons();
+     if($('pinDialog')?.open)openPins();
+     renderTree();
+     toast(found?T.pinRemoved:T.pinSaved);
+    }
+   }
+  }catch(err){
+   console.error('Lỗi khi cập nhật ghim đám mây:',err);
+   toast(err.message||'Không thể cập nhật ghim đám mây.','error');
+  }finally{
+   window.__pinMutationBusy=false;
+  }
+  return;
+ }
+ const list=ownPins(),found=list.some(p=>p.kind===kind&&String(p.id)===String(id));
  if(!found&&list.length>=100)return toast(T.pinsLimit,'error');
  const next=found?list.filter(p=>!(p.kind===kind&&String(p.id)===String(id))):[{kind,id,urgent:false,createdAt:new Date().toISOString()},...list];
  if(savePins(next)){toast(found?T.pinRemoved:T.pinSaved);if($('pinDialog').open)openPins();}
@@ -934,8 +986,73 @@ function renderPinSearch(){
  const tasks=readableTasks().filter(t=>!isPinned('task',t.id)&&(!q||fold(t.title+' '+nodeName(t.node)).includes(q))).sort((a,b)=>Number(attention(b))-Number(attention(a))).slice(0,8).map(t=>({kind:'task',id:t.id,title:t.title,meta:t.status}));
  $('pinSearchResults').innerHTML=[...nodes,...tasks].map(p=>`<button class="pin-search-result" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}">${icon(p.kind==='task'?'check-circle':'folder')}<span><strong>${esc(p.title)}</strong><small>${esc(p.meta)}</small></span>${icon('plus')}</button>`).join('')||`<p class="view-note">${T.noResults}</p>`;
 }
-function reorderPin(action,kind,id){
+async function reorderPin(action,kind,id){
  if(!requireLogin())return;const list=ownPins(),visible=visiblePins(),idx=list.findIndex(p=>p.kind===kind&&String(p.id)===String(id)),vi=visible.findIndex(p=>p.kind===kind&&String(p.id)===String(id));if(idx<0||vi<0)return;
+ if(window.__worktree_is_cloud_workspace){
+  const orgId=window.appState?.activeOrganizationId;
+  if(!orgId)return;
+  const cloudPin=(window.__worktree_cloud_pins||[]).find(p=>p.kind===kind&&String(p.id)===String(id));
+  if(!cloudPin?.rawPin?.id)return;
+  if(action==='pin-urgent'){
+   try{
+    await window.PinService.setPinUrgent({
+     organizationId:orgId,
+     pinId:cloudPin.rawPin.id,
+     isUrgent:!cloudPin.urgent
+    });
+    const freshPins=await window.PinRepository.getUserPins(orgId);
+    if(orgId===window.appState?.activeOrganizationId){
+     window.__worktree_cloud_pins=(freshPins||[]).map(p=>({
+      kind:p.task_id?'task':'node',
+      id:p.task_id||p.node_id,
+      urgent:p.is_urgent===true,
+      createdAt:p.created_at||new Date().toISOString(),
+      position:p.position||0,
+      rawPin:p
+     }));
+     if(window.appState)window.appState.userPins=freshPins;
+     openPins();
+     renderTree();
+     renderPins();
+    }
+   }catch(err){
+    toast(err.message||'Không thể đổi trạng thái khẩn cấp.','error');
+   }
+   return;
+  }else{
+   let target=action==='pin-top'?0:action==='pin-up'?vi-1:vi+1;
+   if(target<0||target>=visible.length)return;
+   const t=visible[target];
+   const to=list.findIndex(p=>p.kind===t.kind&&String(p.id)===String(t.id));
+   const [p]=list.splice(idx,1);
+   list.splice(to,0,p);
+   const orderedPinIds=list.map(item=>{
+    const cp=(window.__worktree_cloud_pins||[]).find(x=>x.kind===item.kind&&String(x.id)===String(item.id));
+    return cp?.rawPin?.id;
+   }).filter(Boolean);
+   try{
+    await window.PinService.reorderPins({organizationId:orgId,orderedPinIds});
+    const freshPins=await window.PinRepository.getUserPins(orgId);
+    if(orgId===window.appState?.activeOrganizationId){
+     window.__worktree_cloud_pins=(freshPins||[]).map(p=>({
+      kind:p.task_id?'task':'node',
+      id:p.task_id||p.node_id,
+      urgent:p.is_urgent===true,
+      createdAt:p.created_at||new Date().toISOString(),
+      position:p.position||0,
+      rawPin:p
+     }));
+     if(window.appState)window.appState.userPins=freshPins;
+     openPins();
+     renderTree();
+     renderPins();
+    }
+   }catch(err){
+    toast(err.message||'Không thể sắp xếp ghim.','error');
+   }
+   return;
+  }
+ }
  if(action==='pin-urgent')list[idx].urgent=!list[idx].urgent;
  else{let target=action==='pin-top'?0:action==='pin-up'?vi-1:vi+1;if(target<0||target>=visible.length)return;const t=visible[target],to=list.findIndex(p=>p.kind===t.kind&&String(p.id)===String(t.id));const [p]=list.splice(idx,1);list.splice(to,0,p);}
  if(savePins(list)){openPins();renderTree();}

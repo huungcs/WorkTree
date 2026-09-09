@@ -14,11 +14,12 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
   - **Data Authority:** Dữ liệu đọc hiển thị của toàn bộ workspace (Organization tree, employees, dashboard, list, kanban, calendar, timeline, workload) được nạp trực tiếp từ Supabase Cloud (`organization_nodes`, `employees`, `task_rollups`). LocalStorage nghiệp vụ (`KEYS.data`) đã bị vô hiệu hóa hoàn toàn tư cách dữ liệu có thẩm quyền.
   - **Invariant B (Employee ≠ Organization Node):** Đã tách rời 100%. Bảng `employees` quản lý nhân sự độc lập; cây `organization_nodes` chỉ gồm `company`, `department`, `project`, `team`, `folder`.
   - **Unified Employee Onboarding & Account Invitation:** [HOTFIX PASS - 30/30] Luồng thêm người mới đã hợp nhất chuẩn domain: Primary CTA là `+ Thêm nhân viên` tạo `public.employees` trước; tùy chọn `[ ] Mời nhân viên sử dụng WorkTree` để dispatch lời mời tự động gắn `employee_id`. Loại bỏ hoàn toàn luồng ngược bắt buộc "Liên kết nhân sự" và bảo vệ tuyệt đối Owner Employee khỏi việc liên kết nhầm.
+  - **Personal Data Cloud Migration:** [STEP 08 PASS - 39/39] Ghim ưu tiên (`public.user_pins`), đánh dấu sao công việc (`public.task_stars`), và góc nhìn đã lưu (`public.saved_views`) đã chuyển đổi 100% sang Supabase Cloud. Quyền uy tín tuyệt đối thuộc về `auth.uid()` theo `activeOrganizationId`. Vô hiệu hóa hoàn toàn thẩm quyền LocalStorage và trường cũ `task.favorite`. Bảo toàn đầy đủ cách ly người dùng (cross-user isolation) và đa thiết bị (multi-device persistence).
 - **Trạng thái thực tế:**
-  - **Giao diện (Frontend UI):** Đạt ~97%. Đã có 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px), Mobile Bottom Navigation (74px + safe area), Task Detail Drawer cloud-native cho 4 bảng con, và Form Thêm nhân viên / Mời tài khoản hợp nhất theo Design System.
-  - **Tích hợp Supabase (Integration):** Đạt ~97%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), Toàn bộ Read Model đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25), Pipeline ghi dữ liệu Cloud Mutation cho Tasks và Cây tổ chức (Step 06 PASS - 40/40), Task Child Tables (Step 07 PASS - 46/46), và Hợp nhất Onboarding Nhân sự & Mời tài khoản (Hotfix PASS - 30/30).
-  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~98%. Schema 23 bảng, 57 active RLS policies trên public schema. Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS, 40/40 Cloud Mutation tests PASS, 46/46 Step 07 Child Tables tests PASS, 30/30 Employee Onboarding tests PASS)**.
-  - **Độ sẵn sàng sản xuất (Production Readiness):** Đạt ~96%. Toàn bộ pipeline Auth, Workspace, Cloud Read, Cloud Mutation, Child Tables và Employee Onboarding đã hoàn thành và kiểm chứng an toàn. Bước tiếp theo là chuyển đổi dữ liệu cá nhân hóa (Step 08 Personal Data: `user_pins`, `task_stars`, `saved_views`).
+  - **Giao diện (Frontend UI):** Đạt ~98%. Đã có 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px), Mobile Bottom Navigation (74px + safe area), Task Detail Drawer cloud-native cho 4 bảng con, ghim ưu tiên & sao cá nhân hóa, và Form Thêm nhân viên / Mời tài khoản hợp nhất theo Design System.
+  - **Tích hợp Supabase (Integration):** Đạt ~99%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), Toàn bộ Read Model đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25), Pipeline ghi dữ liệu Cloud Mutation cho Tasks và Cây tổ chức (Step 06 PASS - 40/40), Task Child Tables (Step 07 PASS - 46/46), Hợp nhất Onboarding Nhân sự (Hotfix PASS - 30/30), và Dữ liệu cá nhân hóa (Step 08 PASS - 39/39).
+  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~99%. Schema 23 bảng, 57 active RLS policies trên public schema. Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS, 40/40 Cloud Mutation tests PASS, 46/46 Step 07 Child Tables tests PASS, 30/30 Employee Onboarding tests PASS, 39/39 Step 08 Personal Data tests PASS)**.
+  - **Độ sẵn sàng sản xuất (Production Readiness):** Đạt ~98%. Toàn bộ pipeline Auth, Workspace, Cloud Read, Cloud Mutation, Child Tables, Onboarding Nhân sự và Dữ liệu cá nhân hóa đã hoàn thành và kiểm chứng an toàn. Bước tiếp theo là chuyển đổi tệp đính kèm (Step 09 Attachments & Storage: `task_attachments`).
 
 ---
 
@@ -26,13 +27,13 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
 
 - **Repository Root:** `c:\Users\ASUS\Desktop\WorkTree`
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `10c2661cecf8db00b196e2355865b0fa4577b4f4`
+- **Current HEAD Commit:** `a3d1a769067cf56a4a4d16f71b4666c11bee5957`
 - **Commit gần nhất:** `fix(employees): unify employee creation and account invitation flow`
 - **Working Tree:** Sạch (Clean, working tree clean).
 - **Remote Repository:** `https://github.com/huungcs/WorkTree.git`
 - **Các Branch trong Repo:** Chỉ có nhánh `main` (`* main`).
 - **5 Commit gần nhất trong lịch sử:**
-  1. `3aba748` - `fix(employees): unify employee creation and account invitation flow`
+  1. `a3d1a76` - `fix(employees): unify employee creation and account invitation flow`
   2. `c15a886` - `docs: finalize step 07 project status`
   3. `ed48d16` - `fix(ui): group pin and favorite actions on kanban card header`
   4. `016566a` - `feat(data): migrate task child tables to Supabase cloud`
@@ -631,9 +632,9 @@ c:\Users\ASUS\Desktop\WorkTree\
 1. **KB-01 (Mobile Keyboard Overlap on Small Screens):**
    - *Mô tả:* Trên một số thiết bị màn hình nhỏ (chiều rộng <= 360px hoặc chiều cao <= 600px), khi bàn phím ảo bật lên trong form tạo task phức tạp có nhiều trường, nút "Tạo công việc" ở footer có thể bị ép sát mép dưới nếu trình duyệt không hỗ trợ đầy đủ `visualViewport`.
    - *File:* `js/mobile.js`, `css/style.css`.
-2. **KB-02 (Saved View Local-only Sync):**
-   - *Mô tả:* Tính năng lưu góc nhìn (Saved Views) chỉ lưu vào `localStorage`, chưa gửi bản ghi lên bảng `saved_views` trên Supabase.
-   - *File:* `js/core.js`.
+2. **[RESOLVED — Step 08] KB-02 (Saved View Cloud Migration):**
+   - *Mô tả:* Tính năng lưu góc nhìn (Saved Views) đã chuyển đổi hoàn toàn sang Supabase Cloud qua `SavedViewService` & `SavedViewRepository`, lưu trữ cấu hình JSON, bộ lọc, loại góc nhìn và sort key theo `user_id` và `organization_id`.
+   - *File:* `src/features/saved-views/`, `src/lib/supabase/repositories.js`, `js/core.js`.
 3. **KB-03 (Sidebar Toggle Selector Mismatch):**
    - *Mô tả:* File `src/components/navigation/sidebar.js` gán sự kiện click vào `#sidebarToggleBtn`, trong khi nút toggle thật trong `index.html` mang class `.collapse-control` và `data-action="sidebar"`. Do đó hàm này không bắt được sự kiện nếu chạy độc lập.
    - *File:* `src/components/navigation/sidebar.js`.
@@ -653,20 +654,20 @@ c:\Users\ASUS\Desktop\WorkTree\
 | **TD-07** | **P2** | **[RESOLVED — Step 07] Module Comments & Child Services:** Đã triển khai đầy đủ các vertical services cho `checklists`, `dependencies`, `comments`, và `time-tracking` kết nối Supabase Cloud. `src/features/comments/services/comment-service.js` không còn là stub rỗng. Chỉ còn `notifications`, `workload` chờ triển khai. | `src/features/comments/`, `src/features/checklists/`, `src/features/dependencies/`, `src/features/time-tracking/` | Toàn bộ 4 domain bảng con đã hoạt động độc lập và có bài test tự động. | **ĐÃ GIẢI QUYẾT TRONG STEP 07.** |
 | **TD-08** | **P3** | **Hardcoded Hex Colors:** Tồn tại 108 dòng chứa mã màu hex cố định trong `css/style.css` chưa được quy về semantic CSS variables. | `css/style.css` | Gây khó khăn cho việc tinh chỉnh theme và tiềm ẩn lệch màu trong dark mode. | Rà soát và thay thế các mã hex bằng `var(--token)`. |
 | **TD-09** | **P3** | **CSS Modular chưa nạp:** Các tệp `src/design-system/*.css` chưa được liên kết vào `index.html`. | `index.html`, `src/design-system/` | Sự phân mảnh giữa stylesheet cũ và thiết kế mới. | Nhúng hoặc import các file design-system vào stylesheet chính. |
+| **TD-10** | **P1** | **[RESOLVED — Step 08] Dữ liệu cá nhân hóa (user_pins, task_stars, saved_views) chuyển đổi Cloud:** Đã chuyển đổi hoàn toàn `user_pins`, `task_stars`, và `saved_views` sang Supabase Cloud. Vô hiệu hóa toàn bộ quyền ghi LocalStorage đối với dữ liệu cá nhân trong Cloud Mode, loại bỏ thẩm quyền của `task.favorite`, bảo toàn cách ly người dùng và đa thiết bị. | `src/features/pins/`, `src/features/tasks/`, `src/features/saved-views/`, `src/lib/supabase/repositories.js`, `js/core.js`, `js/access.js` | Dữ liệu cá nhân theo người dùng duy trì bền vững qua hard reload và đồng bộ đa thiết bị. | **ĐÃ GIẢI QUYẾT TRONG STEP 08.** |
 
 ---
 
 ## 15. Files Currently Being Worked On
 
 Dựa trên lịch sử commit và tiến trình thực tế:
-1. `src/lib/supabase/repositories.js`: Đã hoàn thiện toàn diện ChecklistRepository, DependencyRepository, CommentRepository, TimeEntryRepository, TaskRepository, NodeRepository.
-2. `src/features/checklists/`: ChecklistService quản lý mục kiểm tra, toggle, xóa, rollup tiến độ.
-3. `src/features/dependencies/`: DependencyService quản lý phụ thuộc, chặn chu trình đệ quy và tự phụ thuộc.
-4. `src/features/comments/`: CommentService ghi nhận bình luận, gắn author_user_id chuẩn xác.
-5. `src/features/time-tracking/`: TimeEntryService ghi nhận giờ làm theo số nguyên phút, dừng timer đồng bộ Cloud.
-6. `src/app/state.js`: Quản lý `appState.taskDetail` và cơ chế purge khi switch tenant.
-7. `js/core.js` & `js/access.js`: Tích hợp Drawer Cloud-native, race condition guard (`taskDetailLoadGen`), xử lý lỗi hiển thị lặp nút ghim và căn chỉnh thẻ Kanban.
-8. `css/style.css`: Bổ sung container `.board-card-actions` và chuẩn hóa kích thước nút ghim 24x24px.
+1. `src/lib/supabase/repositories.js`: Đã hoàn thiện toàn diện `PinRepository`, `StarRepository`, `SavedViewRepository`, `ChecklistRepository`, `DependencyRepository`, `CommentRepository`, `TimeEntryRepository`, `TaskRepository`, `NodeRepository`.
+2. `src/features/pins/`: `PinService` quản lý ghim task, ghim node, cờ khẩn cấp cá nhân `is_urgent`, sắp xếp vị trí và validation 100 pins.
+3. `src/features/tasks/`: `StarService` quản lý toggle và load đánh dấu sao (`task_stars`), tách khỏi trường cũ `task.favorite`.
+4. `src/features/saved-views/`: `SavedViewService` quản lý tạo, nạp, đổi tên, xóa góc nhìn đã lưu và validation 20 views.
+5. `src/app/state.js`: Quản lý `appState.userPins`, `appState.starredTaskIds`, `appState.savedViews`, `appState.taskDetail` và cơ chế purge khi switch tenant.
+6. `js/core.js` & `js/access.js`: Tích hợp `PinService`, `StarService`, `SavedViewService`, race condition guard, vô hiệu hóa ghi LocalStorage cá nhân, xử lý dọn dẹp bộ nhớ và DOM khi switch workspace / logout.
+7. `WorkTree.html`: Bản đóng gói bundle offline inlined mới nhất.
 
 ---
 
@@ -706,15 +707,16 @@ Các biến môi trường bắt buộc (được cấu hình trong tệp `.env`
 6. **[DONE - Step 6] Cloud Mutation Pipeline:** [HOÀN THÀNH - Report STEP_06_CLOUD_MUTATION_REPORT.md / STEP_06_FINALIZATION_REPORT.md] Thay thế write guards bằng mutations trực tiếp lên Supabase Cloud: tạo task, sửa planning fields, cập nhật trạng thái, kéo thả Kanban, soft archive task, tạo đơn vị/dự án, đổi tên đơn vị qua TaskService và TreeService. 40/40 tests PASS.
 7. **[DONE - Step 7] Task Child Tables Cloud Migration:** [HOÀN THÀNH - Report STEP_07_CHILD_TABLES_REPORT.md / STEP_07_FINALIZATION_REPORT.md] Đồng bộ hóa toàn diện 4 bảng con của Task: Checklist items (`task_checklist_items`), phụ thuộc công việc (`task_dependencies`), bình luận (`task_comments`), và thời gian làm việc (`task_time_entries`) trực tiếp trên Supabase Cloud. Khắc phục lỗi hiển thị lặp nút ghim (duplicate pin buttons). Đạt 46/46 assertions PASS.
 8. **[DONE - Hotfix] Unified Employee Onboarding & Account Invitation UX:** [HOÀN THÀNH - Report EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md] Hợp nhất luồng tạo người mới: Primary CTA `+ Thêm nhân viên` tạo `public.employees` trước, tùy chọn mời tự động liên kết `employee_id`. Loại bỏ yêu cầu ngược "Liên kết nhân sự" và vô hiệu hóa mật khẩu tạm trong Cloud Mode. Đạt 30/30 assertions PASS.
-9. **[NEXT - Step 8] Personal Data Migration:** Chuyển đổi dữ liệu cá nhân hóa (ghim ưu tiên `user_pins`, đánh dấu sao `task_stars`, góc nhìn đã lưu `saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud.
-10. **[Medium - Step 9] Tích hợp Supabase Realtime:** Thiết lập subscription để tự động cập nhật UI khi có thay đổi từ người dùng khác.
-11. **[Low - Step 10] Dọn dẹp Hardcoded Colors & Test Runner:** Thay thế 108 vị trí màu hex trong `css/style.css` bằng biến token chuẩn; cấu hình runner Vitest / Playwright vào `package.json`.
+9. **[DONE - Step 8] Personal Data Migration:** [HOÀN THÀNH - Report STEP_08_PERSONAL_DATA_REPORT.md] Chuyển đổi dữ liệu cá nhân hóa (ghim ưu tiên `user_pins`, đánh dấu sao `task_stars`, góc nhìn đã lưu `saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud với thẩm quyền `auth.uid()`, cách ly người dùng và multi-device persistence. Đạt 39/39 assertions PASS (100%).
+10. **[NEXT - Step 9] Attachments & Storage:** Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `organization-attachments`.
+11. **[Medium - Step 10] Tích hợp Supabase Realtime:** Thiết lập subscription để tự động cập nhật UI khi có thay đổi từ người dùng khác.
+12. **[Low - Step 11] Dọn dẹp Hardcoded Colors & Test Runner:** Thay thế 108 vị trí màu hex trong `css/style.css` bằng biến token chuẩn; cấu hình runner Vitest / Playwright vào `package.json`.
 
 ---
 
 ## 19. Recommended Next 10 Steps
 
-Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-tenant → Cloud Read → Cloud Mutation → Realtime → Polish**:
+Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-tenant → Cloud Read → Cloud Mutation → Personal Data → Attachments → Realtime → Polish**:
 
 1. **Bước 1 (Fix Schema Mismatches):** [HOÀN THÀNH - Commit `6a829c9`] Sửa toàn bộ các tên cột sai lệch trong repositories, edge functions và tests.
 2. **Bước 2 (Verify Database RLS & RPC Tests):** [HOÀN THÀNH - Report `STEP_02_TENANT_ISOLATION_REPORT.md`] Chạy 55 bài test SQL trên remote DB xác nhận cách ly tenant A/B, RLS, RPC, Storage đạt 100% PASS.
@@ -724,8 +726,8 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 6. **Bước 6 (Cloud Mutation Pipeline):** [HOÀN THÀNH - Report `STEP_06_CLOUD_MUTATION_REPORT.md`] Kết nối toàn diện các thao tác ghi dữ liệu (tạo task, sửa planning fields, cập nhật trạng thái, kéo thả Kanban, soft archive task, tạo đơn vị/dự án, đổi tên đơn vị) trực tiếp vào Supabase Cloud qua `TaskService` và `TreeService`, đạt 40/40 assertions PASS.
 7. **Bước 7 (Child Tables Migration & Pin Bug Resolution):** [HOÀN THÀNH - Report `STEP_07_CHILD_TABLES_REPORT.md` / `STEP_07_FINALIZATION_REPORT.md`] Đồng bộ hóa toàn diện 4 bảng con: Checklist items (`task_checklist_items`), phụ thuộc công việc (`task_dependencies`), bình luận (`task_comments`), và thời gian làm việc (`task_time_entries`) trực tiếp trên Supabase Cloud. Khắc phục lỗi hiển thị lặp nút ghim (duplicate pin buttons). Đạt 46/46 assertions PASS (100%).
 8. **Hotfix (Unified Employee Onboarding UX):** [HOÀN THÀNH - Report `EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md`] Chuyển đổi primary CTA thành `+ Thêm nhân viên`, tùy chọn mời tự động liên kết `employee_id`, loại bỏ hoàn toàn yêu cầu "Liên kết nhân sự" và mật khẩu tạm cục bộ. Đạt 30/30 assertions PASS (100%).
-9. **Bước 8 (Personal Data Migration):** [NEXT] Chuyển tính năng ghim ưu tiên (`user_pins`), đánh dấu sao (`task_stars`), và góc nhìn đã lưu (`saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud.
-10. **Bước 9 (Implement Supabase Realtime):** Thêm subscription lắng nghe thay đổi trên bảng `tasks` và `organization_nodes` để giao diện tự động cập nhật khi cộng sự thao tác.
+9. **Bước 8 (Personal Data Migration):** [HOÀN THÀNH - Report `STEP_08_PERSONAL_DATA_REPORT.md`] Chuyển tính năng ghim ưu tiên (`user_pins`), đánh dấu sao (`task_stars`), và góc nhìn đã lưu (`saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud với thẩm quyền `auth.uid()`, cách ly người dùng và multi-device persistence. Đạt 39/39 assertions PASS (100%).
+10. **Bước 9 (Attachments & Storage):** [NEXT] Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `organization-attachments`.
 
 ---
 
@@ -737,7 +739,7 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 > 3. **KHÔNG TỰ Ý THAY ĐỔI DESIGN SYSTEM:**
 >    - Font chữ duy nhất: `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`.
 >    - Màu sắc nhận diện: Primary Purple (`#6962db`), Dark Navy Sidebar (`#141c2e`), Mint Brand Mark (`#c1f0d6`). Không cài đặt TailwindCSS, không đổi sang các phong cách kính mờ (glassmorphism) hay màu neon tùy ý.
->    - **BẢO TỒN NGUYÊN VẸN RESPONSIVE CONTRACT:**
+>    - **BẢO TỒN NGUYỆN VẸN RESPONSIVE CONTRACT:**
 >    - Desktop (`>= 901px`): Sidebar co giãn chuẩn 278px (expanded) và 76px (collapsed). Phải thay đổi thật `grid-template-columns`. Không đưa bottom navigation lên desktop.
 >    - Mobile (`<= 900px`): Sidebar bắt buộc là Off-canvas Drawer. Bottom Navigation cao `74px + safe-area-inset-bottom` là thanh điều hướng chính. Mọi touch target phải đạt từ `44px` đến `48px`.
 > 5. **NHÂN SỰ (EMPLOYEE) ≠ CÂY TỔ CHỨC (ORGANIZATION NODE):**
@@ -751,9 +753,9 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 
 ## Verification Metadata
 
-- **Date / Time:** `2026-09-10T00:50:00+07:00`
+- **Date / Time:** `2026-09-10T01:15:00+07:00`
 - **Git Branch:** `main`
-- **Git HEAD Commit:** `10c2661cecf8db00b196e2355865b0fa4577b4f4` (main)
+- **Git HEAD Commit:** `a3d1a769067cf56a4a4d16f71b4666c11bee5957` (main)
 - **Step 1 Status:** `PASS 100% (Commit 6a829c9)`
 - **Step 2 Status:** `PASS 100% (Commit 4c68676 — Report STEP_02_TENANT_ISOLATION_REPORT.md)`
 - **Step 3 Status:** `PASS 100% (24/24 PASS — Report STEP_03_SUPABASE_AUTH_SESSION_REPORT.md)`
@@ -762,13 +764,14 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 - **Step 6 Status:** `PASS 100% (40/40 PASS — Report STEP_06_CLOUD_MUTATION_REPORT.md)`
 - **Step 7 Status:** `PASS 100% (46/46 PASS — Report STEP_07_CHILD_TABLES_REPORT.md)`
 - **Hotfix Employee Onboarding:** `PASS 100% (30/30 PASS — Report EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md)`
+- **Step 8 Status:** `PASS 100% (39/39 PASS — Report STEP_08_PERSONAL_DATA_REPORT.md)`
 - **Tenant Isolation Verified:** `YES (All suites pass with cross-tenant isolation enforcement)`
 - **Authentication Authority:** Supabase GoTrue Auth (Production authority, local PBKDF2 disabled by default)
-- **LocalStorage Business Writes:** Disabled in Cloud Mode (`persistData()` aborts when `__worktree_is_cloud_workspace === true`)
+- **LocalStorage Business Writes:** Disabled in Cloud Mode (`persistData()` aborts when `__worktree_is_cloud_workspace === true`, `savePins()` and `toggleFavorite()` do not write personal data to LocalStorage)
 - **RLS Policy Count:** 57 remote active public schema policies, 4 storage schema policies, 61 declarations in migration
 - **Audit & Verification Performed By:** Antigravity (Principal Software Architect + Staff Full-stack Engineer + Design System Guardian)
-- **Commands Actually Executed in Hotfix:**
-  - `node scratch/test_employee_onboarding_flow.js` (30/30 PASS against remote Supabase Cloud)
+- **Commands Actually Executed in Step 08:**
+  - `node scratch/test_step08_personal_data.js` (39/39 PASS against remote Supabase Cloud)
   - `node scratch/test_step07_child_tables.js` (46/46 PASS regression suite)
   - `node scratch/test_step06_cloud_mutations.js` (40/40 PASS regression suite)
   - `node scratch/test_step05_cloud_read.js` (25/25 PASS regression suite)
