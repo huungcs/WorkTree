@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141c2e">
+<meta name="description" content="WorkTree X — Không gian điều hành công việc, hoạt động cục bộ và không cần kết nối mạng.">
+<title>WorkTree X V8 — Tài khoản & Ghim ưu tiên</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#mainContent">Đến nội dung chính</a>
+<!-- Authentication is a local UX gate, not a server security boundary. -->
+<section id="authScreen" class="auth-screen"></section>
+<div class="app" id="app" hidden inert>
+  <aside class="sidebar" id="sidebar" aria-label="Điều hướng không gian làm việc">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M7 8v9a6 6 0 006 6h12M16 5v18M25 10v13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="7" cy="7" r="3" fill="currentColor"/><circle cx="16" cy="6" r="3" fill="currentColor"/><circle cx="25" cy="10" r="3" fill="currentColor"/></svg></div>
+      <span class="brand-text">WorkTree<span class="brand-x">X</span><small>KHÔNG GIAN LÀM VIỆC</small></span>
+      <button class="icon-btn side-icon collapse-control" data-action="sidebar" aria-label="Thu gọn thanh điều hướng" title="Thu gọn / mở rộng (Ctrl+B)" data-icon="panel"></button>
+    </div>
+    <button class="workspace-switch" data-action="workspace" title="Thiết lập không gian làm việc">
+      <span class="workspace-avatar">FG</span><span class="side-label workspace-text"><strong id="workspaceName">Four Group</strong><small>Không gian nội bộ</small></span><span class="side-label" data-icon="chevrons"></span>
+    </button>
+    <button class="side-create" data-action="new-task" title="Tạo công việc (N)"><span data-icon="plus"></span><span class="side-label">Tạo công việc</span><kbd class="side-label">N</kbd></button>
+    <div class="side-scroll">
+      <p class="side-heading"><span class="side-label">KHÔNG GIAN</span></p>
+      <nav class="primary-nav" aria-label="Chế độ chính">
+        <button class="nav-item" data-action="nav" data-nav="overview" title="Tổng quan"><span data-icon="dashboard"></span><span class="side-label">Tổng quan</span></button>
+        <button class="nav-item" data-action="nav" data-nav="mine" title="Công việc của tôi"><span data-icon="check-circle"></span><span class="side-label">Công việc của tôi</span><span class="nav-count side-label" id="mineCount">0</span></button>
+        <button class="nav-item" data-action="nav" data-nav="list" title="Tất cả công việc"><span data-icon="layers"></span><span class="side-label">Tất cả công việc</span><span class="nav-count side-label" id="allCount">0</span></button>
+        <button class="nav-item" data-action="nav" data-nav="calendar" title="Lịch công việc"><span data-icon="calendar"></span><span class="side-label">Lịch công việc</span></button>
+        <button class="nav-item" data-action="nav" data-nav="attention" title="Công việc cần chú ý"><span data-icon="inbox"></span><span class="side-label">Cần chú ý</span><span class="nav-count alert side-label" id="attentionCount">0</span></button>
+      </nav>
+      <section class="pin-section side-label" id="pinSection" aria-label="Ghim ưu tiên"></section>
+      <div class="side-heading tree-heading"><span class="side-label">CÂY TỔ CHỨC</span><div class="side-label tree-controls"><button class="tiny-btn" data-action="expand-tree" title="Mở / thu toàn bộ cây" aria-label="Mở hoặc thu toàn bộ cây" data-icon="unfold"></button><button class="tiny-btn" data-action="new-node" title="Thêm đơn vị con" aria-label="Thêm đơn vị con" data-icon="plus"></button></div></div>
+      <div class="tree-search side-label"><span data-icon="search"></span><input id="treeSearch" aria-label="Tìm đơn vị trong cây" placeholder="Tìm đơn vị..." autocomplete="off"></div>
+      <nav id="orgTree" class="org-tree" aria-label="Cây tổ chức"></nav>
+      <div class="saved-section side-label" id="savedSection"><div class="side-heading"><span>GÓC NHÌN ĐÃ LƯU</span><button class="tiny-btn" data-action="save-view" aria-label="Lưu góc nhìn hiện tại" title="Lưu góc nhìn hiện tại" data-icon="plus"></button></div><div id="savedViews"></div></div>
+      <div class="side-note side-label"><span class="side-note-mark" data-icon="shield"></span><strong>Dữ liệu ở lại với bạn.</strong><p>Chạy cục bộ trên trình duyệt.<br>Chủ động sao lưu để bảo vệ công việc.</p><button data-action="export-json">Sao lưu dữ liệu <span data-icon="arrow-up-right"></span></button></div>
+    </div>
+    <div class="side-footer">
+      <button class="nav-item" id="accessNav" data-action="access" title="Tài khoản và phân quyền"><span data-icon="shield"></span><span class="side-label">Tài khoản &amp; quyền</span></button>
+      <button class="nav-item" data-action="settings" title="Cài đặt & dữ liệu"><span data-icon="settings"></span><span class="side-label">Cài đặt & dữ liệu</span></button>
+      <button class="profile" data-action="profile" title="Tài khoản của bạn"><span class="avatar user-avatar" id="userAvatar">VM</span><span class="side-label profile-text"><strong id="profileName">Võ Minh</strong><small id="profileRole"></small></span><span class="side-label" data-icon="chevrons"></span></button>
+    </div>
+  </aside>
+  <button class="sidebar-scrim" id="sidebarScrim" data-action="sidebar-close" aria-label="Đóng thanh điều hướng" hidden></button>
+  <div class="main-shell" id="mainShell">
+    <header class="topbar">
+      <div class="topbar-left"><button class="icon-btn menu-toggle" data-action="sidebar" title="Mở thanh điều hướng" aria-label="Mở thanh điều hướng" data-icon="panel"></button><div class="top-crumb"><span data-icon="building"></span><span id="topWorkspace">Four Group</span><span class="crumb-divider">/</span><strong id="topScope">Toàn công ty</strong></div></div>
+      <div class="topbar-right">
+        <button class="command-trigger" data-action="command" aria-label="Tìm kiếm toàn bộ và lệnh nhanh"><span data-icon="search"></span><span>Tìm nhanh...</span><kbd>Ctrl K</kbd></button>
+        <span class="top-separator"></span>
+        <button class="icon-btn" data-action="undo" id="undoBtn" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác thay đổi gần nhất" data-icon="undo" disabled></button>
+        <button class="icon-btn" data-action="theme" id="themeBtn" title="Đổi giao diện sáng / tối" aria-label="Đổi giao diện sáng tối" data-icon="moon"></button>
+        <button class="icon-btn notification-btn" data-action="notifications" title="Nhắc việc" aria-label="Mở nhắc việc"><span data-icon="bell"></span><i id="notificationDot" hidden></i></button>
+        <button class="avatar top-avatar" data-action="profile" id="topAvatar" aria-label="Thiết lập hồ sơ cục bộ">VM</button>
+      </div>
+    </header>
+    <div id="storageBanner" class="storage-banner" role="alert" hidden></div>
+    <main id="mainContent" class="content" tabindex="-1">
+      <div class="page-eyebrow"><span class="eyebrow-dot"></span><span id="pageEyebrow">BỨC TRANH TỔNG THỂ</span><span class="today-label" id="todayLabel"></span></div>
+      <div class="page-heading">
+        <div class="page-titles"><h1 id="pageTitle">Tổng quan công việc</h1><p id="pageSubtitle">Tập trung đúng việc. Phối hợp đúng nhịp.</p></div>
+        <div class="page-actions"><button class="btn" data-action="export-csv"><span data-icon="download"></span><span>Xuất báo cáo</span></button><button class="btn primary" data-action="new-task"><span data-icon="plus"></span>Công việc mới</button></div>
+      </div>
+      <div class="scope-strip" id="scopeStrip"><nav id="breadcrumbs" aria-label="Đường dẫn đơn vị"></nav><div class="scope-actions"><button class="icon-btn small" id="pinCurrentNode" data-action="pin-node-current" title="Ghim đơn vị" aria-label="Ghim đơn vị" data-icon="pin"></button><label class="switch-label" title="Bao gồm công việc trong toàn bộ các nhánh con"><input type="checkbox" id="includeChildren" checked><span class="mini-switch"></span>Bao gồm cấp con</label><button class="icon-btn small" data-action="node-menu" title="Chỉnh sửa đơn vị đang chọn" aria-label="Chỉnh sửa đơn vị đang chọn" data-icon="more"></button></div></div>
+      <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs"></div>
+      <div class="filterbar">
+        <div class="inline-search"><span data-icon="search"></span><input id="taskSearch" type="search" aria-label="Tìm công việc trong phạm vi hiện tại" placeholder="Tìm công việc, thẻ, người phụ trách..." autocomplete="off"><kbd>/</kbd></div>
+        <button class="btn filter-button" id="filterBtn" data-action="filters" aria-expanded="false" aria-controls="advancedFilters"><span data-icon="sliders"></span>Bộ lọc<span class="filter-count" id="filterCount" hidden>0</span></button>
+        <select id="sortBy" class="toolbar-select" aria-label="Sắp xếp công việc"><option value="smart">Ưu tiên xử lý</option><option value="due">Hạn gần nhất</option><option value="priority">Mức ưu tiên</option><option value="title">Tên A → Z</option><option value="updated">Mới cập nhật</option></select>
+        <button class="icon-btn filter-save" data-action="save-view" title="Lưu góc nhìn & bộ lọc" aria-label="Lưu góc nhìn và bộ lọc" data-icon="bookmark"></button>
+      </div>
+      <div class="advanced-filters" id="advancedFilters" hidden>
+        <label>Trạng thái<select id="filterStatus"><option value="">Tất cả trạng thái</option></select></label>
+        <label>Ưu tiên<select id="filterPriority"><option value="">Tất cả ưu tiên</option></select></label>
+        <label>Người phụ trách<select id="filterOwner"><option value="">Tất cả nhân sự</option></select></label>
+        <label>Thời hạn<select id="filterDue"><option value="">Tất cả thời hạn</option><option value="late">Quá hạn</option><option value="today">Đến hạn hôm nay</option><option value="week">7 ngày tới</option><option value="unscheduled">Chưa có hạn</option><option value="attention">Cần chú ý</option></select></label>
+        <label class="check-filter"><input id="filterFavorite" type="checkbox">Đã đánh dấu sao</label>
+        <button class="btn text-btn" data-action="clear-filters">Xóa bộ lọc</button>
+      </div>
+      <div id="activeFilters" class="active-filters" hidden></div>
+      <section id="viewContent" class="view-content" aria-label="Nội dung công việc"></section>
+      <footer class="content-footer"><span><i class="save-dot" id="saveDot"></i><span id="saveStatus">Lưu trên trình duyệt này</span></span><button data-action="help"><span data-icon="keyboard"></span>Phím tắt & hướng dẫn</button><span class="footer-version">WORKTREE X · V8</span></footer>
+    </main>
+  </div>
+</div>
+
+<dialog id="accessDialog" class="dialog access-dialog" aria-labelledby="accessTitle"><div class="dialog-head"><div><p class="overline">WORKTREE X / ACCESS</p><h2 id="accessTitle"></h2></div><button class="icon-btn" data-action="close" data-dialog="accessDialog" data-icon="x" aria-label="Dong"></button></div><div id="accessContent" class="dialog-scroll"></div></dialog>
+<dialog id="accountDialog" class="dialog form-dialog small-dialog" aria-labelledby="accountTitle"><div id="accountContent"></div></dialog>
+<dialog id="profileDialog" class="dialog small-dialog" aria-labelledby="profileTitle"><div id="profileContent"></div></dialog>
+<dialog id="passwordDialog" class="dialog small-dialog" aria-labelledby="passwordTitle"><div id="passwordContent"></div></dialog>
+<dialog id="pinDialog" class="dialog pin-dialog" aria-labelledby="pinTitle"><div class="dialog-head"><div><p class="overline">WORKTREE X / FOCUS</p><h2 id="pinTitle"></h2></div><button class="icon-btn" data-action="close" data-dialog="pinDialog" data-icon="x" aria-label="Dong"></button></div><div id="pinContent" class="dialog-scroll"></div></dialog>
+<dialog id="taskDialog" class="dialog form-dialog" aria-labelledby="taskDialogTitle">
+ <form id="taskForm">
+  <div class="dialog-head"><div><p class="overline" id="taskFormEyebrow">TỔ CHỨC CÔNG VIỆC</p><h2 id="taskDialogTitle">Tạo công việc mới</h2></div><button type="button" class="icon-btn" data-action="close" data-dialog="taskDialog" aria-label="Đóng cửa sổ tạo công việc" data-icon="x"></button></div>
+  <div class="dialog-scroll">
+   <div class="form-error" id="taskFormError" role="alert" hidden></div>
+   <div class="form-grid">
+    <label class="field full">Tên công việc <span class="required">*</span><input id="tTitle" name="title" maxlength="240" required placeholder="Cần hoàn thành điều gì?" autocomplete="off"></label>
+    <label class="field full">Mô tả<textarea id="tDesc" maxlength="20000" rows="3" placeholder="Mục tiêu, kết quả mong đợi và tiêu chí hoàn thành..."></textarea></label>
+    <label class="field">Đơn vị / dự án <span class="required">*</span><select id="tNode" required></select></label>
+    <label class="field">Người phụ trách<select id="tOwner"></select></label>
+    <label class="field">Trạng thái<select id="tStatus"></select></label>
+    <label class="field">Mức ưu tiên<select id="tPriority"></select></label>
+    <label class="field">Ngày bắt đầu<input id="tStart" type="date" min="1900-01-01" max="9999-12-31"></label>
+    <label class="field">Hạn hoàn thành<input id="tDue" type="date" min="1900-01-01" max="9999-12-31"></label>
+    <label class="field third">Ước tính (giờ)<input id="tEstimate" type="number" min="0" max="10000" step="0.25" value="4"></label>
+    <label class="field third">Đã làm (giờ)<input id="tActual" type="number" min="0" max="10000" step="any" value="0"></label>
+    <label class="field third">Tiến độ (%)<input id="tProgress" type="number" min="0" max="100" step="1" value="0"><span class="field-hint" id="progressHint">Hoàn thành tương ứng với 100%.</span></label>
+    <label class="field full">Thẻ phân loại<input id="tTags" maxlength="820" placeholder="Ví dụ: CRM, Thiết kế, Q3"><span class="field-hint">Phân tách bằng dấu phẩy · Tối đa 20 thẻ.</span></label>
+    <details class="form-details full" id="taskAdvanced"><summary>Phụ thuộc & thiết lập nâng cao</summary>
+      <label class="field full">Cần hoàn thành trước<select id="tDependencies" multiple size="4"></select><span class="field-hint">Giữ Ctrl / Cmd để chọn nhiều công việc. Không được tạo phụ thuộc vòng.</span></label>
+      <label class="field full">Ghi chú phụ thuộc<input id="tDependencyNote" maxlength="1000" placeholder="Ví dụ: Chờ dữ liệu từ phòng Kinh doanh"></label>
+      <label class="checkbox-label"><input id="tAutoProgress" type="checkbox">Tự tính tiến độ theo checklist</label>
+      <p class="field-hint">Mặc định, checklist và tiến độ được quản lý độc lập. Khi bật, bỏ đánh dấu checklist sẽ giảm tiến độ tương ứng.</p>
+    </details>
+   </div>
+  </div>
+  <div class="dialog-foot"><span class="foot-hint"><span data-icon="lock"></span>Chỉ lưu trên trình duyệt này</span><button type="button" class="btn" data-action="close" data-dialog="taskDialog">Hủy</button><button class="btn primary" id="taskSubmit" type="submit">Tạo công việc</button></div>
+ </form>
+</dialog>
+
+<dialog id="nodeDialog" class="dialog form-dialog small-dialog" aria-labelledby="nodeDialogTitle">
+ <form id="nodeForm"><div class="dialog-head"><div><p class="overline">CẤU TRÚC KHÔNG GIAN</p><h2 id="nodeDialogTitle">Thêm đơn vị</h2></div><button type="button" class="icon-btn" data-action="close" data-dialog="nodeDialog" aria-label="Đóng cửa sổ đơn vị" data-icon="x"></button></div>
+ <div class="dialog-scroll"><div id="nodeFormError" class="form-error" role="alert" hidden></div><div class="form-grid">
+  <label class="field full">Tên đơn vị <span class="required">*</span><input id="nName" maxlength="180" required placeholder="Ví dụ: Phòng Vận hành"></label>
+  <label class="field">Loại<select id="nType"></select></label><label class="field">Đơn vị cha<select id="nParent"></select></label>
+  <label class="field full">Mô tả<textarea id="nDesc" maxlength="10000" rows="3"></textarea></label>
+  <label class="field full" id="capacityField">Năng lực làm việc mỗi tuần (giờ)<input id="nCapacity" type="number" min="0" max="168" step="0.5" value="40"><span class="field-hint">Dùng để tính tải công việc của nhân sự, không phải giờ chấm công.</span></label>
+ </div></div><div class="dialog-foot"><button class="btn danger" type="button" id="deleteNodeBtn" data-action="delete-node">Xóa đơn vị</button><span class="spacer"></span><button type="button" class="btn" data-action="close" data-dialog="nodeDialog">Hủy</button><button type="submit" class="btn primary">Lưu đơn vị</button></div></form>
+</dialog>
+
+<dialog id="drawer" class="drawer" aria-labelledby="drawerTitle"><div id="drawerContent"></div></dialog>
+<dialog id="commandDialog" class="dialog command-dialog" aria-labelledby="commandLabel"><h2 id="commandLabel" class="sr-only">Tìm kiếm toàn bộ và lệnh nhanh</h2><div class="command-input"><span data-icon="search"></span><input id="commandInput" placeholder="Tìm công việc, đơn vị hoặc thao tác..." role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="commandResults" autocomplete="off"><button class="key-button" data-action="close" data-dialog="commandDialog" aria-label="Đóng tìm kiếm">Esc</button></div><div id="commandResults" class="command-results" role="listbox" aria-label="Kết quả tìm kiếm"></div><footer><span><kbd>↑</kbd><kbd>↓</kbd> Di chuyển</span><span><kbd>Enter</kbd> Mở</span><span>Tìm trên toàn bộ không gian</span></footer></dialog>
+<dialog id="settingsDialog" class="dialog settings-dialog" aria-labelledby="settingsTitle"><div class="dialog-head"><div><p class="overline">THEO CÁCH CỦA BẠN</p><h2 id="settingsTitle">Cài đặt không gian</h2></div><button class="icon-btn" data-action="close" data-dialog="settingsDialog" aria-label="Đóng cài đặt" data-icon="x"></button></div><div id="settingsContent" class="dialog-scroll"></div></dialog>
+<dialog id="infoDialog" class="dialog info-dialog" aria-labelledby="infoTitle"><div class="dialog-head"><div><p class="overline" id="infoEyebrow">WORKTREE X</p><h2 id="infoTitle">Thông tin</h2></div><button class="icon-btn" data-action="close" data-dialog="infoDialog" aria-label="Đóng cửa sổ" data-icon="x"></button></div><div id="infoContent" class="dialog-scroll"></div></dialog>
+<dialog id="confirmDialog" class="dialog confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmText"><div class="confirm-icon" id="confirmIcon" data-icon="alert"></div><h2 id="confirmTitle">Xác nhận thao tác</h2><p id="confirmText"></p><div id="confirmExtra"></div><div class="dialog-foot"><button class="btn" id="confirmCancel">Hủy</button><button class="btn primary" id="confirmOk">Xác nhận</button></div></dialog>
+<dialog id="nameDialog" class="dialog small-dialog" aria-labelledby="nameDialogTitle"><form id="nameForm"><div class="dialog-head"><h2 id="nameDialogTitle">Lưu góc nhìn</h2><button type="button" class="icon-btn" data-action="close" data-dialog="nameDialog" aria-label="Đóng lưu góc nhìn" data-icon="x"></button></div><div class="dialog-scroll"><label class="field">Tên góc nhìn<input id="savedViewName" required maxlength="60" placeholder="Ví dụ: Công việc gấp của đội Sales"></label><p class="muted">Lưu đơn vị, chế độ xem, tìm kiếm và các bộ lọc hiện tại.</p></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="nameDialog">Hủy</button><button type="submit" class="btn primary">Lưu góc nhìn</button></div></form></dialog>
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+<div id="timerDock" class="timer-dock" hidden></div>
+<div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="false"></div>
+<div class="sr-only" role="status" aria-live="polite" id="liveStatus"></div>
+<noscript><div class="noscript">WorkTree X cần JavaScript để hoạt động. Vui lòng bật JavaScript trong trình duyệt.</div></noscript>
+
+<script src="js/core.js"></script>
+<script src="js/access.js"></script>
+<script src="js/mobile.js"></script>
+</body>
+</html>
