@@ -25,17 +25,17 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
 
 - **Repository Root:** `c:\Users\ASUS\Desktop\WorkTree`
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `82d0d686a6a20d2b38895c3a7c5678c61132fcb5`
-- **Commit gần nhất:** `feat(data): bind workspace read model to Supabase cloud`
+- **Current HEAD Commit:** `653f3c7217c99a3a68abee96f73e937a3157c1f7`
+- **Commit gần nhất:** `fix(auth): resolve null id crash when opening account creation modal in cloud workspace`
 - **Working Tree:** Sạch cho các file code tracked.
-- **Remote Repository:** Chưa cấu hình remote (`git remote -v` rỗng).
+- **Remote Repository:** `https://github.com/huungcs/WorkTree.git`
 - **Các Branch trong Repo:** Chỉ có nhánh `main` (`* main`).
 - **5 Commit gần nhất trong lịch sử:**
-  1. `82d0d68` - `feat(data): bind workspace read model to Supabase cloud`
-  2. `4c68676` - `test(security): verify multi-tenant RLS and RPC isolation`
-  3. `6a829c9` - `fix(supabase): align repositories and edge functions with database schema`
-  4. `30ff836` - `feat(arch): complete production layout with architecture docs, edge functions, db tests, and e2e skeletons`
-  5. `755e94a` - `feat(arch): modular monolith architecture with feature slices, design tokens, and desktop 76px rail`
+  1. `653f3c7` - `fix(auth): resolve null id crash when opening account creation modal in cloud workspace`
+  2. `8b73da4` - `feat(data): enable Supabase cloud task and node mutations`
+  3. `95e6b91` - `docs: finalize step 05 report and project status alignment`
+  4. `82d0d68` - `feat(data): bind workspace read model to Supabase cloud`
+  5. `4c68676` - `test(security): verify multi-tenant RLS and RPC isolation`
 
 ---
 
@@ -194,7 +194,7 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **MOBILE:** ✅ Chuyển đổi thẻ tóm tắt, accordion chi tiết
 - **DARK MODE:** ✅ Tương thích hoàn toàn
 - **TEST:** 25/25 automated tests PASS (`scratch/test_step05_cloud_read.js`)
-- **KNOWN ISSUE:** Mutation tạo task mới từ dashboard đang được gate an toàn chờ Step 06.
+- **WRITE CAPABILITY:** ✅ Hỗ trợ tạo task trực tiếp lên Supabase Cloud [STEP 06 PASS].
 
 ### 2. Organization Tree
 - **STATUS:** ✅ Hoạt động tốt [STEP 05 PASS]
@@ -268,7 +268,7 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **MOBILE:** ✅ Chuyển thành tab chuyển đổi trạng thái (Board tabs) mượt mà
 - **DARK MODE:** ✅ Tương thích
 - **TEST:** 25/25 automated tests PASS
-- **WRITE GATE:** ✅ Kéo thả được gác cổng kèm thông báo Toast, không ghi âm thầm vào localStorage.
+- **WRITE CAPABILITY:** ✅ Kéo thả Kanban cập nhật trạng thái trực tiếp lên Supabase Cloud với trigger và RLS bảo vệ [STEP 06 PASS].
 
 ### 9. Calendar
 - **STATUS:** ✅ Hoạt động tốt [STEP 05 PASS]
@@ -691,7 +691,7 @@ Các biến môi trường bắt buộc (được cấu hình trong tệp `.env`
 3. **[DONE - Step 3] Tích hợp Cloud Auth & Session vào UI:** Chuyển đổi toàn bộ hệ thống xác thực sang Supabase GoTrue (`src/features/auth/`, `src/app/app.js`, `js/access.js`). Vô hiệu hóa local PBKDF2 trên production path. Kiểm thử tự động 24/24 assertions PASS (Login, Signup, Logout, Recovery, Rate limiting, Profile Trigger, Zero client secrets). Báo cáo tại `STEP_03_SUPABASE_AUTH_SESSION_REPORT.md`.
 4. **[DONE - Step 4] Onboarding & Workspace Switcher:** Triển khai Onboarding khi 0 orgs, gọi canonical RPC `create_organization`, bootstrap owner membership, tự động chọn khi 1 org, hiển thị Workspace Switcher khi >1 orgs, thực hiện Tenant State Purge khi chuyển đổi. Kiểm thử tự động 27/27 assertions PASS. Báo cáo tại `STEP_04_WORKSPACE_ONBOARDING_REPORT.md`.
 5. **[DONE - Step 5] Cloud Read Model Migration:** Chuyển nguồn dữ liệu hiển thị chính của toàn bộ 7 góc nhìn công việc (Overview, List, Kanban, Calendar, Timeline, Workload, Tree) từ LocalStorage sang Supabase Cloud (`organization_nodes`, `employees`, `task_rollups`). Tách hoàn toàn employee khỏi tree (Invariant B). Kiểm thử tự động 25/25 assertions PASS 100%. Báo cáo tại `STEP_05_CLOUD_READ_MODEL_REPORT.md`.
-6. **[Critical - Step 6] Cloud Mutation Pipeline:** Thay thế write guards bằng mutations trực tiếp lên Supabase Cloud: tạo task, sửa task, xóa task, đổi trạng thái Kanban, cập nhật timeline, tạo phòng ban/dự án mới trên cây tổ chức.
+6. **[DONE - Step 6] Cloud Mutation Pipeline:** [HOÀN THÀNH - Report STEP_06_CLOUD_MUTATION_REPORT.md / STEP_06_FINALIZATION_REPORT.md] Thay thế write guards bằng mutations trực tiếp lên Supabase Cloud: tạo task, sửa planning fields, cập nhật trạng thái, kéo thả Kanban, soft archive task, tạo đơn vị/dự án, đổi tên đơn vị qua TaskService và TreeService. 40/40 tests PASS.
 7. **[Medium - Step 7] Tích hợp Supabase Realtime:** Thiết lập subscription để tự động cập nhật UI khi có thay đổi từ người dùng khác.
 8. **[Medium - Step 8] Ghim ưu tiên Cloud:** Chuyển lưu trữ ghim từ `localStorage` sang bảng `user_pins` qua `PinRepository`.
 9. **[Low - Step 9] Dọn dẹp Hardcoded Colors:** Thay thế 108 vị trí màu hex trong `css/style.css` bằng biến token chuẩn.
@@ -736,9 +736,9 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 
 ## Verification Metadata
 
-- **Date / Time:** `2026-09-09T21:55:00+07:00`
+- **Date / Time:** `2026-09-09T22:25:00+07:00`
 - **Git Branch:** `main`
-- **Git HEAD Commit:** `95e6b91d72ea9e7405de033cf908f1bb74962120`
+- **Git HEAD Commit:** `653f3c7217c99a3a68abee96f73e937a3157c1f7`
 - **Step 1 Status:** `PASS 100% (Commit 6a829c9)`
 - **Step 2 Status:** `PASS 100% (Commit 4c68676 — Report STEP_02_TENANT_ISOLATION_REPORT.md)`
 - **Step 3 Status:** `PASS 100% (24/24 PASS — Report STEP_03_SUPABASE_AUTH_SESSION_REPORT.md)`
