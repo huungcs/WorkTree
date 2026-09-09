@@ -8,12 +8,15 @@
 ## 1. Snapshot
 
 WorkTree X là một hệ sinh thái quản trị công việc và tổ chức đa doanh nghiệp (**Multi-Tenant SaaS**) đang trong quá trình chuyển đổi chiến lược:
-- **Nguyên bản:** Ứng dụng quản trị cục bộ (Local-First Workspace V8) chạy độc lập trên trình duyệt, không cần backend server, lưu trữ toàn bộ trong `localStorage` bằng WebCrypto PBKDF2 (`js/core.js`, `js/access.js`, `js/mobile.js`, `css/style.css`).
-- **Mục tiêu mới:** Chuyển đổi thành giải pháp SaaS Multi-Tenant chuẩn mực sử dụng nền tảng đám mây Supabase (PostgreSQL 15+, Row-Level Security, GoTrue Auth, Realtime, Storage, Edge Functions) tuân thủ nghiêm ngặt theo hợp đồng kỹ thuật và thiết kế tại `AGENTS.md`.
+- **Nguyên bản:** Ứng dụng quản trị cục bộ (Local-First Workspace V8) chạy độc lập trên trình duyệt, không cần backend server.
+- **Hiện trạng chuyển đổi SaaS:**
+  - **Authentication Authority:** Supabase GoTrue Auth là thẩm quyền xác thực duy nhất trên production path (`src/features/auth/`, `src/app/app.js`, `js/access.js`). Cơ chế mã hóa cục bộ WebCrypto PBKDF2 cũ đã bị vô hiệu hóa mặc định trên production path.
+  - **Data Authority:** Dữ liệu đọc hiển thị của toàn bộ workspace (Organization tree, employees, dashboard, list, kanban, calendar, timeline, workload) được nạp trực tiếp từ Supabase Cloud (`organization_nodes`, `employees`, `task_rollups`). LocalStorage nghiệp vụ (`KEYS.data`) đã bị vô hiệu hóa hoàn toàn tư cách dữ liệu có thẩm quyền.
+  - **Invariant B (Employee ≠ Organization Node):** Đã tách rời 100%. Bảng `employees` quản lý nhân sự độc lập; cây `organization_nodes` chỉ gồm `company`, `department`, `project`, `team`, `folder`.
 - **Trạng thái thực tế:**
-  - **Giao diện (Frontend UI):** Đạt ~88%. Đã có 7 góc nhìn công việc (Overview, List, Kanban, Calendar, Timeline/Gantt, Workload, Folders) render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px) và Mobile Bottom Navigation (74px + safe area).
-  - **Tích hợp Supabase (Integration):** Đạt ~88%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS), và Toàn bộ Read Model (Nodes, Employees, Task Rollups) đã chuyển dịch sang Supabase Cloud (Step 05 PASS).
-  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~98%. Schema 23 bảng, 57 RLS policies, triggers, closure tree và các RPC functions đã được **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS)**. Cách ly đa tenant A/B và phân quyền vai trò đạt chuẩn 100% ở database level.
+  - **Giao diện (Frontend UI):** Đạt ~88%. Đã có 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px) và Mobile Bottom Navigation (74px + safe area).
+  - **Tích hợp Supabase (Integration):** Đạt ~88%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), và Toàn bộ Read Model (Nodes, Employees, Task Rollups) đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25).
+  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~98%. Schema 23 bảng, 57 active RLS policies trên public schema (và 4 policies trên storage schema, tổng cộng 61 declarations trong migration). Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS)**. Cách ly đa tenant A/B và phân quyền vai trò đạt chuẩn 100% ở database level.
   - **Độ sẵn sàng sản xuất (Production Readiness):** Đạt ~85%. Auth, Session, Multi-tenant Workspace switching và Cloud Read Model đã hoàn thành và kiểm chứng an toàn (Step 05 PASS). Bước tiếp theo là chuyển đổi pipeline ghi dữ liệu (Cloud Mutations trong Step 06).
 
 ---
@@ -22,17 +25,17 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
 
 - **Repository Root:** `c:\Users\ASUS\Desktop\WorkTree`
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `4c68676501ce8b82b17d8b5f8d41826f06b816cd`
-- **Commit gần nhất:** `test(security): verify multi-tenant RLS and RPC isolation`
+- **Current HEAD Commit:** `82d0d686a6a20d2b38895c3a7c5678c61132fcb5`
+- **Commit gần nhất:** `feat(data): bind workspace read model to Supabase cloud`
 - **Working Tree:** Sạch cho các file code tracked.
 - **Remote Repository:** Chưa cấu hình remote (`git remote -v` rỗng).
 - **Các Branch trong Repo:** Chỉ có nhánh `main` (`* main`).
 - **5 Commit gần nhất trong lịch sử:**
-  1. `4c68676` - `test(security): verify multi-tenant RLS and RPC isolation`
-  2. `6a829c9` - `fix(supabase): align repositories and edge functions with database schema`
-  3. `30ff836` - `feat(arch): complete production layout with architecture docs, edge functions, db tests, and e2e skeletons`
-  4. `755e94a` - `feat(arch): modular monolith architecture with feature slices, design tokens, and desktop 76px rail`
-  5. `93d47bf` - `docs: add agent architecture prompt, design system governance, and cursorrules`
+  1. `82d0d68` - `feat(data): bind workspace read model to Supabase cloud`
+  2. `4c68676` - `test(security): verify multi-tenant RLS and RPC isolation`
+  3. `6a829c9` - `fix(supabase): align repositories and edge functions with database schema`
+  4. `30ff836` - `feat(arch): complete production layout with architecture docs, edge functions, db tests, and e2e skeletons`
+  5. `755e94a` - `feat(arch): modular monolith architecture with feature slices, design tokens, and desktop 76px rail`
 
 ---
 
@@ -175,8 +178,8 @@ c:\Users\ASUS\Desktop\WorkTree\
 | **Role Member** | ✅ | ✅ | ✅ | ✅ | ❌ | Đang chạy trên ma trận quyền cục bộ; DB phân quyền đọc/ghi task được giao. |
 | **Role Viewer** | ✅ | ✅ | ✅ | ✅ | ❌ | Đang chạy trên ma trận quyền cục bộ; DB cấm mọi thao tác ghi. |
 | **Scope theo cây** | ✅ | ✅ | ✅ | ✅ | ❌ | UI cho phép tick chọn nhánh; DB dùng `organization_node_closure` + `member_scopes`. |
-| **Một user nhiều company**| 🟡 | ✅ | ✅ | ✅ | ✅ | DB hỗ trợ nhiều bản ghi trong `organization_members`; logic bootstrap đã đọc danh sách orgs; UI switcher ở Step 04. |
-| **Tenant A ≠ Tenant B** | N/A | ✅ | ✅ | ✅ | ✅ | [STEP 02 & 03 PASS] DB có 61 RLS policies bảo vệ; 55/55 RLS isolation tests PASS; 24/24 Auth tests PASS. |
+| **Một user nhiều company**| ✅ | ✅ | ✅ | ✅ | ✅ | [STEP 04 PASS] DB hỗ trợ nhiều bản ghi trong `organization_members`; UI switcher cho phép chuyển đổi workspace mượt mà kèm state purge. |
+| **Tenant A ≠ Tenant B** | N/A | ✅ | ✅ | ✅ | ✅ | [STEP 02, 03, 04, 05 PASS] DB có 57 active RLS policies trên public schema (và 4 trên storage schema, tổng cộng 61 declarations trong migration) bảo vệ; 55/55 RLS isolation tests PASS; 24/24 Auth tests PASS; 27/27 Workspace tests PASS; 25/25 Cloud Read tests PASS. |
 
 ---
 
@@ -419,15 +422,15 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **KNOWN ISSUE:** Mới chỉ có khai báo bảng và policies trong database migration.
 
 ### 23. Accounts & Permissions
-- **STATUS:** 🟡 Hoạt động cục bộ
-- **DATA SOURCE:** LocalStorage WebCrypto PBKDF2 (`js/access.js`)
+- **STATUS:** ✅ Đã chuyển sang Supabase GoTrue Auth & Cloud Membership [STEPS 03, 04, 05]
+- **DATA SOURCE:** Supabase GoTrue Auth (`auth.users`, `profiles`) và Cloud Membership (`organization_members`, `member_scopes`). Local PBKDF2 chỉ là legacy fallback đã tắt mặc định trên production path.
 - **DATABASE TABLE:** `profiles`, `organization_members`, `member_scopes`
-- **RLS:** Có
-- **DESKTOP:** ✅ Dialog quản lý tài khoản, ma trận quyền 4 vai trò, gán phạm vi cây
+- **RLS:** Có (đã kiểm chứng 55/55 RLS tests PASS và 24/24 Auth tests PASS)
+- **DESKTOP:** ✅ Quản lý tài khoản, hiển thị thông tin profile từ DB, vai trò Owner/Admin/Member/Viewer từ `organization_members`
 - **MOBILE:** ✅ Dialog toàn màn hình
 - **DARK MODE:** ✅ Tương thích
-- **TEST:** Chưa có
-- **KNOWN ISSUE:** Cần chuyển đổi sang quản lý thành viên qua Supabase GoTrue Auth và Edge Function `invite-employee`.
+- **TEST:** 24/24 Auth tests PASS (`scratch/test_step03_auth.js`), 27/27 Workspace tests PASS (`scratch/test_step04_workspace.js`)
+- **KNOWN ISSUE:** Giao diện mời thêm thành viên mới qua email (Edge Function `invite-employee`) chưa dựng UI form.
 
 ### 24. Organization Settings
 - **STATUS:** 🟡 Hoạt động cục bộ
@@ -490,7 +493,9 @@ c:\Users\ASUS\Desktop\WorkTree\
   1. `supabase/migrations/20260909000000_worktree_multi_tenant_complete.sql` (90.377 bytes, 2.303 dòng).
 - **Tình trạng RLS (Đã kiểm chứng trực tiếp trên PostgreSQL engine):**
   - **100% (23/23 bảng)** trong `public` schema đã kích hoạt `relrowsecurity = true`.
-  - Có tổng cộng **57 chính sách RLS (`CREATE POLICY`)** bao quát toàn diện các quyền SELECT, INSERT, UPDATE, DELETE theo `organization_id` và vai trò.
+  - **Remote Active RLS Policies (Public Schema):** Có đúng **57 chính sách RLS trên public schema** đang hoạt động thực tế.
+  - **Remote Active RLS Policies (Storage Schema):** Có **4 chính sách RLS trên storage schema** (`storage.objects`) bảo vệ bucket file đính kèm.
+  - **Migration Source Declarations:** Tổng cộng **61 câu lệnh `CREATE POLICY`** trong file migration nguồn `20260909000000_worktree_multi_tenant_complete.sql` (57 bảng public + 4 bảng storage). Bao quát toàn diện các quyền SELECT, INSERT, UPDATE, DELETE theo `organization_id` và vai trò.
 - **Kiểm thử SQL đã chạy thực tế trên Cloud DB:**
   - `supabase/tests/migrations/01_schema_integrity_test.sql`: **ĐÃ CHẠY VÀ PASS 100%** (Xác nhận đầy đủ các bảng `organizations`, `organization_nodes`, `employees`, `tasks`, `user_pins` và view `task_rollups`).
   - `supabase/tests/rpc/01_create_org_test.sql`: **ĐÃ CHẠY VÀ PASS 100%** (Xác nhận RPC `create_organization` tạo tổ chức và owner thành công).
