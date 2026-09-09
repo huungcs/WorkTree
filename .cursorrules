@@ -1,0 +1,15 @@
+# WorkTree X — Cursor Rules
+
+Before writing, modifying, or refactoring any code in this repository:
+
+1. You MUST read and strictly adhere to:
+   - AGENTS.md (authoritative engineering & design contract)
+   - PROMPT_AGENT_WORKTREE_X_ARCHITECTURE.md (system architecture, boundary rules, DoD)
+   - docs/design/WORKTREE_X_DESIGN_SYSTEM.md (design system tokens & responsive behavior)
+
+2. Core Invariants (Non-negotiable):
+   - Multi-tenant: Every business query/mutation must be scoped to organization_id protected by Supabase RLS. Never bypass RLS or filter cross-tenant data purely in client JS.
+   - Identity: employees represents workforce members. organization_nodes represents tree units (company, dept, project, team, folder). Never store persons directly into organization_nodes.
+   - Security: Supabase secret keys (sb_secret_...) must NEVER be exposed in client code or client bundles. Client must strictly use sb_publishable_...
+   - Design System: Font is strictly Inter. Do NOT introduce external fonts, Tailwind, or custom unapproved CSS palettes. All colors, radiuses, and paddings must come from semantic CSS variables in css/style.css.
+   - Responsive Layout: Desktop breakpoint is >= 901px (sidebar expanded 278px, collapsed 76px). Mobile breakpoint is <= 900px (off-canvas sidebar + mobile bottom navigation, 44px/48px touch targets).
