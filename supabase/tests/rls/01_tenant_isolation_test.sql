@@ -3,14 +3,20 @@
 
 BEGIN;
 
--- 1. Create two test organizations
-INSERT INTO organizations (id, name, slug) VALUES 
-  ('11111111-1111-1111-1111-111111111111', 'Company A', 'company-a'),
-  ('22222222-2222-2222-2222-222222222222', 'Company B', 'company-b')
+-- 0. Ensure test auth users exist for foreign key compliance
+INSERT INTO auth.users (id, email) VALUES 
+  ('00000000-0000-0000-0000-000000000001', 'tenant-a-owner@test.local'),
+  ('00000000-0000-0000-0000-000000000002', 'tenant-b-owner@test.local')
 ON CONFLICT (id) DO NOTHING;
 
--- 2. Create nodes under each
-INSERT INTO organization_nodes (id, organization_id, name, node_type) VALUES
+-- 1. Create two test organizations with valid created_by reference
+INSERT INTO organizations (id, name, slug, created_by) VALUES 
+  ('11111111-1111-1111-1111-111111111111', 'Company A', 'company-a', '00000000-0000-0000-0000-000000000001'),
+  ('22222222-2222-2222-2222-222222222222', 'Company B', 'company-b', '00000000-0000-0000-0000-000000000002')
+ON CONFLICT (id) DO NOTHING;
+
+-- 2. Create nodes under each using canonical 'type' column
+INSERT INTO organization_nodes (id, organization_id, name, type) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Dept A', 'department'),
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '22222222-2222-2222-2222-222222222222', 'Dept B', 'department')
 ON CONFLICT (id) DO NOTHING;

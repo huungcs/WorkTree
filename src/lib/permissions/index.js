@@ -29,7 +29,7 @@ export function canCreateTask(role) {
 
 export function canUpdateTask(role, task, currentUserId) {
   if ([ROLES.OWNER, ROLES.ADMIN, ROLES.MANAGER].includes(role)) return true;
-  if (role === ROLES.MEMBER && task?.assignee_id === currentUserId) return true;
+  if (role === ROLES.MEMBER && (task?.primary_assignee_id || task?.assignee_id) === currentUserId) return true;
   return false;
 }
 

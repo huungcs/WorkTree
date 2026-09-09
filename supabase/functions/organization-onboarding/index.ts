@@ -19,7 +19,7 @@ serve(async (req) => {
       .insert({
         organization_id: organizationId,
         name: rootName || "Trụ sở chính",
-        node_type: "company",
+        type: "company",
         sort_order: 1
       })
       .select()
