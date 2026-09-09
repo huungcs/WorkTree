@@ -1,4 +1,4 @@
 /**
  * WorkTree X Feature: Comments
  */
-export const CommentsService = {};
+export * from './services/comment-service.js';

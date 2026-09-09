@@ -14,6 +14,25 @@ export const appState = {
   nodes: [],
   employees: [],
   tasks: [],
+  taskDetail: {
+    taskId: null,
+    checklist: [],
+    dependencies: [],
+    comments: [],
+    timeEntries: [],
+    loading: {
+      checklist: false,
+      dependencies: false,
+      comments: false,
+      timeEntries: false
+    },
+    errors: {
+      checklist: null,
+      dependencies: null,
+      comments: null,
+      timeEntries: null
+    }
+  },
   selectedNodeId: null,
   currentView: 'overview',
   theme: localStorage.getItem('worktree_theme') || 'light',
@@ -68,6 +87,15 @@ export const appState = {
     this.nodes = [];
     this.employees = [];
     this.tasks = [];
+    this.taskDetail = {
+      taskId: null,
+      checklist: [],
+      dependencies: [],
+      comments: [],
+      timeEntries: [],
+      loading: { checklist: false, dependencies: false, comments: false, timeEntries: false },
+      errors: { checklist: null, dependencies: null, comments: null, timeEntries: null }
+    };
     this.selectedNodeId = null;
     this.currentView = 'overview';
     this.activeMembership = null;

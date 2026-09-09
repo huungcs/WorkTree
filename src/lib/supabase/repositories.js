@@ -772,24 +772,39 @@ export const SavedViewRepository = {
 };
 
 // ============================================================================
+// ============================================================================
 // 7. TASK COMMENTS REPOSITORY (Table: public.task_comments)
 // Schema: id, organization_id, task_id, author_user_id, body, edited_at, created_at
 // ============================================================================
 
 export const CommentRepository = {
-  async getComments(taskId) {
+  async getComments(taskId, organizationId = null) {
     if (!taskId) return [];
     const sb = await getSupabase();
-    const { data, error } = await sb
+    let query = sb
       .from('task_comments')
       .select('*')
-      .eq('task_id', taskId)
-      .order('created_at', { ascending: true });
+      .eq('task_id', taskId);
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+    const { data, error } = await query.order('created_at', { ascending: true });
     if (error) throw error;
     return data || [];
   },
 
   async addComment({ organizationId, taskId, body }) {
+    if (!organizationId || !taskId) {
+      throw new Error('Thiếu organizationId hoặc taskId.');
+    }
+    const trimmed = (body || '').trim();
+    if (!trimmed) {
+      throw new Error('Nội dung bình luận không được để trống.');
+    }
+    if (trimmed.length > 5000) {
+      throw new Error('Nội dung bình luận tối đa 5.000 ký tự.');
+    }
+
     const sb = await getSupabase();
     const { data: userRes } = await sb.auth.getUser();
     const userId = userRes?.user?.id;
@@ -801,8 +816,36 @@ export const CommentRepository = {
         organization_id: organizationId,
         task_id: taskId,
         author_user_id: userId,
-        body
+        body: trimmed
       })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteComment(commentId) {
+    if (!commentId) throw new Error('Thiếu mã bình luận để xóa.');
+    const sb = await getSupabase();
+    const { error } = await sb
+      .from('task_comments')
+      .delete()
+      .eq('id', commentId);
+    if (error) throw error;
+    return { success: true };
+  },
+
+  async updateComment(commentId, body) {
+    if (!commentId) throw new Error('Thiếu mã bình luận để sửa.');
+    const trimmed = (body || '').trim();
+    if (!trimmed) throw new Error('Nội dung bình luận không được để trống.');
+    if (trimmed.length > 5000) throw new Error('Nội dung bình luận tối đa 5.000 ký tự.');
+
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from('task_comments')
+      .update({ body: trimmed, edited_at: new Date().toISOString() })
+      .eq('id', commentId)
       .select()
       .single();
     if (error) throw error;
@@ -816,14 +859,17 @@ export const CommentRepository = {
 // ============================================================================
 
 export const TimeEntryRepository = {
-  async getTimeEntries(taskId) {
+  async getTimeEntries(taskId, organizationId = null) {
     if (!taskId) return [];
     const sb = await getSupabase();
-    const { data, error } = await sb
+    let query = sb
       .from('task_time_entries')
       .select('*')
-      .eq('task_id', taskId)
-      .order('created_at', { ascending: false });
+      .eq('task_id', taskId);
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   },
@@ -836,6 +882,17 @@ export const TimeEntryRepository = {
     startedAt = null,
     endedAt = null
   }) {
+    if (!organizationId || !taskId) {
+      throw new Error('Thiếu organizationId hoặc taskId.');
+    }
+    const intMinutes = Math.round(Number(minutes));
+    if (!Number.isInteger(intMinutes) || intMinutes <= 0) {
+      throw new Error('Thời gian thực hiện phải lớn hơn 0 phút.');
+    }
+    if (intMinutes > 10080) {
+      throw new Error('Thời gian thực hiện không được vượt quá 10.080 phút (7 ngày).');
+    }
+
     const sb = await getSupabase();
     const { data: userRes } = await sb.auth.getUser();
     const userId = userRes?.user?.id;
@@ -847,8 +904,8 @@ export const TimeEntryRepository = {
         organization_id: organizationId,
         task_id: taskId,
         user_id: userId,
-        minutes,
-        note,
+        minutes: intMinutes,
+        note: (note || '').slice(0, 500),
         started_at: startedAt,
         ended_at: endedAt
       })
@@ -856,6 +913,17 @@ export const TimeEntryRepository = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  async deleteTimeEntry(entryId) {
+    if (!entryId) throw new Error('Thiếu mã bản ghi thời gian để xóa.');
+    const sb = await getSupabase();
+    const { error } = await sb
+      .from('task_time_entries')
+      .delete()
+      .eq('id', entryId);
+    if (error) throw error;
+    return { success: true };
   }
 };
 
@@ -866,26 +934,40 @@ export const TimeEntryRepository = {
 // ============================================================================
 
 export const ChecklistRepository = {
-  async getChecklistItems(taskId) {
+  async getChecklistItems(taskId, organizationId = null) {
     if (!taskId) return [];
     const sb = await getSupabase();
-    const { data, error } = await sb
+    let query = sb
       .from('task_checklist_items')
       .select('*')
-      .eq('task_id', taskId)
-      .order('sort_order', { ascending: true });
+      .eq('task_id', taskId);
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+    const { data, error } = await query.order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     if (error) throw error;
     return data || [];
   },
 
   async addChecklistItem({ organizationId, taskId, content, sortOrder = 0 }) {
+    if (!organizationId || !taskId) {
+      throw new Error('Thiếu organizationId hoặc taskId.');
+    }
+    const trimmed = (content || '').trim();
+    if (!trimmed) {
+      throw new Error('Nội dung checklist không được để trống.');
+    }
+    if (trimmed.length > 400) {
+      throw new Error('Nội dung checklist tối đa 400 ký tự.');
+    }
+
     const sb = await getSupabase();
     const { data, error } = await sb
       .from('task_checklist_items')
       .insert({
         organization_id: organizationId,
         task_id: taskId,
-        content,
+        content: trimmed,
         sort_order: sortOrder,
         is_done: false
       })
@@ -896,6 +978,7 @@ export const ChecklistRepository = {
   },
 
   async toggleChecklistItem(itemId, isDone) {
+    if (!itemId) throw new Error('Thiếu itemId cho toggleChecklistItem.');
     const sb = await getSupabase();
     const { data: userRes } = await sb.auth.getUser();
     const userId = userRes?.user?.id;
@@ -912,6 +995,106 @@ export const ChecklistRepository = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  async deleteChecklistItem(itemId) {
+    if (!itemId) throw new Error('Thiếu itemId cho deleteChecklistItem.');
+    const sb = await getSupabase();
+    const { error } = await sb
+      .from('task_checklist_items')
+      .delete()
+      .eq('id', itemId);
+    if (error) throw error;
+    return { success: true };
+  },
+
+  async updateChecklistItem(itemId, updates = {}) {
+    if (!itemId) throw new Error('Thiếu itemId cho updateChecklistItem.');
+    const sb = await getSupabase();
+    const payload = {};
+    if (updates.content !== undefined) {
+      const trimmed = updates.content.trim();
+      if (!trimmed) throw new Error('Nội dung checklist không được để trống.');
+      if (trimmed.length > 400) throw new Error('Nội dung checklist tối đa 400 ký tự.');
+      payload.content = trimmed;
+    }
+    if (updates.sort_order !== undefined || updates.sortOrder !== undefined) {
+      payload.sort_order = updates.sort_order ?? updates.sortOrder;
+    }
+
+    const { data, error } = await sb
+      .from('task_checklist_items')
+      .update(payload)
+      .eq('id', itemId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+};
+
+// ============================================================================
+// 9B. TASK DEPENDENCIES REPOSITORY (Table: public.task_dependencies)
+// Schema: organization_id, task_id, depends_on_task_id, created_by, created_at
+// ============================================================================
+
+export const DependencyRepository = {
+  async getDependencies(taskId, organizationId = null) {
+    if (!taskId) return [];
+    const sb = await getSupabase();
+    let query = sb
+      .from('task_dependencies')
+      .select('organization_id, task_id, depends_on_task_id, created_by, created_at')
+      .eq('task_id', taskId);
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  async addDependency({ organizationId, taskId, dependsOnTaskId }) {
+    if (!organizationId || !taskId || !dependsOnTaskId) {
+      throw new Error('Thiếu thông tin liên kết phụ thuộc.');
+    }
+    if (taskId === dependsOnTaskId) {
+      throw new Error('Công việc không thể phụ thuộc vào chính nó.');
+    }
+    const sb = await getSupabase();
+    const { data: userRes } = await sb.auth.getUser();
+    const userId = userRes?.user?.id;
+
+    const { data, error } = await sb
+      .from('task_dependencies')
+      .insert({
+        organization_id: organizationId,
+        task_id: taskId,
+        depends_on_task_id: dependsOnTaskId,
+        created_by: userId || null
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteDependency({ organizationId, taskId, dependsOnTaskId }) {
+    if (!taskId || !dependsOnTaskId) {
+      throw new Error('Thiếu thông tin để hủy phụ thuộc.');
+    }
+    const sb = await getSupabase();
+    let query = sb
+      .from('task_dependencies')
+      .delete()
+      .eq('task_id', taskId)
+      .eq('depends_on_task_id', dependsOnTaskId);
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+    const { error } = await query;
+    if (error) throw error;
+    return { success: true };
   }
 };
 

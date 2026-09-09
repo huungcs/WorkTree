@@ -11,6 +11,10 @@ import { OrgService, WorkspaceDialog } from '../features/organizations/index.js'
 import { NodeRepository, EmployeeRepository, TaskRepository } from '../lib/supabase/repositories.js';
 import { TaskService } from '../features/tasks/index.js';
 import { TreeService } from '../features/organization-tree/index.js';
+import { ChecklistService } from '../features/checklists/index.js';
+import { DependencyService } from '../features/dependencies/index.js';
+import { CommentService } from '../features/comments/index.js';
+import { TimeEntryService } from '../features/time-tracking/index.js';
 
 let authViewInstance = null;
 let workspaceDialogInstance = null;
@@ -663,6 +667,10 @@ if (typeof window !== 'undefined') {
   window.getWorkspaceLoadGeneration = () => workspaceLoadGeneration;
   window.TaskService = TaskService;
   window.TreeService = TreeService;
+  window.ChecklistService = ChecklistService;
+  window.DependencyService = DependencyService;
+  window.CommentService = CommentService;
+  window.TimeEntryService = TimeEntryService;
 }
 
 // Tự khởi chạy khi file được nạp

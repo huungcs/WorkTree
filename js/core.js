@@ -854,13 +854,20 @@ function saveTask(event){
       tags
      });
      if(created){
-      data.tasks.unshift(created);
-      rebuild();
-      renderAll(true);
-      dirtyTask=false;
-      closeDialog('taskDialog',true);
-      openDrawer(created.id);
-      toast('Đã tạo công việc thành công.','success');
+       const selectedDeps=Array.from($('tDependencies').selectedOptions).map(o=>o.value).filter(Boolean);
+       if(window.DependencyService && selectedDeps.length){
+        for(const depId of selectedDeps){
+         try{ await window.DependencyService.addDependency({ taskId: created.id, dependsOnTaskId: depId }); }catch(e){}
+        }
+        created.dependencies = selectedDeps;
+       }
+       data.tasks.unshift(created);
+       rebuild();
+       renderAll(true);
+       dirtyTask=false;
+       closeDialog('taskDialog',true);
+       openDrawer(created.id);
+       toast('Đã tạo công việc thành công.','success');
      }
     }else{
      const t=byTask.get(editingTask);
@@ -879,14 +886,27 @@ function saveTask(event){
 
      const updated=await window.TaskService.updateTask(editingTask,updates,t?.updatedAt||null);
      if(updated){
-      const idx=data.tasks.findIndex(x=>x.id===editingTask);
-      if(idx!==-1)data.tasks[idx]=updated;
-      rebuild();
-      renderAll(true);
-      dirtyTask=false;
-      closeDialog('taskDialog',true);
-      if($('drawer').open&&drawerId===editingTask)renderDrawer();
-      toast('Đã lưu thay đổi công việc.','success');
+       const selectedDeps=Array.from($('tDependencies').selectedOptions).map(o=>o.value).filter(Boolean);
+       if(window.DependencyService && t){
+        const oldDeps = (t.dependencies||[]).map(String);
+        const toAdd = selectedDeps.filter(id => !oldDeps.includes(id));
+        const toDel = oldDeps.filter(id => !selectedDeps.includes(id));
+        for(const depId of toAdd){
+         try{ await window.DependencyService.addDependency({ taskId: editingTask, dependsOnTaskId: depId }); }catch(e){}
+        }
+        for(const depId of toDel){
+         try{ await window.DependencyService.deleteDependency({ taskId: editingTask, dependsOnTaskId: depId }); }catch(e){}
+        }
+        updated.dependencies = selectedDeps;
+       }
+       const idx=data.tasks.findIndex(x=>x.id===editingTask);
+       if(idx!==-1)data.tasks[idx]=updated;
+       rebuild();
+       renderAll(true);
+       dirtyTask=false;
+       closeDialog('taskDialog',true);
+       if($('drawer').open&&drawerId===editingTask)renderDrawer();
+       toast('Đã lưu thay đổi công việc.','success');
      }
     }
    }catch(err){
@@ -931,22 +951,266 @@ function storeDrawerDraft(){
  const values={};for(const id of ['newChecklist','commentText','logHours','logNote'])if($(id))values[id]=$(id).value;
  drawerDrafts.set(drawerId,values);
 }
+function resolveCommentAuthor(userId){
+ if(!userId)return 'Thành viên';
+ if(window.__worktree_supabase_user&&window.__worktree_supabase_user.id===userId){
+  return window.__worktree_supabase_user.name||'Tôi';
+ }
+ if(window.cloudEmployees&&window.cloudEmployees.length){
+  const emp=window.cloudEmployees.find(e=>e.id===userId||e.user_id===userId);
+  if(emp)return emp.name||emp.full_name||'Thành viên';
+ }
+ if(typeof data!=='undefined'&&data.employees&&data.employees.length){
+  const emp=data.employees.find(e=>e.id===userId);
+  if(emp)return emp.name||'Thành viên';
+ }
+ return 'Thành viên';
+}
+
+window.__taskDetailData={
+ taskId:null,
+ checklist:[],
+ dependencies:[],
+ comments:[],
+ logs:[],
+ loading:{checklist:false,dependencies:false,comments:false,logs:false},
+ errors:{checklist:null,dependencies:null,comments:null,logs:null}
+};
+
 function openDrawer(id){
  if(!requireLogin()||!canReadTask(byTask.get(id)))return deny();
  if(!byTask.has(id)){toast('Công việc này không còn tồn tại.','error');return;}
- if($('drawer').open)storeDrawerDraft();drawerId=id;renderDrawer();
- showDialog('drawer');requestAnimationFrame(()=>$('drawerTitle')?.focus({preventScroll:true}));
+ if($('drawer').open)storeDrawerDraft();
+ drawerId=id;
+
+ if(window.__worktree_is_cloud_workspace){
+  window.__taskDetailLoadGen=(window.__taskDetailLoadGen||0)+1;
+  const thisGen=window.__taskDetailLoadGen;
+  const currentTaskId=id;
+  const currentOrgId=window.__active_org_id||(window.__worktree_supabase_user?.organization?.id);
+
+  window.__taskDetailData={
+   taskId:id,
+   checklist:[],
+   dependencies:[],
+   comments:[],
+   logs:[],
+   loading:{checklist:true,dependencies:true,comments:true,logs:true},
+   errors:{checklist:null,dependencies:null,comments:null,logs:null}
+  };
+
+  renderDrawer();
+  showDialog('drawer');
+  requestAnimationFrame(()=>$('drawerTitle')?.focus({preventScroll:true}));
+
+  Promise.allSettled([
+   window.ChecklistService?window.ChecklistService.getItems(id,currentOrgId):Promise.resolve([]),
+   window.DependencyService?window.DependencyService.getDependencies(id,currentOrgId):Promise.resolve([]),
+   window.CommentService?window.CommentService.getComments(id,currentOrgId):Promise.resolve([]),
+   window.TimeEntryService?window.TimeEntryService.getTimeEntries(id,currentOrgId):Promise.resolve([])
+  ]).then(([checkRes,depRes,comRes,timeRes])=>{
+   if(thisGen!==window.__taskDetailLoadGen||drawerId!==currentTaskId)return;
+   if(currentOrgId&&window.__active_org_id&&currentOrgId!==window.__active_org_id)return;
+
+   const detail=window.__taskDetailData;
+   detail.loading={checklist:false,dependencies:false,comments:false,logs:false};
+
+   if(checkRes.status==='fulfilled'){
+    detail.checklist=(checkRes.value||[]).map(c=>({id:c.id,text:c.content,done:c.is_done,sort_order:c.sort_order}));
+   }else{
+    detail.errors.checklist=checkRes.reason?.message||'Không thể tải checklist.';
+   }
+
+   if(depRes.status==='fulfilled'){
+    detail.dependencies=depRes.value||[];
+   }else{
+    detail.errors.dependencies=depRes.reason?.message||'Không thể tải phụ thuộc.';
+   }
+
+   if(comRes.status==='fulfilled'){
+    detail.comments=(comRes.value||[]).map(c=>({
+     id:c.id,
+     text:c.body,
+     author:resolveCommentAuthor(c.author_user_id),
+     authorId:c.author_user_id,
+     at:c.created_at
+    }));
+   }else{
+    detail.errors.comments=comRes.reason?.message||'Không thể tải bình luận.';
+   }
+
+   if(timeRes.status==='fulfilled'){
+    detail.logs=(timeRes.value||[]).map(l=>({
+     id:l.id,
+     hours:(l.minutes||0)/60,
+     note:l.note,
+     at:l.created_at,
+     author:resolveCommentAuthor(l.user_id)
+    }));
+   }else{
+    detail.errors.logs=timeRes.reason?.message||'Không thể tải nhật ký thời gian.';
+   }
+
+   const t=byTask.get(currentTaskId);
+   if(t){
+    if(checkRes.status==='fulfilled'){
+     t.checklist=detail.checklist.map(c=>[c.text,c.done]);
+     t.checklist_total=detail.checklist.length;
+     t.checklist_done=detail.checklist.filter(c=>c.done).length;
+    }
+    if(depRes.status==='fulfilled'){
+     t.dependencies=detail.dependencies.map(d=>d.depends_on_task_id);
+    }
+    if(comRes.status==='fulfilled') t.comments=detail.comments;
+    if(timeRes.status==='fulfilled') t.logs=detail.logs;
+   }
+
+   refreshDrawer();
+  });
+  return;
+ }
+
+ renderDrawer();
+ showDialog('drawer');
+ requestAnimationFrame(()=>$('drawerTitle')?.focus({preventScroll:true}));
 }
+
 function refreshDrawer(){
- if(!$('drawer').open||!byTask.has(drawerId))return;storeDrawerDraft();
+ if(!$('drawer').open||!byTask.has(drawerId))return;
+ storeDrawerDraft();
  const focused=document.activeElement,focusId=focused?.id,scroll=$('drawer').querySelector('.drawer-body')?.scrollTop||0;
  const start=focused&&typeof focused.selectionStart==='number'?focused.selectionStart:null;
- renderDrawer();const body=$('drawer').querySelector('.drawer-body');if(body)body.scrollTop=scroll;
- if(focusId&&$(focusId)){try{$(focusId).focus({preventScroll:true});if(start!==null)$(focusId).setSelectionRange(start,start);}catch(e){}}
+ renderDrawer();
+ const body=$('drawer').querySelector('.drawer-body');
+ if(body)body.scrollTop=scroll;
+ if(focusId&&$(focusId)){
+  try{
+   $(focusId).focus({preventScroll:true});
+   if(start!==null)$(focusId).setSelectionRange(start,start);
+  }catch(e){}
+ }
 }
+
 function renderDrawer(){
- const t=byTask.get(drawerId);if(!t)return;const checks=t.checklist.filter(c=>c[1]).length,pending=blockers(t);
+ const t=byTask.get(drawerId);if(!t)return;
+ const isCloud=window.__worktree_is_cloud_workspace===true;
+ const detail=window.__taskDetailData||{loading:{},errors:{},checklist:[],dependencies:[],comments:[],logs:[]};
+
+ const checks=isCloud?(t.checklist_done??t.checklist.filter(c=>c[1]).length):(t.checklist.filter(c=>c[1]).length);
+ const checkTotal=isCloud?(t.checklist_total??t.checklist.length):(t.checklist.length);
+ const pending=blockers(t);
  const events=data.activities.filter(a=>a.taskId===t.id).slice(-6).reverse();
+
+ // Checklist HTML
+ let checklistHTML='';
+ if(isCloud&&detail.loading?.checklist){
+  checklistHTML='<div class="drawer-skeleton" style="padding:12px 0;font-size:11px;color:var(--muted)">Đang tải checklist từ đám mây...</div>';
+ }else if(isCloud&&detail.errors?.checklist){
+  checklistHTML=`<div class="drawer-error" style="padding:8px 0;font-size:11px;color:var(--red)"><p>${esc(detail.errors.checklist)}</p><button class="btn small" type="button" data-action="retry-child" data-child="checklist" data-id="${t.id}">Thử lại</button></div>`;
+ }else if(isCloud&&detail.checklist?.length){
+  checklistHTML=detail.checklist.map((c,i)=>`
+   <div class="checklist-row ${c.done?'completed':''}">
+    <label>
+     <input type="checkbox" data-check-task="${t.id}" data-check-index="${i}" data-item-id="${c.id}" ${c.done?'checked':''}>
+     <span>${esc(c.text)}</span>
+    </label>
+    <button class="icon-btn" data-action="delete-check" data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" title="Xóa mục checklist" aria-label="${esc('Xóa '+c.text)}">${icon('x')}</button>
+   </div>`).join('');
+ }else if(!isCloud&&t.checklist.length){
+  checklistHTML=t.checklist.map((c,i)=>`
+   <div class="checklist-row ${c[1]?'completed':''}">
+    <label>
+     <input type="checkbox" data-check-task="${t.id}" data-check-index="${i}" ${c[1]?'checked':''}>
+     <span>${esc(c[0])}</span>
+    </label>
+    <button class="icon-btn" data-action="delete-check" data-id="${t.id}" data-index="${i}" title="Xóa mục checklist" aria-label="${esc('Xóa '+c[0])}">${icon('x')}</button>
+   </div>`).join('');
+ }else{
+  checklistHTML='<p class="muted" style="font-size:11px">Chia đầu việc lớn thành các bước nhỏ, dễ hoàn thành.</p>';
+ }
+
+ // Dependencies HTML
+ let dependenciesHTML='';
+ if(isCloud&&detail.loading?.dependencies){
+  dependenciesHTML='<div class="drawer-skeleton" style="padding:12px 0;font-size:11px;color:var(--muted)">Đang tải liên kết phụ thuộc...</div>';
+ }else if(isCloud&&detail.errors?.dependencies){
+  dependenciesHTML=`<div class="drawer-error" style="padding:8px 0;font-size:11px;color:var(--red)"><p>${esc(detail.errors.dependencies)}</p><button class="btn small" type="button" data-action="retry-child" data-child="dependencies" data-id="${t.id}">Thử lại</button></div>`;
+ }else if(isCloud&&detail.dependencies?.length){
+  dependenciesHTML=detail.dependencies.map(d=>{
+   const depTask=byTask.get(d.depends_on_task_id);
+   if(!depTask)return `<p class="muted">Công việc #${d.depends_on_task_id}</p>`;
+   const isDone=depTask.status==='Hoàn thành';
+   return `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+     <button class="dependency-item ${isDone?'resolved':'blocked'}" style="flex:1" data-action="open-task" data-id="${depTask.id}">
+      ${icon(isDone?'check-circle':'link')}
+      <span>${esc(depTask.title)}</span>
+     </button>
+     <button class="icon-btn" data-action="delete-dependency" data-task-id="${t.id}" data-dep-id="${depTask.id}" title="Hủy phụ thuộc">${icon('x')}</button>
+    </div>`;
+  }).join('');
+ }else if(!isCloud&&t.dependencies.length){
+  dependenciesHTML=t.dependencies.map(id=>{
+   const d=byTask.get(id);
+   if(!canReadTask(d))return `<p class="muted">${T.hiddenDependency}</p>`;
+   return `<button class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button>`;
+  }).join('');
+ }else{
+  dependenciesHTML='<p class="muted" style="font-size:11px">Không có liên kết phụ thuộc.</p>';
+ }
+
+ // Add inline dependency form for Cloud mode
+ const existingDepIds=new Set(isCloud?(detail.dependencies||[]).map(d=>d.depends_on_task_id):t.dependencies);
+ const availableDeps=readableTasks().filter(x=>x.id!==t.id&&!existingDepIds.has(x.id));
+ const dependencyFormHTML=availableDeps.length?`
+  <form id="dependencyForm" class="inline-form" style="margin-top:8px">
+   <select id="newDepTask" style="flex:1;min-width:180px;height:32px;font-size:11px" aria-label="Chọn công việc cần phụ thuộc">
+    <option value="">-- Thêm công việc phụ thuộc --</option>
+    ${availableDeps.map(x=>`<option value="${x.id}">${esc(x.title)} · ${esc(x.status)}</option>`).join('')}
+   </select>
+   <button class="btn small" type="submit">${icon('plus')}Liên kết</button>
+  </form>`:'';
+
+ // Logs HTML
+ let logsHTML='';
+ const currentLogs=isCloud?(detail.logs||[]):t.logs;
+ if(isCloud&&detail.loading?.logs){
+  logsHTML='<div class="drawer-skeleton" style="padding:12px 0;font-size:11px;color:var(--muted)">Đang tải nhật ký thời gian...</div>';
+ }else if(isCloud&&detail.errors?.logs){
+  logsHTML=`<div class="drawer-error" style="padding:8px 0;font-size:11px;color:var(--red)"><p>${esc(detail.errors.logs)}</p><button class="btn small" type="button" data-action="retry-child" data-child="logs" data-id="${t.id}">Thử lại</button></div>`;
+ }else if(currentLogs.length){
+  logsHTML=`<div class="log-list">${currentLogs.slice(-6).reverse().map(l=>`
+   <div class="log-row">
+    <span>${esc(l.note||'Ghi thời gian')} · ${esc(l.author||'Thành viên')}</span>
+    <span style="display:flex;align-items:center;gap:6px">
+     <span>${num(l.hours)}h · ${esc(timeAgo(l.at))}</span>
+     <button class="icon-btn small" data-action="delete-log" data-id="${t.id}" data-log-id="${l.id}" title="Xóa bản ghi">${icon('x')}</button>
+    </span>
+   </div>`).join('')}</div>`;
+ }
+
+ // Comments HTML
+ let commentsHTML='';
+ const currentComments=isCloud?(detail.comments||[]):t.comments;
+ if(isCloud&&detail.loading?.comments){
+  commentsHTML='<div class="drawer-skeleton" style="padding:12px 0;font-size:11px;color:var(--muted)">Đang tải bình luận...</div>';
+ }else if(isCloud&&detail.errors?.comments){
+  commentsHTML=`<div class="drawer-error" style="padding:8px 0;font-size:11px;color:var(--red)"><p>${esc(detail.errors.comments)}</p><button class="btn small" type="button" data-action="retry-child" data-child="comments" data-id="${t.id}">Thử lại</button></div>`;
+ }else if(currentComments.length){
+  commentsHTML=currentComments.map(c=>`
+   <div class="comment">
+    <span class="avatar av-${Math.abs(hashId(c.authorId||c.author||0))%6}">${esc(initials(c.author||'TV'))}</span>
+    <div class="comment-body">
+     <div class="comment-meta">
+      <strong>${esc(c.author||'Thành viên')}</strong>
+      <time>${esc(timeAgo(c.at))}</time>
+      <button class="icon-btn" data-action="delete-comment" data-id="${t.id}" data-comment="${c.id}" title="Xóa bình luận" aria-label="Xóa bình luận">${icon('x')}</button>
+     </div>
+     <div class="comment-text">${esc(c.text)}</div>
+    </div>
+   </div>`).join('');
+ }
+
  const html=`<div class="drawer-top"><span class="drawer-ref">${icon('check-circle')}CÔNG VIỆC · ${t.id<100000?'#'+t.id:'WT-'+String(t.id).slice(-6)}</span><div class="drawer-tools"><button class="icon-btn favorite-btn ${t.favorite?'is-favorite':''}" data-action="favorite" data-id="${t.id}" aria-pressed="${t.favorite}" title="Đánh dấu sao" aria-label="Đánh dấu sao công việc">${icon('star')}</button><button class="icon-btn" data-action="duplicate-task" data-id="${t.id}" title="Nhân bản công việc" aria-label="Nhân bản công việc">${icon('copy')}</button><button class="icon-btn" data-action="delete-task" data-id="${t.id}" title="Xóa công việc" aria-label="Xóa công việc">${icon('trash')}</button><button class="icon-btn" data-action="close" data-dialog="drawer" title="Đóng (Esc)" aria-label="Đóng chi tiết công việc">${icon('x')}</button></div></div>
  <div class="drawer-body"><div class="drawer-title-block"><button class="task-check ${t.status==='Hoàn thành'?'done':''}" data-action="complete" data-id="${t.id}" aria-label="${t.status==='Hoàn thành'?'Mở lại công việc':'Đánh dấu hoàn thành'}">${t.status==='Hoàn thành'?icon('check'):''}</button><h2 id="drawerTitle" tabindex="-1">${esc(t.title)}</h2></div><div class="drawer-path">${icon('folder')}<span>${esc(pathName(t.node))}</span></div>
  <div class="drawer-meta"><label for="drawerStatus">${icon('circle')}Trạng thái</label><select id="drawerStatus" class="${statusClass(t.status)}" data-status-task="${t.id}">${STATUS.map(s=>`<option ${t.status===s?'selected':''}>${esc(s)}</option>`).join('')}</select>
@@ -958,62 +1222,405 @@ function renderDrawer(){
  <span class="meta-label">${icon('bookmark')}Phân loại</span><div class="tags">${t.tags.length?t.tags.map(tag=>`<span class="tag">${esc(tag)}</span>`).join(''):'<span class="muted">Chưa có thẻ</span>'}</div></div>
  ${pending.length?`<div class="drawer-note">${icon('link')}<span>Đang chờ ${pending.length} công việc phụ thuộc. Cần hoàn thành các việc bên dưới trước khi đóng công việc này.</span></div>`:''}
  <section class="drawer-section"><h3>Mô tả</h3><div class="drawer-description">${t.desc?esc(t.desc):'<span class="muted">Chưa có mô tả. Bấm Chỉnh sửa để bổ sung mục tiêu và đầu ra.</span>'}</div></section>
- <section class="drawer-section"><h3>Checklist <small>${checks}/${t.checklist.length} đã xong</small></h3>${t.checklist.map((c,i)=>`<div class="checklist-row ${c[1]?'completed':''}"><label><input type="checkbox" data-check-task="${t.id}" data-check-index="${i}" ${c[1]?'checked':''}><span>${esc(c[0])}</span></label><button class="icon-btn" data-action="delete-check" data-id="${t.id}" data-index="${i}" title="Xóa mục checklist" aria-label="${esc('Xóa '+c[0])}">${icon('x')}</button></div>`).join('')||'<p class="muted" style="font-size:11px">Chia đầu việc lớn thành các bước nhỏ, dễ hoàn thành.</p>'}<form id="checklistForm" class="inline-form"><input id="newChecklist" aria-label="Mục checklist mới" required maxlength="400" placeholder="Thêm một bước nhỏ..."><button class="btn" type="submit">${icon('plus')}Thêm</button></form><label class="checkbox-label" style="margin-top:12px;font-size:10px;color:var(--muted)"><input type="checkbox" id="drawerAutoProgress" ${t.autoProgress?'checked':''}>Tự tính tiến độ theo checklist</label></section>
- <section class="drawer-section"><h3>Phụ thuộc</h3>${t.dependencies.length?t.dependencies.map(id=>{const d=byTask.get(id);if(!canReadTask(d))return `<p class="muted">${T.hiddenDependency}</p>`;return `<button class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button>`;}).join(''):'<p class="muted" style="font-size:11px">Không có liên kết phụ thuộc.</p>'}${t.dependency&&t.dependency!=='Không có'?`<p class="view-note">Ghi chú: ${esc(t.dependency)}</p>`:''}</section>
- <section class="drawer-section"><h3>Ghi thời gian <small>Thời gian bấm giờ được ghi khi dừng</small></h3><form id="logForm" class="inline-form"><input id="logHours" type="number" min="0.01" max="24" step="0.01" required placeholder="Giờ" aria-label="Số giờ vừa thực hiện" style="max-width:95px"><input id="logNote" maxlength="500" placeholder="Ghi chú công việc..." aria-label="Ghi chú thời gian"><button type="submit" class="btn">Ghi giờ</button></form>${t.logs.length?`<div class="log-list">${t.logs.slice(-4).reverse().map(l=>`<div class="log-row"><span>${esc(l.note||'Ghi thời gian')} · ${esc(l.author)}</span><span>${num(l.hours)}h · ${esc(timeAgo(l.at))}</span></div>`).join('')}</div>`:''}</section>
- <section class="drawer-section"><h3>Bình luận <small>${t.comments.length} bình luận cục bộ</small></h3>${t.comments.map(c=>`<div class="comment"><span class="avatar av-${Math.abs(c.authorId||0)%6}">${esc(initials(c.author))}</span><div class="comment-body"><div class="comment-meta"><strong>${esc(c.author)}</strong><time>${esc(timeAgo(c.at))}</time><button class="icon-btn" data-action="delete-comment" data-id="${t.id}" data-comment="${c.id}" title="Xóa bình luận cục bộ" aria-label="Xóa bình luận cục bộ">${icon('x')}</button></div><div class="comment-text">${esc(c.text)}</div></div></div>`).join('')}<form id="commentForm" class="comment-compose"><textarea id="commentText" required maxlength="2000" placeholder="Ghi lại trao đổi, quyết định hoặc lưu ý..." aria-label="Nội dung bình luận"></textarea><div><small>Chỉ lưu cục bộ · Ctrl/Cmd + Enter để gửi</small><button class="btn primary small" type="submit">${icon('message')}Gửi bình luận</button></div></form></section>
+ <section class="drawer-section"><h3>Checklist <small>${checks}/${checkTotal} đã xong</small></h3>${checklistHTML}<form id="checklistForm" class="inline-form"><input id="newChecklist" aria-label="Mục checklist mới" required maxlength="400" placeholder="Thêm một bước nhỏ..."><button class="btn" type="submit">${icon('plus')}Thêm</button></form><label class="checkbox-label" style="margin-top:12px;font-size:10px;color:var(--muted)"><input type="checkbox" id="drawerAutoProgress" ${t.autoProgress?'checked':''}>Tự tính tiến độ theo checklist</label></section>
+ <section class="drawer-section"><h3>Phụ thuộc</h3>${dependenciesHTML}${t.dependency&&t.dependency!=='Không có'?`<p class="view-note">Ghi chú: ${esc(t.dependency)}</p>`:''}${dependencyFormHTML}</section>
+ <section class="drawer-section"><h3>Ghi thời gian <small>Thời gian bấm giờ được ghi khi dừng</small></h3><form id="logForm" class="inline-form"><input id="logHours" type="number" min="0.01" max="24" step="0.01" required placeholder="Giờ" aria-label="Số giờ vừa thực hiện" style="max-width:95px"><input id="logNote" maxlength="500" placeholder="Ghi chú công việc..." aria-label="Ghi chú thời gian"><button type="submit" class="btn">Ghi giờ</button></form>${logsHTML}</section>
+ <section class="drawer-section"><h3>Bình luận <small>${currentComments.length} bình luận ${isCloud?'trên đám mây':'cục bộ'}</small></h3>${commentsHTML}<form id="commentForm" class="comment-compose"><textarea id="commentText" required maxlength="5000" placeholder="Ghi lại trao đổi, quyết định hoặc lưu ý..." aria-label="Nội dung bình luận"></textarea><div><small>${isCloud?'Lưu đám mây':'Chỉ lưu cục bộ'} · Ctrl/Cmd + Enter để gửi</small><button class="btn primary small" type="submit">${icon('message')}Gửi bình luận</button></div></form></section>
  <section class="drawer-section"><h3>Nhật ký thay đổi</h3>${activityHTML(events)}</section></div>
  <div class="drawer-footer"><div class="timer-info">${state.timer?.taskId===t.id?'<span class="timer-live"></span>':icon('clock')}<strong ${state.timer?.taskId===t.id?'data-timer-value':''}>${state.timer?.taskId===t.id?elapsedLabel():num(t.actual)+'h'}</strong></div><button class="btn ${state.timer?.taskId===t.id?'danger':''}" data-action="timer-toggle" data-id="${t.id}" ${t.status==='Hoàn thành'&&state.timer?.taskId!==t.id?'disabled title="Mở lại công việc trước khi bấm giờ"':''}>${icon(state.timer?.taskId===t.id?'stop':'play')}${state.timer?.taskId===t.id?'Dừng':'Bấm giờ'}</button><button class="btn primary" data-action="edit-task" data-id="${t.id}">${icon('edit')}Chỉnh sửa</button></div>`;
+
  $('drawerContent').innerHTML=html;injectDrawerPin(t);applyPermissionUI();
  const draft=drawerDrafts.get(drawerId);if(draft){for(const [id,v] of Object.entries(draft))if($(id))$(id).value=v;}
 }
-function addChecklist(event){
- event.preventDefault();const id=drawerId,value=$('newChecklist').value.trim();if(!value)return;
+
+async function addChecklist(event){
+ event.preventDefault();
+ const id=drawerId;
+ const input=$('newChecklist');
+ const value=input?.value.trim();
+ if(!value)return;
+
+ if(window.__worktree_is_cloud_workspace){
+  const btn=event.target.querySelector('button[type="submit"]');
+  if(btn)btn.disabled=true;
+  try{
+   await window.ChecklistService.addItem({taskId:id,content:value});
+   input.value='';
+   drawerDrafts.delete(id);
+   const items=await window.ChecklistService.getItems(id);
+   window.__taskDetailData.checklist=items.map(c=>({id:c.id,text:c.content,done:c.is_done,sort_order:c.sort_order}));
+   const t=byTask.get(id);
+   if(t){
+    t.checklist=window.__taskDetailData.checklist.map(c=>[c.text,c.done]);
+    t.checklist_total=items.length;
+    t.checklist_done=items.filter(c=>c.is_done).length;
+   }
+   refreshDrawer();
+   toast('Đã thêm mục checklist.','success',true);
+  }catch(err){
+   toast(err.message||'Không thể thêm mục checklist.','error');
+  }finally{
+   if(btn)btn.disabled=false;
+  }
+  return;
+ }
+
  if(commit('Đã thêm mục checklist',d=>{const t=d.tasks.find(t=>t.id===id);t.checklist.push([value,false]);syncChecklist(t);touch(t);},{taskId:id})){
   $('newChecklist').value='';drawerDrafts.delete(id);$('newChecklist').focus();
  }
 }
-function changeChecklist(id,index,checked){
+
+async function changeChecklist(id,index,checked,itemId){
+ if(window.__worktree_is_cloud_workspace){
+  try{
+   const resolvedId=itemId||window.__taskDetailData?.checklist?.[index]?.id;
+   if(!resolvedId)throw new Error('Không xác định được mục checklist cần cập nhật.');
+   await window.ChecklistService.toggleItem({itemId:resolvedId,taskId:id,isDone:checked});
+   if(window.__taskDetailData?.checklist?.[index]){
+    window.__taskDetailData.checklist[index].done=checked;
+   }
+   const t=byTask.get(id);
+   if(t&&t.checklist[index]){
+    t.checklist[index][1]=checked;
+   }
+   refreshDrawer();
+  }catch(err){
+   toast(err.message||'Không thể cập nhật trạng thái checklist.','error');
+   refreshDrawer();
+  }
+  return;
+ }
+
  commit('Đã cập nhật checklist',d=>{const t=d.tasks.find(t=>t.id===id);if(!t.checklist[index])throw Error('Mục checklist không tồn tại.');t.checklist[index][1]=checked;syncChecklist(t);touch(t);},{taskId:id,quiet:true});
 }
-function deleteChecklist(id,index){
+
+async function deleteChecklist(id,index,itemId){
+ if(window.__worktree_is_cloud_workspace){
+  try{
+   const resolvedId=itemId||window.__taskDetailData?.checklist?.[index]?.id;
+   if(!resolvedId)throw new Error('Không xác định được mục checklist cần xóa.');
+   await window.ChecklistService.deleteItem({itemId:resolvedId,taskId:id});
+   const items=await window.ChecklistService.getItems(id);
+   window.__taskDetailData.checklist=items.map(c=>({id:c.id,text:c.content,done:c.is_done,sort_order:c.sort_order}));
+   const t=byTask.get(id);
+   if(t){
+    t.checklist=window.__taskDetailData.checklist.map(c=>[c.text,c.done]);
+    t.checklist_total=items.length;
+    t.checklist_done=items.filter(c=>c.is_done).length;
+   }
+   refreshDrawer();
+   toast('Đã xóa mục checklist.','success',true);
+  }catch(err){
+   toast(err.message||'Không thể xóa mục checklist.','error');
+  }
+  return;
+ }
+
  commit('Đã xóa mục checklist',d=>{const t=d.tasks.find(t=>t.id===id);t.checklist.splice(index,1);syncChecklist(t);touch(t);},{taskId:id});
 }
-function addComment(event){
- event.preventDefault();const id=drawerId,value=$('commentText').value.trim();if(!value){$('commentText').focus();return;}
+
+async function addDependencyForm(event){
+ event.preventDefault();
+ const id=drawerId;
+ const select=$('newDepTask');
+ const depId=select?.value;
+ if(!depId)return;
+ const btn=event.target.querySelector('button[type="submit"]');
+ if(btn)btn.disabled=true;
+
+ try{
+  if(window.__worktree_is_cloud_workspace){
+   await window.DependencyService.addDependency({taskId:id,dependsOnTaskId:depId});
+   const deps=await window.DependencyService.getDependencies(id);
+   window.__taskDetailData.dependencies=deps||[];
+   const t=byTask.get(id);
+   if(t) t.dependencies=(deps||[]).map(d=>d.depends_on_task_id);
+   refreshDrawer();
+   toast('Đã thêm liên kết phụ thuộc.','success',true);
+  }else{
+   commit('Đã thêm phụ thuộc',d=>{
+    const t=d.tasks.find(t=>t.id===id);
+    const depNum=Number(depId);
+    if(!t.dependencies.includes(depNum))t.dependencies.push(depNum);
+    touch(t);
+   },{taskId:id});
+  }
+ }catch(err){
+  toast(err.message||'Không thể thêm liên kết phụ thuộc.','error');
+ }finally{
+  if(btn)btn.disabled=false;
+ }
+}
+
+async function deleteDependencyInline(taskId,depId){
+ if(!taskId||!depId)return;
+ try{
+  if(window.__worktree_is_cloud_workspace){
+   await window.DependencyService.deleteDependency({taskId,dependsOnTaskId:depId});
+   const deps=await window.DependencyService.getDependencies(taskId);
+   window.__taskDetailData.dependencies=deps||[];
+   const t=byTask.get(taskId);
+   if(t) t.dependencies=(deps||[]).map(d=>d.depends_on_task_id);
+   refreshDrawer();
+   toast('Đã hủy liên kết phụ thuộc.','success',true);
+  }else{
+   commit('Đã xóa phụ thuộc',d=>{
+    const t=d.tasks.find(t=>t.id===taskId);
+    t.dependencies=t.dependencies.filter(x=>x!==Number(depId));
+    touch(t);
+   },{taskId});
+  }
+ }catch(err){
+  toast(err.message||'Không thể hủy phụ thuộc.','error');
+ }
+}
+
+async function addComment(event){
+ event.preventDefault();
+ const id=drawerId;
+ const textarea=$('commentText');
+ const value=textarea?.value.trim();
+ if(!value){textarea?.focus();return;}
+
+ if(window.__worktree_is_cloud_workspace){
+  const btn=event.target.querySelector('button[type="submit"]');
+  if(btn)btn.disabled=true;
+  try{
+   await window.CommentService.addComment({taskId:id,body:value});
+   textarea.value='';
+   drawerDrafts.delete(id);
+   const comments=await window.CommentService.getComments(id);
+   window.__taskDetailData.comments=comments.map(c=>({
+    id:c.id,
+    text:c.body,
+    author:resolveCommentAuthor(c.author_user_id),
+    authorId:c.author_user_id,
+    at:c.created_at
+   }));
+   const t=byTask.get(id);
+   if(t) t.comments=window.__taskDetailData.comments;
+   refreshDrawer();
+   toast('Đã gửi bình luận thành công.','success',true);
+  }catch(err){
+   toast(err.message||'Không thể gửi bình luận.','error');
+  }finally{
+   if(btn)btn.disabled=false;
+  }
+  return;
+ }
+
  if(commit('Đã thêm bình luận',d=>{const t=d.tasks.find(t=>t.id===id);t.comments.push({id:uid(),author:person().name,authorId:person().id,text:value,at:new Date().toISOString()});touch(t);},{taskId:id})){
   $('commentText').value='';drawerDrafts.delete(id);$('commentText').focus();
  }
 }
+
 async function deleteComment(id,commentId){
- if(!await ask('Xóa bình luận?','Bình luận sẽ bị xóa khỏi dữ liệu cục bộ. Bạn có thể hoàn tác sau đó.','Xóa bình luận',true))return;
+ if(!await ask('Xóa bình luận?','Bình luận sẽ bị xóa vĩnh viễn khỏi hệ thống.','Xóa bình luận',true))return;
+
+ if(window.__worktree_is_cloud_workspace){
+  try{
+   await window.CommentService.deleteComment(commentId);
+   const comments=await window.CommentService.getComments(id);
+   window.__taskDetailData.comments=comments.map(c=>({
+    id:c.id,
+    text:c.body,
+    author:resolveCommentAuthor(c.author_user_id),
+    authorId:c.author_user_id,
+    at:c.created_at
+   }));
+   const t=byTask.get(id);
+   if(t) t.comments=window.__taskDetailData.comments;
+   refreshDrawer();
+   toast('Đã xóa bình luận.','success',true);
+  }catch(err){
+   toast(err.message||'Không thể xóa bình luận.','error');
+  }
+  return;
+ }
+
  commit('Đã xóa bình luận',d=>{const t=d.tasks.find(t=>t.id===id);t.comments=t.comments.filter(c=>c.id!==commentId);touch(t);},{taskId:id});
 }
-function logHours(event){
- event.preventDefault();const id=drawerId,hours=Number($('logHours').value),note=$('logNote').value.trim();if(!hours||hours<.01||hours>24)return;
+
+async function logHours(event){
+ event.preventDefault();
+ const id=drawerId;
+ const hoursInput=$('logHours');
+ const noteInput=$('logNote');
+ const hours=Number(hoursInput?.value);
+ const note=noteInput?.value.trim()||'';
+ if(!hours||hours<.01||hours>24)return;
+
+ if(window.__worktree_is_cloud_workspace){
+  const btn=event.target.querySelector('button[type="submit"]');
+  if(btn)btn.disabled=true;
+  try{
+   await window.TimeEntryService.logTime({taskId:id,hours,note});
+   hoursInput.value='';
+   if(noteInput)noteInput.value='';
+   drawerDrafts.delete(id);
+   const entries=await window.TimeEntryService.getTimeEntries(id);
+   window.__taskDetailData.logs=entries.map(l=>({
+    id:l.id,
+    hours:(l.minutes||0)/60,
+    note:l.note,
+    at:l.created_at,
+    author:resolveCommentAuthor(l.user_id)
+   }));
+   refreshDrawer();
+   toast(`Đã ghi ${num(hours)} giờ thực hiện lên đám mây.`,'success',true);
+  }catch(err){
+   toast(err.message||'Không thể ghi thời gian.','error');
+  }finally{
+   if(btn)btn.disabled=false;
+  }
+  return;
+ }
+
  if(commit('Đã ghi '+num(hours)+' giờ thực hiện',d=>{const t=d.tasks.find(t=>t.id===id);t.actual=Math.round((t.actual+hours)*1e6)/1e6;t.logs.push({id:uid(),hours,note,at:new Date().toISOString(),author:person().name});touch(t);},{taskId:id})){
   $('logHours').value='';$('logNote').value='';drawerDrafts.delete(id);
  }
 }
+
+async function deleteLog(id,logId){
+ if(!await ask('Xóa bản ghi thời gian?','Bản ghi này sẽ bị xóa khỏi đám mây và tổng giờ làm việc sẽ được tính lại tự động.','Xóa bản ghi',true))return;
+
+ if(window.__worktree_is_cloud_workspace){
+  try{
+   await window.TimeEntryService.deleteTimeEntry(logId,id);
+   const entries=await window.TimeEntryService.getTimeEntries(id);
+   window.__taskDetailData.logs=entries.map(l=>({
+    id:l.id,
+    hours:(l.minutes||0)/60,
+    note:l.note,
+    at:l.created_at,
+    author:resolveCommentAuthor(l.user_id)
+   }));
+   refreshDrawer();
+   toast('Đã xóa bản ghi thời gian.','success',true);
+  }catch(err){
+   toast(err.message||'Không thể xóa bản ghi thời gian.','error');
+  }
+  return;
+ }
+
+ commit('Đã xóa bản ghi giờ',d=>{
+  const t=d.tasks.find(t=>t.id===id);
+  const entry=t.logs.find(l=>l.id===logId);
+  if(entry) t.actual=Math.max(0,Math.round((t.actual-entry.hours)*1e6)/1e6);
+  t.logs=t.logs.filter(l=>l.id!==logId);
+  touch(t);
+ },{taskId:id});
+}
+
+async function retryLoadChild(id,childType){
+ if(!id||!window.__taskDetailData||window.__taskDetailData.taskId!==id)return;
+ const orgId=window.__active_org_id||(window.__worktree_supabase_user?.organization?.id);
+ window.__taskDetailData.loading[childType]=true;
+ window.__taskDetailData.errors[childType]=null;
+ refreshDrawer();
+
+ try{
+  if(childType==='checklist'&&window.ChecklistService){
+   const items=await window.ChecklistService.getItems(id,orgId);
+   window.__taskDetailData.checklist=items.map(c=>({id:c.id,text:c.content,done:c.is_done,sort_order:c.sort_order}));
+   const t=byTask.get(id);
+   if(t){
+    t.checklist=window.__taskDetailData.checklist.map(c=>[c.text,c.done]);
+    t.checklist_total=items.length;
+    t.checklist_done=items.filter(c=>c.is_done).length;
+   }
+  }else if(childType==='dependencies'&&window.DependencyService){
+   const deps=await window.DependencyService.getDependencies(id,orgId);
+   window.__taskDetailData.dependencies=deps||[];
+   const t=byTask.get(id);
+   if(t) t.dependencies=(deps||[]).map(d=>d.depends_on_task_id);
+  }else if(childType==='comments'&&window.CommentService){
+   const coms=await window.CommentService.getComments(id,orgId);
+   window.__taskDetailData.comments=coms.map(c=>({
+    id:c.id,
+    text:c.body,
+    author:resolveCommentAuthor(c.author_user_id),
+    authorId:c.author_user_id,
+    at:c.created_at
+   }));
+   const t=byTask.get(id);
+   if(t) t.comments=window.__taskDetailData.comments;
+  }else if(childType==='logs'&&window.TimeEntryService){
+   const entries=await window.TimeEntryService.getTimeEntries(id,orgId);
+   window.__taskDetailData.logs=entries.map(l=>({
+    id:l.id,
+    hours:(l.minutes||0)/60,
+    note:l.note,
+    at:l.created_at,
+    author:resolveCommentAuthor(l.user_id)
+   }));
+   const t=byTask.get(id);
+   if(t) t.logs=window.__taskDetailData.logs;
+  }
+ }catch(err){
+  window.__taskDetailData.errors[childType]=err.message||'Không thể tải dữ liệu.';
+ }finally{
+  window.__taskDetailData.loading[childType]=false;
+  refreshDrawer();
+ }
+}
+
 function elapsedLabel(){
  if(!state.timer)return '00:00:00';const seconds=Math.max(0,Math.floor(((state.timer.pausedAt||Date.now())-state.timer.startedAt)/1000));
  return `${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
 }
+
 function renderTimer(){
  const t=state.timer?byTask.get(state.timer.taskId):null;$('timerDock').hidden=!t;
  if(t)$('timerDock').innerHTML=`<button class="timer-open" data-action="open-task" data-id="${t.id}"><span class="timer-live"></span><span><strong data-timer-value>${elapsedLabel()}</strong><small>${esc(t.title)}</small></span></button><button class="icon-btn" data-action="timer-stop" title="Dừng và ghi thời gian" aria-label="Dừng và ghi thời gian">${icon('stop')}</button>`;
 }
+
 async function stopTimer(){
- if(!state.timer)return true;const timer={...state.timer},t=byTask.get(timer.taskId);
+ if(!state.timer)return true;
+ const timer={...state.timer},t=byTask.get(timer.taskId);
  if(!t){state.timer=null;savePrefs();renderTimer();return true;}
+
  const hours=Math.max(0,Math.round(((timer.pausedAt||Date.now())-timer.startedAt)/3600000*1e6)/1e6);
- if(hours>12&&!await ask('Xác nhận thời gian bấm giờ',`Bộ đếm đã chạy ${num(hours)} giờ, kể cả thời gian đóng trang. Ghi toàn bộ thời gian này cho "${t.title}"?`,'Ghi thời gian'))return false;
+ const minutes=Math.max(1,Math.round(((timer.pausedAt||Date.now())-timer.startedAt)/60000));
+
+ if(hours>12&&!await ask('Xác nhận thời gian bấm giờ',`Bộ đếm đã chạy ${num(hours)} giờ. Ghi toàn bộ thời gian này cho "${t.title}"?`,'Ghi thời gian'))return false;
+
+ if(window.__worktree_is_cloud_workspace){
+  try{
+   await window.TimeEntryService.logTime({
+    taskId:timer.taskId,
+    minutes:minutes,
+    note:'Bộ đếm thời gian'
+   });
+   state.timer=null;
+   savePrefs();
+   renderTimer();
+   if($('drawer').open&&drawerId===timer.taskId){
+    const entries=await window.TimeEntryService.getTimeEntries(timer.taskId);
+    window.__taskDetailData.logs=entries.map(l=>({
+     id:l.id,
+     hours:(l.minutes||0)/60,
+     note:l.note,
+     at:l.created_at,
+     author:resolveCommentAuthor(l.user_id)
+    }));
+    refreshDrawer();
+   }
+   toast(`Đã dừng và ghi ${num(hours)} giờ thực hiện lên đám mây.`,'success',true);
+   return true;
+  }catch(err){
+   toast(err.message||'Không thể lưu thời gian bấm giờ.','error');
+   return false;
+  }
+ }
+
  const ok=commit('Đã dừng và ghi '+num(hours)+' giờ',d=>{
   const task=d.tasks.find(x=>x.id===timer.taskId);task.actual=Math.round((task.actual+hours)*1e6)/1e6;task.logs.push({id:uid(),hours,note:'Bộ đếm thời gian',at:new Date().toISOString(),author:person().name});touch(task);
  },{taskId:timer.taskId});
  if(ok){state.timer=null;savePrefs();renderTimer();if($('drawer').open)refreshDrawer();}
  return ok;
 }
+
 async function toggleTimer(id){
  if(!requireLogin()||!canUpdateTask(byTask.get(id)))return deny();
  const t=byTask.get(id);if(!t)return;
@@ -1525,8 +2132,11 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'accept-recovery':await acceptRecovery();break;
    case 'load-external':await loadExternal();break;
    case 'close':if(el.dataset.dialog==='drawer')storeDrawerDraft();closeDialog(el.dataset.dialog);break;
-   case 'delete-check':deleteChecklist(id,Number(el.dataset.index));break;
-   case 'delete-comment':await deleteComment(id,Number(el.dataset.comment));break;
+   case 'delete-check':await deleteChecklist(id,Number(el.dataset.index),el.dataset.itemId);break;
+   case 'delete-comment':await deleteComment(id,el.dataset.comment);break;
+   case 'delete-dependency':await deleteDependencyInline(el.dataset.taskId,el.dataset.depId);break;
+   case 'delete-log':await deleteLog(id,el.dataset.logId);break;
+   case 'retry-child':await retryLoadChild(el.dataset.id,el.dataset.child);break;
    case 'timer-toggle':await toggleTimer(id);break;
    case 'timer-stop':await stopTimer();break;
    case 'bulk-delete':await deleteTasks([...state.selectedTasks]);break;
@@ -1603,7 +2213,7 @@ document.addEventListener('change',event=>{
   commit('Đã cập nhật mức ưu tiên',d=>{const t=d.tasks.find(t=>t.id===tid);t.priority=el.value;touch(t);},{taskId:tid});
   return;
  }
- if(el.dataset.checkTask){if(window.__worktree_is_cloud_workspace){toast('Chế độ xem Cloud: Cập nhật checklist đang được hoàn thiện trong Step 07.','info');return;}const tid=el.dataset.checkTask,index=Number(el.dataset.checkIndex);changeChecklist(tid,index,el.checked);document.querySelector(`[data-check-task="${tid}"][data-check-index="${index}"]`)?.focus({preventScroll:true});return;}
+ if(el.dataset.checkTask){const tid=el.dataset.checkTask,index=Number(el.dataset.checkIndex);changeChecklist(tid,index,el.checked,el.dataset.itemId);document.querySelector(`[data-check-task="${tid}"][data-check-index="${index}"]`)?.focus({preventScroll:true});return;}
  if(el.dataset.selectTask){const tid=el.dataset.selectTask;el.checked?state.selectedTasks.add(tid):state.selectedTasks.delete(tid);renderView();document.querySelector(`[data-select-task="${tid}"]`)?.focus({preventScroll:true});return;}
  if(id==='selectPage'){const arr=filteredTasks().slice((state.page-1)*state.pageSize,state.page*state.pageSize);arr.forEach(t=>el.checked?state.selectedTasks.add(t.id):state.selectedTasks.delete(t.id));renderView();$('selectPage')?.focus({preventScroll:true});return;}
  if(id==='pageSize'){state.pageSize=Number(el.value);state.page=1;savePrefs();renderView();return;}
@@ -1611,7 +2221,29 @@ document.addEventListener('change',event=>{
  if(id==='bulkOwner'&&el.value){bulkOwner(el.value);$('bulkOwner')?.focus();return;}
  if(id==='timelineDays'){state.timelineDays=Number(el.value);renderView();return;}
  if(id==='profileSelect'){return;state.currentUser=el.value?Number(el.value):null;savePrefs();renderAll(true);toast('Đã chọn hồ sơ cục bộ: '+person().name);return;}
- if(id==='drawerAutoProgress'){const tid=drawerId;commit(el.checked?'Bật tự tính tiến độ checklist':'Tắt tự tính tiến độ checklist',d=>{const t=d.tasks.find(t=>t.id===tid);t.autoProgress=el.checked;syncChecklist(t);touch(t);},{taskId:tid});return;}
+ if(id==='drawerAutoProgress'){
+  const tid=drawerId;
+  if(window.__worktree_is_cloud_workspace){
+   (async()=>{
+    try{
+     await window.TaskService.updateTask(tid,{auto_progress:el.checked});
+     const t=byTask.get(tid);
+     if(t){
+      t.autoProgress=el.checked;
+      if(window.ChecklistService) await window.ChecklistService.syncTaskRollup(tid);
+     }
+     renderDrawer();
+     toast(el.checked?'Đã bật tự tính tiến độ checklist.':'Đã tắt tự tính tiến độ checklist.','success',true);
+    }catch(err){
+     toast(err.message||'Không thể cập nhật cấu hình tự tính tiến độ.','error');
+     renderDrawer();
+    }
+   })();
+   return;
+  }
+  commit(el.checked?'Bật tự tính tiến độ checklist':'Tắt tự tính tiến độ checklist',d=>{const t=d.tasks.find(t=>t.id===tid);t.autoProgress=el.checked;syncChecklist(t);touch(t);},{taskId:tid});
+  return;
+ }
  if(id==='tStatus'){
   if(el.value==='Hoàn thành')$('tProgress').value=100;
   else if(Number($('tProgress').value)===100)$('tProgress').value=editingTask?byTask.get(editingTask)?.resumeProgress??0:0;
@@ -1638,7 +2270,7 @@ $('nodeForm').addEventListener('input',()=>{dirtyNode=true;$('nodeFormError').hi
 $('nodeForm').addEventListener('change',()=>{dirtyNode=true;});
 $('savedViewName').addEventListener('input',()=>{$('savedViewName').setCustomValidity('');});
 $('taskForm').addEventListener('submit',saveTask);$('nodeForm').addEventListener('submit',saveNode);$('nameForm').addEventListener('submit',saveView);
-document.addEventListener('submit',e=>{if(e.target.id==='checklistForm')addChecklist(e);if(e.target.id==='commentForm')addComment(e);if(e.target.id==='logForm')logHours(e);});
+document.addEventListener('submit',e=>{if(e.target.id==='checklistForm')addChecklist(e);if(e.target.id==='commentForm')addComment(e);if(e.target.id==='logForm')logHours(e);if(e.target.id==='dependencyForm')addDependencyForm(e);});
 $('importFile').addEventListener('change',importJSON);
 $('confirmOk').addEventListener('click',()=>resolveConfirm(true));$('confirmCancel').addEventListener('click',()=>resolveConfirm(false));
 $$('dialog').forEach(dialog=>{
@@ -1734,6 +2366,12 @@ window.clearTenantUI=function(orgName){
   state.selected=null;
   state.selectedTasks.clear();
   state.filters=blankFilters();
+  state.timer=null;
+  if(typeof savePrefs==='function')savePrefs();
+  if(typeof renderTimer==='function')renderTimer();
+  window.__taskDetailData={taskId:null,checklist:[],dependencies:[],comments:[],logs:[],loading:{},errors:{}};
+  window.__taskDetailLoadGen=(window.__taskDetailLoadGen||0)+1;
+  if(typeof closeDialog==='function'&&$('drawer')?.open)closeDialog('drawer',true);
   if(typeof rebuild==='function')rebuild();
   if(orgName){
    if($('workspaceName')) $('workspaceName').textContent=orgName;

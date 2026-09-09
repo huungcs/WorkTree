@@ -333,11 +333,11 @@ async function savePassword(e,forced,reset){
   if($('accessDialog').open)openAccess();toast(T.passwordSaved);
  }catch(err){if($('passwordError')){$('passwordError').textContent=err.message;$('passwordError').hidden=false;}}finally{if($('passwordSave'))$('passwordSave').disabled=false;}
 }
-function normalPins(list){const seen=new Set();return (Array.isArray(list)?list:[]).filter(p=>{if(!p||!['node','task'].includes(p.kind)||!Number.isSafeInteger(p.id)||seen.has(p.kind+':'+p.id))return false;seen.add(p.kind+':'+p.id);return true;}).slice(0,100).map(p=>({kind:p.kind,id:p.id,urgent:p.urgent===true,createdAt:typeof p.createdAt==='string'?p.createdAt:new Date().toISOString()}));}
+function normalPins(list){const seen=new Set();return (Array.isArray(list)?list:[]).filter(p=>{if(!p||!['node','task'].includes(p.kind)||!(Number.isSafeInteger(p.id)||(typeof p.id==='string'&&p.id.trim()))||seen.has(p.kind+':'+p.id))return false;seen.add(p.kind+':'+p.id);return true;}).slice(0,100).map(p=>({kind:p.kind,id:p.id,urgent:p.urgent===true,createdAt:typeof p.createdAt==='string'?p.createdAt:new Date().toISOString()}));}
 function ownPins(){const a=currentAccount();return a?normalPins(pinDB.users[a.id]):[];}
 function canPin(kind,id){return kind==='task'?canReadTask(byTask.get(id)):byNode.has(id)&&inScope(id);}
 function visiblePins(){return ownPins().filter(p=>canPin(p.kind,p.id));}
-function isPinned(kind,id){return ownPins().some(p=>p.kind===kind&&p.id===id);}
+function isPinned(kind,id){return ownPins().some(p=>p.kind===kind&&String(p.id)===String(id));}
 function savePins(list,remember=true){
  if(!requireLogin())return false;
  try{
@@ -347,14 +347,14 @@ function savePins(list,remember=true){
 }
 function restorePins(pins){savePins(normalPins(pins).filter(p=>canPin(p.kind,p.id)));}
 function togglePin(kind,id){
- if(!requireLogin()||!canPin(kind,id))return deny();const list=ownPins(),found=list.some(p=>p.kind===kind&&p.id===id);
+ if(!requireLogin()||!canPin(kind,id))return deny();const list=ownPins(),found=list.some(p=>p.kind===kind&&String(p.id)===String(id));
  if(!found&&list.length>=100)return toast(T.pinsLimit,'error');
- const next=found?list.filter(p=>!(p.kind===kind&&p.id===id)):[{kind,id,urgent:false,createdAt:new Date().toISOString()},...list];
+ const next=found?list.filter(p=>!(p.kind===kind&&String(p.id)===String(id))):[{kind,id,urgent:false,createdAt:new Date().toISOString()},...list];
  if(savePins(next)){toast(found?T.pinRemoved:T.pinSaved);if($('pinDialog').open)openPins();}
 }
 function taskPinButton(id){const on=isPinned('task',id);return `<button class="icon-btn task-pin-btn ${on?'is-pinned':''}" data-v8="pin-toggle" data-kind="task" data-id="${id}" aria-pressed="${on}" title="${on?T.unpin:T.pin}" aria-label="${on?T.unpin:T.pin}">${icon('pin')}</button>`;}
 function pinTitle(p){return p.kind==='task'?byTask.get(p.id)?.title:byNode.get(p.id)?.name;}
-function pinMeta(p){return p.kind==='task'?`${byNode.get(byTask.get(p.id).node)?.name||''} · ${byTask.get(p.id).status}`:shortPath(p.id);}
+function pinMeta(p){const t=p.kind==='task'?byTask.get(p.id):null;return t?`${byNode.get(t.node)?.name||''} · ${t.status}`:shortPath(p.id);}
 function renderPins(){
  if(!currentAccount())return;const pins=visiblePins(),show=pinsExpanded?pins:pins.slice(0,4);
  $('pinSection').innerHTML=`<div class="side-heading pin-heading"><span>${icon('pin')}${T.pins}</span><div><button class="tiny-btn" data-v8="pins-manage" title="${T.managePins}" aria-label="${T.managePins}">${icon('sliders')}</button><button class="tiny-btn" data-v8="pins-manage" title="${T.addPin}" aria-label="${T.addPin}">${icon('plus')}</button></div></div><div class="pin-personal">${T.personal}${pins.length?` <span>${pins.length}</span>`:''}</div>${show.length?show.map((p,i)=>`<div class="pin-shortcut ${p.urgent?'is-urgent':''}"><button class="pin-open" data-v8="pin-open" data-kind="${p.kind}" data-id="${p.id}" title="${esc(pinTitle(p)+' / '+pinMeta(p))}"><span class="pin-type-icon">${icon(p.kind==='task'?'check-circle':'folder')}</span><span><strong>${esc(pinTitle(p))}</strong><small>${p.urgent?T.urgent:p.kind==='task'?T.task:T.project}</small></span>${p.urgent?'<i class="pin-urgent-dot"></i>':''}</button><button class="tiny-btn pin-remove" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}" aria-label="${T.unpin}: ${esc(pinTitle(p))}" title="${T.unpin}">${icon('x')}</button></div>`).join(''):`<button class="pin-empty" data-v8="pins-manage">${T.pinEmpty}</button>`}${pins.length>4?`<button class="pin-more" data-v8="pins-expand">${pinsExpanded?'Thu gọn':T.allPins+' ('+pins.length+')'}</button>`:''}`;
@@ -375,9 +375,42 @@ function renderTree(){
 function injectDrawerPin(t){const tools=$('drawerContent').querySelector('.drawer-tools');if(tools)tools.insertAdjacentHTML('afterbegin',taskPinButton(t.id));}
 function decoratePinButtons(){
  if(!currentAccount())return;
- $$('#viewContent [data-action="favorite"]').forEach(b=>{if(b.parentElement.querySelector(`.task-pin-btn[data-id="${b.dataset.id}"]`))return;b.insertAdjacentHTML('beforebegin',taskPinButton(Number(b.dataset.id)));});
- $$('#viewContent [data-drag-task]').forEach(card=>{if(!card.querySelector('.task-pin-btn')){const b=card.querySelector('[data-action="favorite"]');(b||card).insertAdjacentHTML(b?'beforebegin':'afterbegin',taskPinButton(Number(card.dataset.dragTask)));}});
- $$('.task-pin-btn,.tree-pin').forEach(b=>{const on=isPinned(b.dataset.kind||'task',Number(b.dataset.id));b.classList.toggle('is-pinned',on);b.setAttribute('aria-pressed',String(on));b.title=on?T.unpin:T.pin;});
+ $$('#viewContent [data-action="favorite"]').forEach(b=>{
+  const rawId=b.dataset.id;
+  if(!rawId)return;
+  const parent=b.parentElement;
+  if(!parent)return;
+  const existing=parent.querySelectorAll('.task-pin-btn');
+  if(existing.length>1){
+   for(let i=1;i<existing.length;i++)existing[i].remove();
+  }
+  if(existing.length===1){
+   existing[0].dataset.id=rawId;
+   return;
+  }
+  b.insertAdjacentHTML('beforebegin',taskPinButton(rawId));
+ });
+ $$('#viewContent [data-drag-task]').forEach(card=>{
+  const rawId=card.dataset.dragTask;
+  if(!rawId)return;
+  const existing=card.querySelectorAll('.task-pin-btn');
+  if(existing.length>1){
+   for(let i=1;i<existing.length;i++)existing[i].remove();
+  }
+  if(existing.length===1){
+   existing[0].dataset.id=rawId;
+   return;
+  }
+  const b=card.querySelector('[data-action="favorite"]');
+  (b||card).insertAdjacentHTML(b?'beforebegin':'afterbegin',taskPinButton(rawId));
+ });
+ $$('.task-pin-btn,.tree-pin').forEach(b=>{
+  const raw=b.dataset.id;
+  const on=isPinned(b.dataset.kind||'task',raw);
+  b.classList.toggle('is-pinned',on);
+  b.setAttribute('aria-pressed',String(on));
+  b.title=on?T.unpin:T.pin;
+ });
 }
 function openPins(){
  if(!requireLogin())return;$('pinTitle').textContent=T.pins;const pins=visiblePins();
@@ -390,9 +423,9 @@ function renderPinSearch(){
  $('pinSearchResults').innerHTML=[...nodes,...tasks].map(p=>`<button class="pin-search-result" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}">${icon(p.kind==='task'?'check-circle':'folder')}<span><strong>${esc(p.title)}</strong><small>${esc(p.meta)}</small></span>${icon('plus')}</button>`).join('')||`<p class="view-note">${T.noResults}</p>`;
 }
 function reorderPin(action,kind,id){
- if(!requireLogin())return;const list=ownPins(),visible=visiblePins(),idx=list.findIndex(p=>p.kind===kind&&p.id===id),vi=visible.findIndex(p=>p.kind===kind&&p.id===id);if(idx<0||vi<0)return;
+ if(!requireLogin())return;const list=ownPins(),visible=visiblePins(),idx=list.findIndex(p=>p.kind===kind&&String(p.id)===String(id)),vi=visible.findIndex(p=>p.kind===kind&&String(p.id)===String(id));if(idx<0||vi<0)return;
  if(action==='pin-urgent')list[idx].urgent=!list[idx].urgent;
- else{let target=action==='pin-top'?0:action==='pin-up'?vi-1:vi+1;if(target<0||target>=visible.length)return;const t=visible[target],to=list.findIndex(p=>p.kind===t.kind&&p.id===t.id);const [p]=list.splice(idx,1);list.splice(to,0,p);}
+ else{let target=action==='pin-top'?0:action==='pin-up'?vi-1:vi+1;if(target<0||target>=visible.length)return;const t=visible[target],to=list.findIndex(p=>p.kind===t.kind&&String(p.id)===String(t.id));const [p]=list.splice(idx,1);list.splice(to,0,p);}
  if(savePins(list)){openPins();renderTree();}
 }
 function openSettings(){
@@ -433,17 +466,19 @@ function applyPermissionUI(){
  $('accessNav').hidden=!isAdmin();
  if(!isAdmin()&&state.selected===rootNode().id){$('topScope').textContent=T.allowedScope;$('pageEyebrow').textContent=T.allowedScope.toUpperCase();}
  $$('[data-action]',$('app')).concat($$('[data-action]',$('drawer'))).forEach(b=>{
-  const action=b.dataset.action;if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,Number(b.dataset.id));
-  else if(['complete','favorite','delete-check','timer-toggle','delete-comment'].includes(action)){b.disabled=!permissionForAction(action,Number(b.dataset.id));}
+  const action=b.dataset.action, rawId=b.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
+  if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,id);
+  else if(['complete','favorite','delete-check','timer-toggle','delete-comment'].includes(action)){b.disabled=!permissionForAction(action,id);}
  });
  $$('[data-status-task],[data-owner-task],[data-priority-task],[data-check-task]').forEach(el=>{
-  const id=Number(el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask),t=byTask.get(id);
+  const rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask;
+  const id=(rawId&&!isNaN(rawId))?Number(rawId):rawId,t=byTask.get(id);
   el.disabled=el.hasAttribute('data-owner-task')||el.hasAttribute('data-priority-task')?!canManageTask(t):!canUpdateTask(t);
  });
  const t=byTask.get(drawerId);if(t){
   for(const id of ['checklistForm','commentForm','logForm'])if($(id))$(id).hidden=!canUpdateTask(t);
   if($('drawerAutoProgress'))$('drawerAutoProgress').disabled=!canUpdateTask(t);
-  $$('#drawerContent [data-action="delete-comment"]').forEach(b=>{const c=t.comments.find(c=>c.id===Number(b.dataset.comment));b.hidden=!canUpdateTask(t)||a.role==='member'&&c?.authorId!==a.personId;});
+  $$('#drawerContent [data-action="delete-comment"]').forEach(b=>{const c=t.comments.find(c=>String(c.id)===String(b.dataset.comment));b.hidden=!canUpdateTask(t)||a.role==='member'&&c?.authorId!==a.personId;});
  }
   if($('bulkOwner'))$('bulkOwner').disabled=!['owner','admin','manager'].includes(a.role);
   if($('bulkStatus'))$('bulkStatus').disabled=a.role==='viewer';
@@ -455,7 +490,7 @@ function handleV8Click(e){
  const v=e.target.closest('[data-v8]'),a=e.target.closest('[data-action]');
  if(v){
   e.preventDefault();e.stopImmediatePropagation();if(v.disabled)return;
-  const action=v.dataset.v8,id=Number(v.dataset.id),kind=v.dataset.kind,user=v.dataset.user;
+  const action=v.dataset.v8,rawId=v.dataset.id,id=(rawId&&!isNaN(rawId))?Number(rawId):rawId,kind=v.dataset.kind,user=v.dataset.user;
   if(action==='toggle-password'){const input=$(v.dataset.target);input.type=input.type==='password'?'text':'password';v.setAttribute('aria-pressed',String(input.type==='text'));return;}
   if(action==='forgot'){authError(T.forgotHelp);return;}
   if(!requireLogin())return;touchSession();
