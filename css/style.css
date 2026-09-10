@@ -1223,151 +1223,25 @@ dialog.mobile-only:not([open]){display:none!important}
 }
 
 /* ==========================================================================
-   ONESIGNAL SLIDEDOWN REFINEMENT (WORKTREE X DESIGN SYSTEM)
-   Transforms the default OneSignal prompt into an ultra-refined, native card
+   ONESIGNAL POPUP SUPPRESSION
+   Completely suppresses the default OneSignal SDK slidedown prompt.
+   WorkTree X uses its own native, elegant .wtx-push-prompt card.
    ========================================================================== */
-#onesignal-slidedown-container {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-  z-index: 999999 !important;
-  padding: 16px !important;
-}
-
-#onesignal-slidedown-container .onesignal-slidedown-dialog,
-#onesignal-slidedown-dialog {
-  background: var(--surface) !important;
-  color: var(--text) !important;
-  border: 1px solid var(--line-strong) !important;
-  border-radius: var(--radius) !important;
-  box-shadow: 0 16px 42px -8px rgba(14, 22, 46, 0.16), 0 0 0 1px var(--line) !important;
-  max-width: 400px !important;
-  width: calc(100vw - 32px) !important;
-  margin: 16px auto 0 !important;
-  padding: 18px 20px !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  font-family: inherit !important;
-  position: relative !important;
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease !important;
-}
-
-@media (min-width: 901px) {
-  #onesignal-slidedown-dialog {
-    margin: 16px 24px 0 auto !important; /* Top-right alignment on desktop */
-  }
-}
-
-#onesignal-slidedown-body {
-  display: flex !important;
-  align-items: flex-start !important;
-  gap: 14px !important;
-  padding: 0 !important;
-  margin-bottom: 16px !important;
-}
-
-#onesignal-slidedown-icon {
-  width: 40px !important;
-  height: 40px !important;
-  min-width: 40px !important;
-  border-radius: 10px !important;
-  background: var(--primary-soft) !important;
-  color: var(--primary) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 8px !important;
-  box-sizing: border-box !important;
-  flex-shrink: 0 !important;
-}
-
-#onesignal-slidedown-icon img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
-}
-
-#onesignal-slidedown-message {
-  color: var(--text) !important;
-  font-size: 12.5px !important;
-  line-height: 1.5 !important;
-  font-weight: 500 !important;
-  padding: 2px 0 0 0 !important;
-  margin: 0 !important;
-  font-family: inherit !important;
-}
-
-#onesignal-slidedown-button-container {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 8px !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-#onesignal-slidedown-cancel-button {
-  background: transparent !important;
-  color: var(--muted) !important;
-  border: 1px solid var(--line) !important;
-  border-radius: 8px !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  font-family: inherit !important;
-  height: 34px !important;
-  padding: 0 14px !important;
-  cursor: pointer !important;
-  transition: all 0.16s ease !important;
-}
-
-#onesignal-slidedown-cancel-button:hover {
-  background: var(--surface-3) !important;
-  color: var(--text) !important;
-  border-color: var(--line-strong) !important;
-}
-
-#onesignal-slidedown-allow-button {
-  background: var(--primary) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--primary) !important;
-  border-radius: 8px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  font-family: inherit !important;
-  height: 34px !important;
-  padding: 0 16px !important;
-  box-shadow: 0 2px 8px rgba(105, 98, 219, 0.28) !important;
-  cursor: pointer !important;
-  transition: all 0.16s ease !important;
-}
-
-#onesignal-slidedown-allow-button:hover {
-  background: var(--primary-hover) !important;
-  border-color: var(--primary-hover) !important;
-  box-shadow: 0 4px 12px rgba(105, 98, 219, 0.38) !important;
-  transform: translateY(-1px) !important;
-}
-
-/* Dark mode theme alignment for OneSignal */
-html[data-theme="dark"] #onesignal-slidedown-dialog {
-  background: var(--surface) !important;
-  border-color: var(--line) !important;
-  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--line) !important;
-}
-
-html[data-theme="dark"] #onesignal-slidedown-icon {
-  background: var(--primary-soft) !important;
-  color: var(--primary-text) !important;
-}
-
-html[data-theme="dark"] #onesignal-slidedown-cancel-button {
-  background: var(--surface-2) !important;
-  color: var(--subtle) !important;
-  border-color: var(--line) !important;
-}
-
-html[data-theme="dark"] #onesignal-slidedown-cancel-button:hover {
-  background: var(--surface-3) !important;
-  color: var(--text) !important;
-  border-color: var(--line-strong) !important;
+#onesignal-slidedown-container,
+.onesignal-slidedown-container,
+#onesignal-slidedown-dialog,
+.onesignal-slidedown-dialog,
+div[class*="onesignal-slidedown"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
 }
 
 /* ==========================================================================

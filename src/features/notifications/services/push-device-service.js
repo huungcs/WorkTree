@@ -69,17 +69,7 @@ export const PushDeviceService = {
               },
               promptOptions: {
                 slidedown: {
-                  prompts: [
-                    {
-                      type: 'push',
-                      autoPrompt: false, // Suppress default unstyled OneSignal popup
-                      text: {
-                        actionMessage: 'Bật thông báo đẩy để nhận cập nhật công việc, hạn chót và trao đổi theo thời gian thực.',
-                        acceptButton: 'Bật thông báo',
-                        cancelButton: 'Để sau'
-                      }
-                    }
-                  ]
+                  prompts: []
                 }
               },
               serviceWorkerParam: {
@@ -179,18 +169,18 @@ export const PushDeviceService = {
       const granted = permResult === 'granted';
 
       if (granted) {
-        // 2. Thông báo ngầm cho OneSignal Web SDK nếu có trong trang
+        // 2. Kích hoạt optIn ngầm trên OneSignal (tuyệt đối không mở UI popup của OneSignal)
         if (window.OneSignalDeferred) {
           window.OneSignalDeferred.push(async function (OneSignal) {
             try {
-              if (OneSignal?.Notifications?.requestPermission) {
+              if (OneSignal?.User?.PushSubscription?.optIn) {
                 await Promise.race([
-                  OneSignal.Notifications.requestPermission(),
+                  OneSignal.User.PushSubscription.optIn(),
                   new Promise(res => setTimeout(res, 2500))
                 ]);
               }
             } catch (e) {
-              console.warn('[Push] OneSignal sync note:', e);
+              console.warn('[Push] OneSignal optIn note:', e);
             }
           });
         }
@@ -279,49 +269,16 @@ export const PushDeviceService = {
   },
 
   /**
-   * Giám sát DOM để chặn và bản địa hóa OneSignal prompt nếu SDK tự động chèn vào giao diện.
+   * Giám sát DOM để triệt tiêu OneSignal prompt nếu SDK tự động chèn vào giao diện.
    */
   setupOneSignalPromptObserver() {
     if (typeof window === 'undefined' || typeof MutationObserver === 'undefined') return;
 
     try {
       const observer = new MutationObserver(() => {
-        const container = document.getElementById('onesignal-slidedown-container');
+        const container = document.getElementById('onesignal-slidedown-container') || document.querySelector('.onesignal-slidedown-container');
         if (container) {
-          const messageEl = document.getElementById('onesignal-slidedown-message');
-          if (messageEl && (messageEl.textContent.includes('Subscribe to our notifications') || messageEl.textContent.includes('notifications for the latest news'))) {
-            messageEl.innerHTML = '<strong style="display:block;font-size:13.5px;font-weight:650;margin-bottom:4px;color:var(--text)">Bật thông báo công việc</strong>' +
-              '<span style="font-size:12px;color:var(--muted);line-height:1.45">Nhận cập nhật khi có phân công mới, nhắc việc hạn chót và trao đổi dự án theo thời gian thực.</span>';
-          }
-
-          const allowBtn = document.getElementById('onesignal-slidedown-allow-button');
-          if (allowBtn && (allowBtn.textContent.trim() === 'Subscribe' || allowBtn.textContent.trim() === 'Allow')) {
-            allowBtn.textContent = 'Bật thông báo';
-          }
-
-          const cancelBtn = document.getElementById('onesignal-slidedown-cancel-button');
-          if (cancelBtn && (cancelBtn.textContent.trim() === 'Later' || cancelBtn.textContent.trim() === 'Cancel')) {
-            cancelBtn.textContent = 'Để sau';
-          }
-
-          // Thêm nút đóng (x) tinh tế nếu OneSignal chưa có
-          const dialog = document.getElementById('onesignal-slidedown-dialog');
-          if (dialog && !dialog.querySelector('.onesignal-wtx-close')) {
-            dialog.style.position = 'relative';
-            const closeBtn = document.createElement('button');
-            closeBtn.type = 'button';
-            closeBtn.className = 'onesignal-wtx-close';
-            closeBtn.setAttribute('aria-label', 'Đóng');
-            closeBtn.innerHTML = '&times;';
-            closeBtn.style.cssText = 'position:absolute;top:10px;right:12px;background:none;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:6px;';
-            closeBtn.onmouseover = () => { closeBtn.style.color = 'var(--text)'; };
-            closeBtn.onmouseout = () => { closeBtn.style.color = 'var(--muted)'; };
-            closeBtn.onclick = () => {
-              container.remove();
-              localStorage.setItem('wtx_push_prompt_dismissed_at', String(Date.now()));
-            };
-            dialog.appendChild(closeBtn);
-          }
+          container.remove();
         }
       });
 
