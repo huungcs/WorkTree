@@ -371,6 +371,78 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
  }).join('');
 }
 
+function buildScopeTreeOptions(selectedIds = [], inputName = 'empScope') {
+ const selectedSet = new Set((selectedIds || []).map(String));
+ const rawNodes = data?.nodes || [];
+ if (!rawNodes.length) return '<div class="scope-empty muted" style="padding:12px;text-align:center;font-size:12px">Chưa có dữ liệu cơ cấu tổ chức.</div>';
+
+ const nodeMap = new Map(rawNodes.map(n => [n.id, n]));
+ const childrenMap = new Map();
+ rawNodes.forEach(n => {
+  const p = n.parent;
+  if (!childrenMap.has(p)) childrenMap.set(p, []);
+  childrenMap.get(p).push(n);
+ });
+
+ const typePriority = { company: 0, department: 1, team: 2, project: 3, folder: 4 };
+ for (const list of childrenMap.values()) {
+  list.sort((a, b) => (typePriority[a.type] ?? 9) - (typePriority[b.type] ?? 9) || a.name.localeCompare(b.name, 'vi'));
+ }
+
+ const roots = rawNodes.filter(n => n.parent === null || !nodeMap.has(n.parent));
+ if (!roots.length && rawNodes.length) roots.push(rawNodes[0]);
+
+ const orderedItems = [];
+ function traverse(n, depth = 0, parentChain = [], isLastChild = false) {
+  orderedItems.push({ node: n, depth, parentChain, isLastChild });
+  const kids = childrenMap.get(n.id) || [];
+  kids.forEach((child, idx) => {
+   traverse(child, depth + 1, [...parentChain, n], idx === kids.length - 1);
+  });
+ }
+
+ roots.forEach((r, idx) => traverse(r, 0, [], idx === roots.length - 1));
+
+ const seenIds = new Set(orderedItems.map(item => item.node.id));
+ rawNodes.forEach(n => {
+  if (!seenIds.has(n.id)) {
+   orderedItems.push({ node: n, depth: 0, parentChain: [], isLastChild: true });
+  }
+ });
+
+ return orderedItems.map(({ node: n, depth, parentChain, isLastChild }) => {
+  const isChecked = selectedSet.has(String(n.id));
+  const fullPath = pathName(n.id) || n.name;
+  const indentPx = depth * 22;
+
+  const parentDept = parentChain.slice().reverse().find(p => p.type === 'department');
+  const parentName = parentDept ? parentDept.name : (parentChain.length ? parentChain[parentChain.length - 1].name : '');
+
+  let branchPrefix = '';
+  if (depth > 0) {
+   branchPrefix = `<span class="scope-branch-guide" aria-hidden="true">${isLastChild ? '└─' : '├─'}</span>`;
+  }
+
+  let deptBadgeHTML = '';
+  if (depth >= 2 && parentName && parentDept?.id !== n.id) {
+   deptBadgeHTML = `<span class="scope-parent-tag" title="Thuộc ${esc(parentName)}">thuộc ${esc(parentName)}</span>`;
+  }
+
+  return `<label class="scope-option depth-${depth}" data-scope-name="${esc(fold(fullPath))}" style="padding-left:${10 + indentPx}px">
+   <input type="checkbox" name="${esc(inputName)}" value="${esc(n.id)}" ${isChecked ? 'checked' : ''}>
+   <span class="scope-option-main">
+    ${branchPrefix}
+    ${icon(nodeIcon(n.type))}
+    <span class="scope-option-name">${esc(n.name)}</span>
+   </span>
+   <div class="scope-option-meta">
+    ${deptBadgeHTML}
+    <small class="scope-type-badge">${esc(TYPES[n.type] || n.type)}</small>
+   </div>
+  </label>`;
+ }).join('');
+}
+
 function openAddEmployeeDialog(){
  if(!requireAdmin())return;
  accountEditing = null;
@@ -385,14 +457,7 @@ function openAddEmployeeDialog(){
  const homeOptions = validHomeNodes.length ? validHomeNodes : (rootNode() ? [rootNode()] : []);
  const homeOptionsHTML = homeOptions.map(n => `<option value="${n.id}">${esc(pathName(n.id) || n.name)} (${TYPES[n.type] || n.type})</option>`).join('');
 
- const scopePickerHTML = (data?.nodes||[]).map(n => `<label class="scope-option" data-scope-name="${esc(fold(pathName(n.id)))}">
-  <input type="checkbox" name="empScope" value="${n.id}">
-  <span class="scope-option-main" style="--scope-indent:${Math.min(36,(pathNodes(n.id).length-1)*10)}px">
-   ${icon(nodeIcon(n.type))}
-   <span class="scope-option-name">${esc(n.name)}</span>
-  </span>
-  <small>${TYPES[n.type]}</small>
- </label>`).join('');
+ const scopePickerHTML = buildScopeTreeOptions([], 'empScope');
 
  $('accountContent').innerHTML = `
   <form id="addEmployeeForm">
@@ -633,14 +698,7 @@ function openInviteExistingEmployeeDialog(employeeId){
   return toast('Nhân sự này đã được liên kết tài khoản.', 'warning');
  }
 
- const scopePickerHTML = (data?.nodes||[]).map(n => `<label class="scope-option" data-scope-name="${esc(fold(pathName(n.id)))}">
-  <input type="checkbox" name="inviteExistScope" value="${n.id}" ${n.id === emp.home_node_id ? 'checked' : ''}>
-  <span class="scope-option-main" style="--scope-indent:${Math.min(36,(pathNodes(n.id).length-1)*10)}px">
-   ${icon(nodeIcon(n.type))}
-   <span class="scope-option-name">${esc(n.name)}</span>
-  </span>
-  <small>${TYPES[n.type]}</small>
- </label>`).join('');
+ const scopePickerHTML = buildScopeTreeOptions([emp.home_node_id], 'inviteExistScope');
 
  $('accountContent').innerHTML = `
   <form id="inviteExistingForm">
@@ -1174,7 +1232,7 @@ function openAccount(id=null){
  }
  if(!requireAdmin())return;const a=identity.accounts.find(a=>a.id===id);accountEditing=id;
  const curId=session?.id||currentAccount()?.id;
- $('accountContent').innerHTML=`<form id="accountForm">${dialogHead(a?T.edit:T.newAccount,'accountTitle','accountDialog')}<div class="dialog-scroll"><div class="form-error" id="accountError" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field(T.name,'accountName','text',a?.name||'','required maxlength="180" autocomplete="name"')}${field(T.username,'accountUsername','text',a?.username||'','required maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false"')}<label class="field">${T.role}<select id="accountRole" ${a?.id===curId?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${(a?.role||'member')===r?'selected':''}>${T[r]}</option>`).join('')}</select></label><label class="field">${T.person}<select id="accountPerson"><option value="">${T.noPerson}</option>${permittedPeople().map(n=>`<option value="${n.id}" ${n.id===a?.personId?'selected':''}>${esc(n.name)}</option>`).join('')}</select></label>${a?'':`<div class="field full">${passwordField(T.temporary,'accountPassword')}<p class="field-hint">${T.passwordHint}</p><label class="checkbox-label account-force-change"><input id="accountForceChange" type="checkbox" checked><span>${T.forceChange}</span></label></div>`}<div class="field full" id="scopeField"><div class="scope-label"><strong>${T.scope}</strong><small id="scopeSelectedCount"></small></div><p class="field-hint">${T.scopeHint}</p><input type="search" id="scopeSearch" placeholder="Tìm nhánh..." aria-label="Tìm nhánh phân quyền"><div class="scope-picker">${data.nodes.map(n=>`<label class="scope-option" data-scope-name="${esc(fold(pathName(n.id)))}"><input type="checkbox" name="scope" value="${n.id}" ${(a?.scopes||[]).includes(n.id)?'checked':''}><span class="scope-option-main" style="--scope-indent:${Math.min(36,(pathNodes(n.id).length-1)*10)}px">${icon(nodeIcon(n.type))}<span class="scope-option-name">${esc(n.name)}</span></span><small>${TYPES[n.type]}</small></label>`).join('')}</div></div><div class="role-explanation full" id="roleExplanation"></div></div></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="accountDialog">${T.cancel}</button><button type="submit" class="btn primary" id="accountSave">${a?T.save:T.create}</button></div></form>`;
+ $('accountContent').innerHTML=`<form id="accountForm">${dialogHead(a?T.edit:T.newAccount,'accountTitle','accountDialog')}<div class="dialog-scroll"><div class="form-error" id="accountError" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field(T.name,'accountName','text',a?.name||'','required maxlength="180" autocomplete="name"')}${field(T.username,'accountUsername','text',a?.username||'','required maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false"')}<label class="field">${T.role}<select id="accountRole" ${a?.id===curId?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${(a?.role||'member')===r?'selected':''}>${T[r]}</option>`).join('')}</select></label><label class="field">${T.person}<select id="accountPerson"><option value="">${T.noPerson}</option>${permittedPeople().map(n=>`<option value="${n.id}" ${n.id===a?.personId?'selected':''}>${esc(n.name)}</option>`).join('')}</select></label>${a?'':`<div class="field full">${passwordField(T.temporary,'accountPassword')}<p class="field-hint">${T.passwordHint}</p><label class="checkbox-label account-force-change"><input id="accountForceChange" type="checkbox" checked><span>${T.forceChange}</span></label></div>`}<div class="field full" id="scopeField"><div class="scope-label"><strong>${T.scope}</strong><small id="scopeSelectedCount"></small></div><p class="field-hint">${T.scopeHint}</p><input type="search" id="scopeSearch" placeholder="Tìm nhánh..." aria-label="Tìm nhánh phân quyền"><div class="scope-picker">${buildScopeTreeOptions(a?.scopes||[],'scope')}</div></div><div class="role-explanation full" id="roleExplanation"></div></div></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="accountDialog">${T.cancel}</button><button type="submit" class="btn primary" id="accountSave">${a?T.save:T.create}</button></div></form>`;
  $('accountForm').addEventListener('submit',saveAccount);$('accountRole').addEventListener('change',updateScopeForm);$('accountPerson').addEventListener('change',()=>{if(!$('accountName').value.trim()&&$('accountPerson').value)$('accountName').value=nodeName(Number($('accountPerson').value));});
  $('scopeSearch').addEventListener('input',e=>{const q=fold(e.target.value);$$('.scope-option').forEach(el=>el.hidden=!el.dataset.scopeName.includes(q));});
  $$('#accountForm [name="scope"]').forEach(el=>el.addEventListener('change',updateScopeForm));updateScopeForm();showDialog('accountDialog','#accountName');
