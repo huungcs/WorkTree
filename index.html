@@ -107,18 +107,18 @@
   <div class="dialog-scroll">
    <div class="form-error" id="taskFormError" role="alert" hidden></div>
    <div class="form-grid">
-    <label class="field full">Tên công việc <span class="required">*</span><input id="tTitle" name="title" maxlength="240" required placeholder="Cần hoàn thành điều gì?" autocomplete="off"></label>
-    <label class="field full">Mô tả<textarea id="tDesc" maxlength="20000" rows="3" placeholder="Mục tiêu, kết quả mong đợi và tiêu chí hoàn thành..."></textarea></label>
-    <label class="field">Đơn vị / dự án <span class="required">*</span><select id="tNode" required></select></label>
-    <label class="field">Người phụ trách <button type="button" class="tiny-btn contextual-help-btn inline-help" data-contextual-help="task-form-assignee-help" aria-label="Trợ giúp về người phụ trách và hạn" title="Trợ giúp về người phụ trách và hạn"><span data-icon="help"></span></button><select id="tOwner"></select></label>
-    <label class="field">Trạng thái<select id="tStatus"></select></label>
-    <label class="field">Mức ưu tiên<select id="tPriority"></select></label>
-    <label class="field">Ngày bắt đầu<input id="tStart" type="date" min="1900-01-01" max="9999-12-31"></label>
-    <label class="field">Hạn hoàn thành<input id="tDue" type="date" min="1900-01-01" max="9999-12-31"></label>
-    <label class="field third">Ước tính (giờ)<input id="tEstimate" type="number" min="0" max="10000" step="0.25" value="4"></label>
-    <label class="field third">Đã làm (giờ)<input id="tActual" type="number" min="0" max="10000" step="any" value="0"></label>
-    <label class="field third">Tiến độ (%)<input id="tProgress" type="number" min="0" max="100" step="1" value="0"><span class="field-hint" id="progressHint">Hoàn thành tương ứng với 100%.</span></label>
-    <label class="field full">Thẻ phân loại<input id="tTags" maxlength="820" placeholder="Ví dụ: CRM, Thiết kế, Q3"><span class="field-hint">Phân tách bằng dấu phẩy · Tối đa 20 thẻ.</span></label>
+    <label class="field full"><span class="field-title">Tên công việc <span class="required">*</span></span><input id="tTitle" name="title" maxlength="240" required placeholder="Cần hoàn thành điều gì?" autocomplete="off"></label>
+    <label class="field full"><span class="field-title">Mô tả</span><textarea id="tDesc" maxlength="20000" rows="3" placeholder="Mục tiêu, kết quả mong đợi và tiêu chí hoàn thành..."></textarea></label>
+    <label class="field"><span class="field-title">Đơn vị / dự án <span class="required">*</span></span><select id="tNode" required></select></label>
+    <label class="field"><span class="field-title">Người phụ trách <button type="button" class="tiny-btn contextual-help-btn inline-help" data-contextual-help="task-form-assignee-help" aria-label="Trợ giúp về người phụ trách và hạn" title="Trợ giúp về người phụ trách và hạn"><span data-icon="help"></span></button></span><select id="tOwner"></select></label>
+    <label class="field"><span class="field-title">Trạng thái</span><select id="tStatus"></select></label>
+    <label class="field"><span class="field-title">Mức ưu tiên</span><select id="tPriority"></select></label>
+    <label class="field"><span class="field-title">Ngày bắt đầu</span><input id="tStart" type="date" min="1900-01-01" max="9999-12-31"></label>
+    <label class="field"><span class="field-title">Hạn hoàn thành</span><input id="tDue" type="date" min="1900-01-01" max="9999-12-31"></label>
+    <label class="field third"><span class="field-title">Ước tính (giờ)</span><input id="tEstimate" type="number" min="0" max="10000" step="0.25" value="4"></label>
+    <label class="field third"><span class="field-title">Đã làm (giờ)</span><input id="tActual" type="number" min="0" max="10000" step="any" value="0"></label>
+    <label class="field third"><span class="field-title">Tiến độ (%)</span><input id="tProgress" type="number" min="0" max="100" step="1" value="0"><span class="field-hint" id="progressHint">Hoàn thành tương ứng với 100%.</span></label>
+    <label class="field full"><span class="field-title">Thẻ phân loại</span><input id="tTags" maxlength="820" placeholder="Ví dụ: CRM, Thiết kế, Q3"><span class="field-hint">Phân tách bằng dấu phẩy · Tối đa 20 thẻ.</span></label>
     <details class="form-details full" id="taskAdvanced"><summary>Phụ thuộc & thiết lập nâng cao</summary>
       <label class="field full">Cần hoàn thành trước<select id="tDependencies" multiple size="4"></select><span class="field-hint">Giữ Ctrl / Cmd để chọn nhiều công việc. Không được tạo phụ thuộc vòng.</span></label>
       <label class="field full">Ghi chú phụ thuộc<input id="tDependencyNote" maxlength="1000" placeholder="Ví dụ: Chờ dữ liệu từ phòng Kinh doanh"></label>

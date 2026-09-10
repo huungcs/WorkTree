@@ -630,6 +630,43 @@
   background: var(--primary-soft, #eeecfc);
 }
 
+.field-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 18px;
+  line-height: 1.4;
+}
+
+.contextual-help-btn.inline-help {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  vertical-align: middle;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.contextual-help-btn.inline-help:hover {
+  color: var(--primary, #6962db);
+  background: var(--primary-soft, #eeecfc);
+}
+
+.contextual-help-btn.inline-help svg,
+.contextual-help-btn.inline-help .icon {
+  width: 13px;
+  height: 13px;
+}
+
 .worktree-contextual-popover {
   position: fixed;
   z-index: 10005;
