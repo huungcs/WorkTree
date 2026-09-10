@@ -34,7 +34,7 @@ export const PushDeviceService = {
    * Khởi tạo OneSignal Web SDK v16+
    * Không hardcode API key. Chỉ dùng publishable App ID.
    */
-  async initOneSignal(appId = '2ebf5317-a16f-407b-83ee-e95d8525e9e0') {
+  async initOneSignal(appId = '252025b0-77e3-42c4-81f4-fcdb37f5925a') {
     if (!this.isPushSupported()) {
       console.info('[Push] Trình duyệt không hỗ trợ Web Push hoặc Service Worker.');
       return false;

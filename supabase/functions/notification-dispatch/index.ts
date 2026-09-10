@@ -9,7 +9,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
-const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID") || "";
+const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID") || "252025b0-77e3-42c4-81f4-fcdb37f5925a";
 const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -181,11 +181,17 @@ serve(async (req: Request) => {
               oneSignalPayload.target_channel = "push";
             }
 
+            const authHeader = ONESIGNAL_REST_API_KEY.startsWith("Key ")
+              ? ONESIGNAL_REST_API_KEY
+              : (ONESIGNAL_REST_API_KEY.startsWith("os_")
+                  ? `Key ${ONESIGNAL_REST_API_KEY}`
+                  : `Basic ${ONESIGNAL_REST_API_KEY}`);
+
             const oneSignalRes = await fetch("https://onesignal.com/api/v1/notifications", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Basic ${ONESIGNAL_REST_API_KEY}`
+                Authorization: authHeader
               },
               body: JSON.stringify(oneSignalPayload)
             });
