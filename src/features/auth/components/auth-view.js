@@ -32,6 +32,9 @@ const SVG_ICONS = {
   checkCircle: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
   pin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><path d="m16 3 5 5-4 2-3 6-3-3-6 6-1-1 6-6-3-3 6-3Z"/></svg>`,
   flag: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></svg>`,
+  sparkles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4M19 17v4M3 5h4M17 19h4"/></svg>`,
+  compass: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
+  rocket: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>`,
   spinner: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon icon-spin" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>`
 };
 
@@ -425,7 +428,7 @@ export class AuthView {
           Khám phá không gian làm việc với đầy đủ dự án, phòng ban, phân công và tiến độ thực tế:
         </p>
         <button type="button" id="demoLoginBtn" class="btn auth-demo-btn" ${this.isSubmitting ? 'disabled' : ''}>
-          <span style="font-size:16px;">🚀</span>
+          ${SVG_ICONS.sparkles}
           <span>Xem tài khoản dữ liệu mẫu (Demo)</span>
         </button>
         <div class="auth-demo-account-tag">
@@ -502,8 +505,9 @@ export class AuthView {
       </form>
 
       <div style="text-align:center;margin-top:16px;">
-        <button type="button" id="signupDemoBtn" class="link-btn" style="background:none;border:none;padding:0;color:var(--primary-text);font-size:12.5px;cursor:pointer;text-decoration:underline;">
-          🚀 Hoặc xem thử hệ thống với tài khoản dữ liệu mẫu
+        <button type="button" id="signupDemoBtn" class="link-btn" style="background:none;border:none;padding:0;color:var(--primary-text);font-size:12.5px;cursor:pointer;text-decoration:underline;display:inline-flex;align-items:center;gap:6px;justify-content:center;">
+          ${SVG_ICONS.sparkles}
+          <span>Hoặc xem thử hệ thống với tài khoản dữ liệu mẫu</span>
         </button>
       </div>
 
