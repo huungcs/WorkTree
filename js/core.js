@@ -2659,9 +2659,14 @@ async function openNotificationSettings() {
       <strong>Chuông báo & Rung thiết bị</strong>
       <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Đổ chuông êm dịu và rung haptic khi có việc được giao hoặc thông báo mới.</p>
      </div>
-     <button class="btn small" data-action="test-sound" title="Bấm để nghe thử âm thanh chuông">
-      ${icon('bell')}Thử chuông
-     </button>
+     <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+      <button class="btn small" data-action="test-sound" title="Bấm để nghe thử âm thanh chuông">
+       ${icon('bell')}Thử chuông
+      </button>
+      <button class="btn small primary" data-action="test-device-notification" title="Bấm để gửi thông báo thử nghiệm trực tiếp lên điện thoại">
+       ${icon('check')}Thử gửi thông báo
+      </button>
+     </div>
     </div>
     <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
      <div>
@@ -3000,6 +3005,49 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      window.playNotificationSound();
     }
     toast('🔔 Đang đổ chuông thông báo & rung thiết bị');
+    break;
+   }
+   case 'test-device-notification':{
+    if (typeof window.playNotificationSound === 'function') {
+     window.playNotificationSound();
+    }
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+     try { navigator.vibrate([200, 100, 200]); } catch (_) {}
+    }
+    const testTitle = '🔔 WorkTree X - Kiểm tra thông báo';
+    const testBody = 'Tuyệt vời! Điện thoại của bạn đã nhận được chuông và thông báo thành công.';
+    if (typeof window.displayNativeNotification === 'function') {
+     window.displayNativeNotification(testTitle, {
+      body: testBody,
+      tag: 'test-device-' + Date.now()
+     });
+    } else if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+     navigator.serviceWorker.ready.then(reg => {
+      if (reg && typeof reg.showNotification === 'function') {
+       reg.showNotification(testTitle, {
+        body: testBody,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        vibrate: [200, 100, 200],
+        tag: 'test-device-' + Date.now()
+       });
+      }
+     }).catch(() => {});
+    }
+    // Ghi nhận vào DB để cập nhật badge quả chuông
+    try {
+     const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+     const user = window.__worktree_supabase_user?.rawUser || window.__worktree_supabase_user?.user || currentAccount();
+     if (window.NotificationService && orgId && user?.id) {
+      await window.NotificationService.createManualReminder(orgId, {
+       recipientUserId: user.id,
+       title: '🔔 Thử nghiệm thông báo & Chuông điện thoại',
+       scheduledFor: new Date().toISOString()
+      });
+      await window.NotificationService.processDueReminders(orgId);
+     }
+    } catch (_) {}
+    toast('🔔 Đã kích hoạt chuông & gửi thông báo thử nghiệm!');
     break;
    }
    case 'request-push-perm':{

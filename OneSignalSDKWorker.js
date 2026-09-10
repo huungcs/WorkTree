@@ -29,3 +29,19 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_TEST_NOTIFICATION') {
+    const title = event.data.title || '🔔 WorkTree X - Thử nghiệm thông báo';
+    const options = {
+      body: event.data.body || 'Điện thoại của bạn đã kết nối thành công với hệ thống chuông & thông báo WorkTree X!',
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      vibrate: [200, 100, 200],
+      tag: 'test-push-' + Date.now(),
+      data: { url: '/index.html' }
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+  }
+});
+

@@ -649,6 +649,29 @@ export async function bootstrapAuthenticatedUser(user, session) {
     }
     updateUserProfileUI(initialAdapter);
 
+    const displayDeviceNotification = (title, options = {}) => {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const merged = {
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        vibrate: [200, 100, 200],
+        ...options
+      };
+      if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then((reg) => {
+          if (reg && typeof reg.showNotification === 'function') {
+            return reg.showNotification(title, merged);
+          }
+          try { new Notification(title, merged); } catch (_) {}
+        }).catch(() => {
+          try { new Notification(title, merged); } catch (_) {}
+        });
+      } else {
+        try { new Notification(title, merged); } catch (_) {}
+      }
+    };
+    window.displayNativeNotification = displayDeviceNotification;
+
     // STEP 11: Khởi tạo lắng nghe kênh riêng tư thông báo người dùng: user:<uuid>:notifications
     try {
       await RealtimeService.subscribeUserNotifications(user.id, {
@@ -661,18 +684,10 @@ export async function bootstrapAuthenticatedUser(user, session) {
             const notif = payload.new;
             const msg = notif.title ? (`🔔 ${notif.title}${notif.body ? ': ' + notif.body : ''}`) : '🔔 Có thông báo mới';
             callLegacyGlobal('toast', [msg]);
-            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-              try {
-                new Notification(notif.title || 'WorkTree X', {
-                  body: notif.body || '',
-                  icon: '/favicon.ico',
-                  badge: '/favicon.ico',
-                  tag: 'notif-' + (notif.id || Date.now())
-                });
-              } catch (e) {
-                console.warn('[Realtime] Lỗi hiển thị native notification:', e);
-              }
-            }
+            displayDeviceNotification(notif.title || 'WorkTree X', {
+              body: notif.body || '',
+              tag: 'notif-' + (notif.id || Date.now())
+            });
           }
           await callLegacyGlobal('refreshNotificationBadge');
         },
@@ -684,17 +699,11 @@ export async function bootstrapAuthenticatedUser(user, session) {
           if (payload?.title) {
             callLegacyGlobal('toast', [`🔔 ${payload.title}: ${payload.body || ''}`]);
           }
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && payload?.title) {
-            try {
-              new Notification(payload.title, {
-                body: payload.body || '',
-                icon: '/favicon.ico',
-                badge: '/favicon.ico',
-                tag: 'broadcast-' + Date.now()
-              });
-            } catch (e) {
-              console.warn('[Realtime] Lỗi hiển thị broadcast native notification:', e);
-            }
+          if (payload?.title) {
+            displayDeviceNotification(payload.title, {
+              body: payload.body || '',
+              tag: 'broadcast-' + Date.now()
+            });
           }
           callLegacyGlobal('refreshNotificationBadge');
         },
