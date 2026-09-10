@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "build": "npm run bundle",
     "check": "npm run check:syntax && npm run check:architecture && npm run test:server && npm run test:smoke",
     "check:syntax": "node scripts/check-js-syntax.js",
     "check:architecture": "node scripts/check-architecture.js",
