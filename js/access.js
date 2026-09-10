@@ -815,7 +815,7 @@ function openInviteLinkDialog({ token, email, fullName, role = 'member', homeNod
     <h3 id="accountTitle">Liên kết mời tham gia</h3>
     <p class="dialog-sub">Chia sẻ liên kết này cho nhân sự để tham gia tổ chức</p>
    </div>
-   <button type="button" class="icon-btn" data-action="close" data-dialog="accountDialog" aria-label="Đóng">${icon('close')}</button>
+   <button type="button" class="icon-btn" data-action="close" data-dialog="accountDialog" aria-label="Đóng">${icon('x')}</button>
   </div>
   <div class="dialog-scroll">
    <div style="background:var(--primary-soft);border:1px solid var(--primary);border-radius:10px;padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;">
@@ -948,7 +948,7 @@ async function openEmployeeDetailsDialog(employeeId){
     <h3 id="accountTitle">Thông tin tài khoản nhân sự</h3>
     <p class="dialog-sub">Chi tiết hồ sơ nhân sự và trạng thái tài khoản truy cập</p>
    </div>
-   <button type="button" class="icon-btn" data-action="close" data-dialog="accountDialog" aria-label="Đóng">${icon('close')}</button>
+   <button type="button" class="icon-btn" data-action="close" data-dialog="accountDialog" aria-label="Đóng">${icon('x')}</button>
   </div>
   <div class="dialog-scroll">
    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;display:flex;align-items:center;gap:16px;">

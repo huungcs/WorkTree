@@ -36,6 +36,20 @@ export const AuthService = {
   },
 
   /**
+   * Gửi lại email xác nhận đăng ký tài khoản.
+   * @param {string} email
+   */
+  async resendConfirmationEmail(email) {
+    const sb = await getSupabase();
+    const { data, error } = await sb.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase()
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
    * Đăng nhập bằng Email và Mật khẩu qua Supabase Auth.
    * @param {string} email
    * @param {string} password

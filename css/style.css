@@ -480,10 +480,9 @@ html[data-theme="dark"] .btn.primary{color:#111426}
 .content-footer svg{width:13px;height:13px}
 .footer-version{margin-left:auto;letter-spacing:.5px;font-size:8px}
 .dialog{padding:0;border:1px solid var(--line);border-radius:17px;background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);max-width:calc(100vw - 32px);max-height:calc(100dvh - 48px);width:660px;overflow:hidden}
-dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
-.dialog[open]{animation:dialog-in .18s ease-out}
+.dialog[open]{display:flex;flex-direction:column;animation:dialog-in .18s ease-out}
 @keyframes dialog-in{from{opacity:0;transform:translateY(7px) scale(.985)}to{opacity:1;transform:none}}
-.dialog form{display:flex;flex-direction:column;max-height:calc(100dvh - 50px)}
+.dialog form,.dialog>div{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:100%;width:100%;overflow:hidden}
 .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:21px 24px 19px;border-bottom:1px solid var(--line);flex-shrink:0}
 .overline{font-size:8px;letter-spacing:1.5px;font-weight:600;color:var(--muted);margin:0 0 5px}
 .dialog-head h2{font-size:19px;font-weight:650;letter-spacing:-.4px;margin:0}
@@ -820,13 +819,14 @@ html[data-density="compact"] .tree-node{min-height:29px}
 @media(max-width:900px){.auth-screen{padding:24px}.auth-layout{grid-template-columns:1fr;max-width:520px;gap:0}.auth-story{display:none}.auth-card{margin:16px auto;padding:28px;max-width:500px}.auth-brand{max-width:500px;margin-bottom:15px}.auth-footer{max-width:500px}.auth-version{font-size:8px}.role-cards{grid-template-columns:repeat(2,1fr)}.tree-pin,.pin-remove{opacity:1}.focus-side .task-pin-btn{display:none}}
 @media(max-width:560px){.auth-screen{padding:20px 16px}.auth-card{padding:23px 20px;border-radius:17px}.auth-card-header h2{font-size:24px}.auth-card-header p{font-size:11px}.auth-fields{gap:12px}.auth-local-note{font-size:9px}.auth-footer{font-size:9px}.auth-version{letter-spacing:1px}.access-dialog,.pin-dialog{width:96vw}.access-banner{padding:18px}.access-banner h3{font-size:20px}.access-banner p{font-size:10px}.access-stat{padding:5px}.access-stat strong{font-size:28px}.access-toolbar{flex-direction:column;align-items:stretch}.account-row{gap:9px}.account-row>.avatar{width:29px;height:29px;font-size:9px}.account-main strong{font-size:12px}.account-main p{font-size:9px;overflow-wrap:anywhere}.account-main>small{font-size:9px}.account-ops{max-width:85px}.account-ops .icon-btn{width:24px}.access-tabs{gap:15px}.access-tabs button{font-size:10px}.account-main .role-badge{font-size:8px}.pin-manage-row{flex-wrap:wrap;gap:6px}.pin-manage-open{min-width:calc(100% - 35px)}.pin-manage-controls{margin-left:25px}.pin-manage-controls .icon-btn{height:33px;width:34px}.profile-actions{grid-template-columns:1fr}.scope-option>small{display:none}.scope-option{font-size:10px}.role-cards article{padding:10px}.role-cards{gap:7px}.auth-layout{align-items:start}}
 @media(prefers-reduced-motion:reduce){.auth-illustration{transform:none}}
-#accountDialog{width:700px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px)}
-#accountContent,#accountForm{width:100%;min-width:0}
-#accountForm{max-height:calc(100dvh - 34px)}
-#accountForm>.dialog-scroll{flex:1 1 auto;min-height:0;min-width:0;max-height:none;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:16px}
-#accountForm .dialog-head>div,#accountForm .field,#accountForm .role-explanation{min-width:0}
-#accountForm .dialog-head h2,#accountForm .field-hint,#accountForm .role-explanation p,#accountError{overflow-wrap:anywhere}
-#accountForm .dialog-head>.icon-btn{flex-shrink:0}
+#accountDialog{width:700px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 48px);box-sizing:border-box}
+#accountDialog[open]{display:flex;flex-direction:column;overflow:hidden}
+#accountContent,#accountForm{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:100%;width:100%;min-width:0;overflow:hidden;box-sizing:border-box}
+#accountContent>.dialog-head,#accountForm>.dialog-head{flex-shrink:0;padding:20px 24px 16px;border-bottom:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:12px}
+#accountContent>.dialog-scroll,#accountForm>.dialog-scroll{flex:1 1 auto;min-height:0;min-width:0;max-height:none;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:16px;padding:20px 24px;scrollbar-width:thin}
+#accountForm .dialog-head>div,#accountForm .field,#accountForm .role-explanation,#accountContent .dialog-head>div{min-width:0}
+#accountForm .dialog-head h2,#accountForm .field-hint,#accountForm .role-explanation p,#accountError,#accountContent .dialog-head h3,#accountContent .dialog-sub{overflow-wrap:anywhere}
+#accountForm .dialog-head>.icon-btn,#accountContent .dialog-head>.icon-btn{flex-shrink:0}
 #accountForm .form-grid{align-items:start}
 #accountForm input[type="checkbox"],#accountForm input[type="radio"]{box-sizing:border-box;width:18px;min-width:18px;max-width:18px;height:18px;min-height:18px;flex:0 0 18px;margin:0;padding:0;box-shadow:none;accent-color:var(--primary)}
 #accountForm input[type="checkbox"]:focus-visible{outline-offset:2px}
@@ -842,14 +842,14 @@ html[data-density="compact"] .tree-node{min-height:29px}
 #accountForm .scope-option-main{display:flex;align-items:center;gap:7px;min-width:0;padding-left:var(--scope-indent,0px)}
 #accountForm .scope-option-name{min-width:0;overflow-wrap:anywhere;white-space:normal}
 #accountForm .scope-option>small{font-size:9px;white-space:nowrap}
-#accountForm .dialog-foot{background:var(--surface)}
-#accountForm .dialog-foot .btn{min-height:40px}
+#accountContent>.dialog-foot,#accountForm .dialog-foot{background:var(--surface);border-top:1px solid var(--line);padding:14px 24px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:10px;box-sizing:border-box}
+#accountContent .dialog-foot .btn,#accountForm .dialog-foot .btn{min-height:38px}
 @media(max-width:600px){
  #accountDialog{width:calc(100vw - 20px);max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px)}
- #accountForm{max-height:calc(100dvh - 22px)}
- #accountForm .dialog-head{padding:16px;gap:10px}
- #accountForm .dialog-head h2{font-size:18px;line-height:1.45}
- #accountForm>.dialog-scroll{padding:18px 16px}
+ #accountForm,#accountContent{max-height:calc(100dvh - 22px)}
+ #accountForm .dialog-head,#accountContent .dialog-head{padding:16px;gap:10px}
+ #accountForm .dialog-head h2,#accountContent .dialog-head h3{font-size:18px;line-height:1.45}
+ #accountForm>.dialog-scroll,#accountContent>.dialog-scroll{padding:18px 16px}
  #accountForm .form-grid{gap:16px}
  #accountForm .form-grid>.field{grid-column:1/-1;font-size:12px}
  #accountForm .field input:not([type="checkbox"]):not([type="radio"]),#accountForm .field select{font-size:16px;min-height:44px}

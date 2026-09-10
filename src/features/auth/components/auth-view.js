@@ -368,11 +368,12 @@ export class AuthView {
    * Trạng thái thông báo: Đăng ký thành công + yêu cầu xác nhận email
    */
   renderConfirmPending() {
+    const email = this.pendingEmail || '';
     return `
       <div class="auth-card-header">
         <span class="auth-chip" style="background:var(--green-soft);color:var(--green);">${SVG_ICONS.checkCircle} Đăng ký thành công</span>
         <h2>Xác nhận địa chỉ email</h2>
-        <p>Chúng tôi đã gửi một liên kết kích hoạt tài khoản đến hòm thư của bạn.</p>
+        <p>Tài khoản đã được tạo trên hệ thống xác thực Supabase.</p>
       </div>
 
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px;margin:20px 0;text-align:center;">
@@ -380,9 +381,21 @@ export class AuthView {
           ${SVG_ICONS.mail}
         </div>
         <h3 style="font-size:16px;margin:0 0 8px;">Vui lòng kiểm tra email của bạn</h3>
-        <p style="font-size:13px;color:var(--muted);margin:0;line-height:1.6;">
-          Nhấn vào liên kết trong email để kích hoạt tài khoản trước khi đăng nhập. Nếu không thấy, vui lòng kiểm tra cả mục Thư rác (Spam).
+        <p style="font-size:13px;color:var(--muted);margin:0 0 14px;line-height:1.6;">
+          ${email ? `Địa chỉ đăng ký: <strong style="color:var(--text);">${esc(email)}</strong>.<br>` : ''}
+          Nhấn vào liên kết trong thư để kích hoạt tài khoản. Nếu không thấy trong Hộp thư đến, vui lòng kiểm tra mục <strong>Thư rác (Spam) hoặc Quảng cáo</strong>.
         </p>
+        ${email ? `
+        <div style="display:flex;justify-content:center;gap:8px;">
+          <button type="button" class="btn small" id="resendConfirmBtn" data-email="${esc(email)}" style="font-size:12px;min-height:36px;display:inline-flex;align-items:center;gap:6px;">
+            ${SVG_ICONS.mail} <span>Gửi lại email xác nhận</span>
+          </button>
+        </div>` : ''}
+      </div>
+
+      <div style="background:var(--primary-soft);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:12px;line-height:1.6;color:var(--subtle);">
+        <strong style="color:var(--primary-text);display:block;margin-bottom:4px;">💡 Không nhận được email kích hoạt?</strong>
+        Hệ thống gửi thư mặc định của Supabase miễn phí có giới hạn gửi thư. Nếu bạn là quản trị viên dự án: vào <strong>Supabase Dashboard → Authentication → Providers → Email → Tắt "Confirm email"</strong> để tài khoản được kích hoạt và đăng nhập ngay mà không cần chờ email.
       </div>
 
       <button type="button" class="btn primary auth-submit" data-auth-mode="login">
@@ -451,6 +464,31 @@ export class AuthView {
       const passInput = document.getElementById('recoveryPassword');
       if (passInput) passInput.focus();
     }
+
+    // 7. Xử lý gửi lại email xác nhận
+    const resendBtn = this.container.querySelector('#resendConfirmBtn');
+    if (resendBtn) {
+      resendBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const email = resendBtn.getAttribute('data-email');
+        if (!email || resendBtn.disabled) return;
+        const originalHtml = resendBtn.innerHTML;
+        resendBtn.disabled = true;
+        resendBtn.innerHTML = `<span>Đang gửi...</span>`;
+        try {
+          await AuthService.resendConfirmationEmail(email);
+          resendBtn.innerHTML = `<span>Đã gửi lại email xác nhận!</span>`;
+          setTimeout(() => {
+            resendBtn.disabled = false;
+            resendBtn.innerHTML = originalHtml;
+          }, 30000);
+        } catch (err) {
+          resendBtn.disabled = false;
+          resendBtn.innerHTML = originalHtml;
+          this.showError(AuthService.formatAuthError(err));
+        }
+      });
+    }
   }
 
   /**
@@ -508,6 +546,7 @@ export class AuthView {
     }
 
     this.setSubmitting(true);
+    this.pendingEmail = email;
     try {
       const data = await AuthService.signUp(email, password, { fullName });
       
