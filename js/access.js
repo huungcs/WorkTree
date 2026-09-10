@@ -206,11 +206,20 @@ function touchSession(){if(!session||!currentAccount())return;const now=Date.now
 function resetPersonalState(){
  const r=typeof rootNode==='function'?rootNode():null;
  const rootId=r?r.id:null;
- Object.assign(state,PERSONAL_DEFAULTS,{timelineStart:addDays(TODAY,-2),calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),selected:rootId,view:'overview',includeChildren:true,filters:blankFilters(),page:1,expanded:rootId?[rootId]:[],savedViews:[],timer:null,selectedTasks:new Set(),treeQuery:'',filterOpen:false,mobileOpen:false});history=[];future=[];drawerDrafts.clear();commandOptions=[];pinUndo=null;pinsExpanded=false;
+ const preservedSavedViews = (window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views))
+  ? window.__worktree_saved_views
+  : (Array.isArray(state.savedViews) && state.savedViews.length ? state.savedViews : []);
+ Object.assign(state,PERSONAL_DEFAULTS,{timelineStart:addDays(TODAY,-2),calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),selected:rootId,view:'overview',includeChildren:true,filters:blankFilters(),page:1,expanded:rootId?[rootId]:[],savedViews:preservedSavedViews,timer:null,selectedTasks:new Set(),treeQuery:'',filterOpen:false,mobileOpen:false});history=[];future=[];drawerDrafts.clear();commandOptions=[];pinUndo=null;pinsExpanded=false;
 }
 function loadPrefs(){
  const a=currentAccount();if(!a)return;const key=KEYS.prefs;KEYS.prefs=key+'_'+a.id;
- try{legacyLoadPrefs();const saved=JSON.parse(localStorage.getItem(KEYS.prefs)||'null');if(state.timer&&saved?.timer?.pausedAt)state.timer.pausedAt=saved.timer.pausedAt;}finally{KEYS.prefs=key;}
+ try{
+  legacyLoadPrefs();
+  if(window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views)){
+   state.savedViews = window.__worktree_saved_views;
+  }
+  const saved=JSON.parse(localStorage.getItem(KEYS.prefs)||'null');if(state.timer&&saved?.timer?.pausedAt)state.timer.pausedAt=saved.timer.pausedAt;
+ }finally{KEYS.prefs=key;}
  state.currentUser=a.personId;
  const r=typeof rootNode==='function'?rootNode():null;
  if(r&&!visibleNodeIds().has(state.selected))state.selected=r.id;
@@ -219,6 +228,9 @@ function loadPrefs(){
 function savePrefs(){const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}
 async function enterWorkspace(a,first=false,restore=false){
  resetPersonalState();if(!restore)session={id:a.id,version:a.version,startedAt:Date.now(),lastActive:Date.now()};saveSession();loadPrefs();
+ if(window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views)){
+  state.savedViews = window.__worktree_saved_views;
+ }
  if(a.role==='member'&&!restore){state.view='list';state.filters.owner=String(a.personId);}
  $('authScreen').hidden=true;$('app').hidden=false;$('app').inert=false;
  $('authScreen').innerHTML='';applyTheme();applySidebar();renderAll(true);appReady=true;
@@ -1399,7 +1411,11 @@ function renderTree(){
   return `<div class="tree-node ${state.selected===n.id?'selected':''}" style="padding-left:${Math.min(depth*10,60)}px">${kids.length?`<button class="node-expand ${open?'expanded':''}" data-action="tree-toggle" data-id="${n.id}" aria-expanded="${open}" aria-label="${open?'Thu gọn':'Mở'} ${esc(n.name)}">${icon('chevron-right')}</button>`:'<span class="node-spacer"></span>'}<button class="node-select" data-action="select-node" data-id="${n.id}" ${state.selected===n.id?'aria-current="page"':''} title="${esc(pathName(n.id))}">${icon(nodeIcon(n.type))}<span class="tree-name">${esc(n.name.replace(/^Công ty /,''))}</span></button>${canPin('node',n.id)?`<button class="tiny-btn tree-pin ${on?'is-pinned':''}" data-v8="pin-toggle" data-kind="node" data-id="${n.id}" aria-pressed="${on}" title="${on?T.unpin:T.pin}" aria-label="${on?T.unpin:T.pin}: ${esc(n.name)}">${icon('pin')}</button>`:''}<span class="tree-count">${counts.get(n.id)||0}</span></div>${open?kids.map(n=>row(n,depth+1)).join(''):''}`;
  };
  $('orgTree').innerHTML=row(rootNode(),0)||`<div class="tree-empty">${T.noResults}</div>`;
- $('savedViews').innerHTML=state.savedViews.filter(v=>ids.has(v.selected)).map(v=>`<div class="saved-item"><button class="nav-item" data-action="load-view" data-id="${v.id}">${icon('bookmark')}<span>${esc(v.name)}</span></button><button class="tiny-btn" data-action="delete-view" data-id="${v.id}" aria-label="${T.close}" title="${T.close}">${icon('x')}</button></div>`).join('');renderPins();
+ const visibleViews = (state.savedViews || []).filter(v => !v.selected || ids.has(v.selected));
+ $('savedViews').innerHTML = visibleViews.length
+  ? visibleViews.map(v => `<div class="saved-item"><button class="nav-item" data-action="load-view" data-id="${v.id}" title="${esc(v.name)}">${icon('bookmark')}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.name)}</span></button><button class="tiny-btn" data-action="delete-view" data-id="${v.id}" aria-label="${T.close}" title="${T.close}">${icon('x')}</button></div>`).join('')
+  : '<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
+ renderPins();
 }
 function injectDrawerPin(t){const tools=$('drawerContent').querySelector('.drawer-tools');if(tools)tools.insertAdjacentHTML('afterbegin',taskPinButton(t.id));}
 function decoratePinButtons(){

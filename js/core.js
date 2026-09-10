@@ -2578,11 +2578,11 @@ function saveView(event){
      window.__worktree_saved_views = (freshViews||[]).map(sv => ({
       id: sv.id,
       name: sv.name,
-      selected: sv.selected_node_id,
-      view: sv.view_type || 'overview',
+      selected: sv.selected_node_id || sv.selected || null,
+      view: sv.view_type || sv.view || 'overview',
       filters: sv.filters || blankFilters(),
-      sort: sv.sort_by || 'priority',
-      includeChildren: sv.include_children !== false,
+      sort: sv.sort_key || sv.sort || sv.sort_by || 'priority',
+      includeChildren: sv.include_children !== false && sv.includeChildren !== false,
       rawSavedView: sv
      }));
      state.savedViews = window.__worktree_saved_views;
@@ -2602,16 +2602,17 @@ function saveView(event){
  savePrefs();closeDialog('nameDialog',true);renderTree();toast('Đã lưu góc nhìn: '+name);
 }
 function loadView(id){
- const v=state.savedViews.find(v=>v.id===id);if(!v)return;
+ const v=state.savedViews.find(v=>String(v.id)===String(id));if(!v)return;
  const fallbackNode = rootNode()?.id || null;
- const targetNode = byNode.has(v.selected) ? v.selected : fallbackNode;
+ const targetNode = (v.selected && byNode.has(v.selected)) ? v.selected : fallbackNode;
  if(!targetNode){toast('Đơn vị của góc nhìn này không còn tồn tại.','error');return;}
- state.selected=targetNode;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();closeSidebar();
+ state.selected=targetNode;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();
+ if(typeof closeSidebar==='function') closeSidebar();
  if(!window.__worktree_is_cloud_workspace) savePrefs();
  renderAll(true);
 }
 async function deleteView(id){
- const v=state.savedViews.find(v=>v.id===id);if(!v)return;if(!await ask('Xóa góc nhìn đã lưu?',`Xóa "${v.name}". Công việc và đơn vị không bị ảnh hưởng.`,'Xóa góc nhìn'))return;
+ const v=state.savedViews.find(v=>String(v.id)===String(id));if(!v)return;if(!await ask('Xóa góc nhìn đã lưu?',`Xóa "${v.name}". Công việc và đơn vị không bị ảnh hưởng.`,'Xóa góc nhìn'))return;
  if(window.__worktree_is_cloud_workspace){
   const orgId = window.appState?.activeOrganizationId;
   if(!orgId) return toast('Không tìm thấy không gian làm việc.', 'error');
@@ -2622,11 +2623,11 @@ async function deleteView(id){
     window.__worktree_saved_views = (freshViews||[]).map(sv => ({
      id: sv.id,
      name: sv.name,
-     selected: sv.selected_node_id,
-     view: sv.view_type || 'overview',
+     selected: sv.selected_node_id || sv.selected || null,
+     view: sv.view_type || sv.view || 'overview',
      filters: sv.filters || blankFilters(),
-     sort: sv.sort_by || 'priority',
-     includeChildren: sv.include_children !== false,
+     sort: sv.sort_key || sv.sort || sv.sort_by || 'priority',
+     includeChildren: sv.include_children !== false && sv.includeChildren !== false,
      rawSavedView: sv
     }));
     state.savedViews = window.__worktree_saved_views;
@@ -2640,7 +2641,7 @@ async function deleteView(id){
   }
   return;
  }
- state.savedViews=state.savedViews.filter(v=>v.id!==id);savePrefs();renderTree();toast('Đã xóa góc nhìn.');
+ state.savedViews=state.savedViews.filter(v=>String(v.id)!==String(id));savePrefs();renderTree();toast('Đã xóa góc nhìn.');
 }
 function openCommand(){
  if(!requireLogin())return;
@@ -3177,11 +3178,11 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds
  window.__worktree_saved_views = (savedViews || []).map(sv => ({
   id: sv.id,
   name: sv.name,
-  selected: sv.selected_node_id,
-  view: sv.view_type || 'overview',
+  selected: sv.selected_node_id || sv.selected || null,
+  view: sv.view_type || sv.view || 'overview',
   filters: sv.filters || blankFilters(),
-  sort: sv.sort_by || 'priority',
-  includeChildren: sv.include_children !== false,
+  sort: sv.sort_key || sv.sort || sv.sort_by || 'priority',
+  includeChildren: sv.include_children !== false && sv.includeChildren !== false,
   rawSavedView: sv
  }));
  state.savedViews = window.__worktree_saved_views;
