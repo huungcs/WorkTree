@@ -198,28 +198,76 @@ export const AttachmentService = {
   },
 
   /**
+   * Dọn dẹp object storage mồ côi (dùng khi xóa một phần hoặc bù trừ)
+   */
+  async cleanupOrphanStorageObject(storagePath) {
+    if (!storagePath) return { success: true };
+    try {
+      await AttachmentRepository.deleteStorageObject(storagePath);
+      return { success: true };
+    } catch (err) {
+      console.warn('Không thể dọn storage object mồ côi:', storagePath, err?.message);
+      return { success: false, error: err?.message, orphanPath: storagePath };
+    }
+  },
+
+  /**
    * Xóa tệp đính kèm:
-   * 1. Xóa metadata row trước (kiểm tra RLS DB)
+   * OPTION A: Metadata first -> Storage second
+   * 1. Xóa metadata row trước (DB là thẩm quyền dữ liệu nghiệp vụ, kiểm tra RLS)
    * 2. Xóa object trên Storage (kiểm tra Storage RLS)
+   * 3. Nếu Storage delete thất bại:
+   *    - Thử lại 1 lần (immediate safe retry)
+   *    - Nếu vẫn thất bại: báo partial failure rõ ràng, lưu vết orphanPath
+   *    - Không đánh lừa người dùng là xóa sạch hoàn toàn
    */
   async deleteAttachment({ attachmentId, storagePath, organizationId = null }) {
     if (!attachmentId) throw new Error('Thiếu attachmentId.');
     const orgId = organizationId || appState.activeOrganizationId;
 
     try {
-      // Xóa metadata trước
+      // 1. Xóa metadata trước (DB là source of truth)
       await AttachmentRepository.deleteMetadata(attachmentId, orgId);
 
-      // Nếu metadata xóa thành công, xóa object trên Storage
+      // 2. Nếu metadata xóa thành công, xóa object trên Storage
+      let storageDeleted = false;
+      let storageError = null;
+
       if (storagePath) {
         try {
           await AttachmentRepository.deleteStorageObject(storagePath);
-        } catch (storageErr) {
-          console.warn('Lỗi khi xóa object storage (metadata đã bị xóa):', storagePath, storageErr);
+          storageDeleted = true;
+        } catch (err1) {
+          // Thử lại 1 lần an toàn
+          try {
+            await AttachmentRepository.deleteStorageObject(storagePath);
+            storageDeleted = true;
+          } catch (err2) {
+            storageError = err2;
+            console.warn('Lỗi dọn dẹp Storage object sau khi xóa metadata:', storagePath, err2?.message);
+          }
         }
+      } else {
+        storageDeleted = true;
       }
 
-      return { success: true };
+      if (!storageDeleted && storagePath) {
+        return {
+          success: false,
+          partial: true,
+          metadataDeleted: true,
+          storageDeleted: false,
+          orphanPath: storagePath,
+          warning: 'Đã xóa thông tin tệp đính kèm, nhưng tệp lưu trữ tạm chưa thể dọn sạch. Hệ thống đã ghi nhận để dọn dẹp.'
+        };
+      }
+
+      return {
+        success: true,
+        partial: false,
+        metadataDeleted: true,
+        storageDeleted: true
+      };
     } catch (err) {
       throw new Error(formatAttachmentErrorMessage(err));
     }

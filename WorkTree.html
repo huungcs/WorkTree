@@ -3086,7 +3086,7 @@ async function deleteTaskAttachment(taskId, attachmentId, storagePath, originalN
  const orgId=window.__active_org_id||(window.__worktree_supabase_user?.organization?.id);
 
  try{
-  await window.AttachmentService.deleteAttachment({ attachmentId, storagePath, organizationId: orgId });
+  const res=await window.AttachmentService.deleteAttachment({ attachmentId, storagePath, organizationId: orgId });
 
   if(gen!==window.__taskDetailLoadGen||drawerId!==taskId) return;
   if(orgId&&window.__active_org_id&&orgId!==window.__active_org_id) return;
@@ -3097,7 +3097,12 @@ async function deleteTaskAttachment(taskId, attachmentId, storagePath, originalN
    window.__taskDetailData.attachments=attachments||[];
   }
   refreshDrawer();
-  toast('Đã xóa tệp đính kèm.','success',true);
+
+  if(res&&res.partial){
+   toast('Đã xóa thông tin tệp. Tệp lưu trữ tạm chưa dọn sạch và đã được đánh dấu để dọn dẹp.','warning');
+  }else{
+   toast('Đã xóa tệp đính kèm.','success',true);
+  }
  }catch(err){
   toast(err.message||'Không thể xóa tệp đính kèm.','error');
  }
