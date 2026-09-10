@@ -551,11 +551,29 @@ async function toggleFavorite(id){
    const res = await window.StarService.toggleStar({ organizationId: orgId, taskId: id });
    const isStarred = res.starred === true;
    if(isStarred) {
-    if(window.__worktree_starred_task_ids) window.__worktree_starred_task_ids.add(id);
-    if(window.appState?.starredTaskIds) window.appState.starredTaskIds.add(id);
+    if(window.__worktree_starred_task_ids) {
+     if(typeof window.__worktree_starred_task_ids.add === 'function') window.__worktree_starred_task_ids.add(id);
+     else if(Array.isArray(window.__worktree_starred_task_ids) && !window.__worktree_starred_task_ids.includes(id)) window.__worktree_starred_task_ids.push(id);
+    }
+    if(window.appState?.starredTaskIds) {
+     if(typeof window.appState.starredTaskIds.add === 'function') window.appState.starredTaskIds.add(id);
+     else if(Array.isArray(window.appState.starredTaskIds) && !window.appState.starredTaskIds.includes(id)) window.appState.starredTaskIds.push(id);
+    }
    } else {
-    if(window.__worktree_starred_task_ids) window.__worktree_starred_task_ids.delete(id);
-    if(window.appState?.starredTaskIds) window.appState.starredTaskIds.delete(id);
+    if(window.__worktree_starred_task_ids) {
+     if(typeof window.__worktree_starred_task_ids.delete === 'function') window.__worktree_starred_task_ids.delete(id);
+     else if(Array.isArray(window.__worktree_starred_task_ids)) {
+      const idx = window.__worktree_starred_task_ids.indexOf(id);
+      if(idx !== -1) window.__worktree_starred_task_ids.splice(idx, 1);
+     }
+    }
+    if(window.appState?.starredTaskIds) {
+     if(typeof window.appState.starredTaskIds.delete === 'function') window.appState.starredTaskIds.delete(id);
+     else if(Array.isArray(window.appState.starredTaskIds)) {
+      const idx = window.appState.starredTaskIds.indexOf(id);
+      if(idx !== -1) window.appState.starredTaskIds.splice(idx, 1);
+     }
+    }
    }
    const t = byTask.get(id);
    if(t) {
@@ -3152,7 +3170,10 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds
   position: p.position || 0,
   rawPin: p
  }));
- window.__worktree_starred_task_ids = new Set(starredTaskIds || []);
+ window.__worktree_starred_task_ids = (starredTaskIds instanceof Set) ? starredTaskIds : new Set(starredTaskIds || []);
+ if(window.appState && !(window.appState.starredTaskIds instanceof Set)) {
+  window.appState.starredTaskIds = new Set(window.appState.starredTaskIds || []);
+ }
  window.__worktree_saved_views = (savedViews || []).map(sv => ({
   id: sv.id,
   name: sv.name,

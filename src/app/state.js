@@ -6,6 +6,13 @@
 
 const PREF_ORG_KEY = 'worktree_active_organization_id';
 
+export function normalizeStarredTaskIds(raw) {
+  if (raw instanceof Set) return raw;
+  if (Array.isArray(raw)) return new Set(raw);
+  if (!raw) return new Set();
+  return new Set(raw);
+}
+
 export const appState = {
   user: null,
   activeOrganizationId: null,

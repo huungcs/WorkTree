@@ -4,7 +4,7 @@
  * and seamless Organization Onboarding / Workspace Switching (Step 04).
  */
 
-import { appState } from './state.js';
+import { appState, normalizeStarredTaskIds } from './state.js';
 import { callLegacyGlobal, getLegacyGlobal, publishLegacyGlobals } from './legacy/legacy-bridge.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
@@ -306,7 +306,7 @@ export async function loadWorkspaceData(orgId) {
     appState.employees = mappedEmployees;
     appState.tasks = mappedTasks;
     appState.userPins = rawPins || [];
-    appState.starredTaskIds = rawStarredTaskIds || new Set();
+    appState.starredTaskIds = normalizeStarredTaskIds(rawStarredTaskIds);
     appState.savedViews = rawSavedViews || [];
     appState.activities = rawActivities || [];
 
@@ -316,7 +316,7 @@ export async function loadWorkspaceData(orgId) {
       employees: mappedEmployees,
       tasks: mappedTasks,
       pins: rawPins || [],
-      starredTaskIds: rawStarredTaskIds || new Set(),
+      starredTaskIds: appState.starredTaskIds,
       savedViews: rawSavedViews || [],
       activities: rawActivities || [],
       orgName: membership.name
