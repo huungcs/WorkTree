@@ -132,7 +132,7 @@ class RealtimeServiceManager {
     }
 
     const channelName = `org:${orgId}:workspace`;
-    const channel = supabase.channel(channelName);
+    const channel = supabase.channel(channelName, { config: { private: true } });
 
     // 1. tasks changes
     channel.on('postgres_changes', {
@@ -252,7 +252,7 @@ class RealtimeServiceManager {
     }
 
     const channelName = `task:${taskId}:details`;
-    const channel = supabase.channel(channelName);
+    const channel = supabase.channel(channelName, { config: { private: true } });
 
     // 1. Checklist changes
     channel.on('postgres_changes', {
