@@ -94,7 +94,12 @@ export const PushDeviceService = {
 
             resolve(true);
           } catch (initErr) {
-            console.warn('[Push] Lỗi khởi tạo OneSignal:', initErr);
+            const isDomainMismatch = String(initErr?.message || initErr).includes('Can only be used on');
+            if (isDomainMismatch) {
+              console.info('[Push] OneSignal được giới hạn bảo mật theo domain sản xuất (https://worktree.nguyentronghuu.com). Bỏ qua trên localhost.');
+            } else {
+              console.warn('[Push] Lỗi khởi tạo OneSignal:', initErr);
+            }
             resolve(false);
           }
         });
@@ -111,11 +116,12 @@ export const PushDeviceService = {
    * Đồng bộ tài khoản người dùng đăng nhập với OneSignal (External ID)
    */
   async loginUser(userId) {
-    if (!userId) return;
+    if (!userId || !isInitialized) return;
     try {
       if (window.OneSignalDeferred) {
         window.OneSignalDeferred.push(async function (OneSignal) {
           try {
+            if (!OneSignal || typeof OneSignal.login !== 'function') return;
             await OneSignal.login(userId);
             console.info('[Push] Đã liên kết tài khoản với OneSignal:', userId);
             await PushDeviceService.syncCurrentDevice();
@@ -133,12 +139,14 @@ export const PushDeviceService = {
    * Đăng xuất OneSignal khi người dùng đăng xuất WorkTree X
    */
   async logoutUser() {
+    if (!isInitialized) return;
     try {
       if (window.OneSignalDeferred) {
         window.OneSignalDeferred.push(async function (OneSignal) {
           try {
+            if (!OneSignal || typeof OneSignal.logout !== 'function') return;
             await OneSignal.logout();
-            console.info('[Push] Đã đăng xuất OneSignal.');
+            console.info('[Push] Đã hủy liên kết tài khoản OneSignal.');
           } catch (e) {
             console.warn('[Push] OneSignal.logout error:', e);
           }
@@ -304,7 +312,15 @@ export const PushDeviceService = {
       return;
     }
 
-    if (document.getElementById('wtxPushPrompt')) return;
+    if (
+      document.getElementById('wtxPushPrompt') ||
+      document.getElementById('worktreeTourPopover') ||
+      document.getElementById('worktreeTourWelcome') ||
+      document.querySelector('.worktree-tour-modal') ||
+      window.WorkTreeTour?.activeTour
+    ) {
+      return;
+    }
 
     const banner = document.createElement('aside');
     banner.id = 'wtxPushPrompt';
