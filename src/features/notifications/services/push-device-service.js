@@ -240,9 +240,10 @@ export const PushDeviceService = {
         : 'web';
 
       const { data, error } = await sb.rpc('register_push_device', {
-        p_player_id: playerId,
-        p_device_type: deviceType,
-        p_push_token: pushToken
+        p_subscription_id: playerId,
+        p_platform: deviceType,
+        p_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        p_device_label: 'Web Browser'
       });
 
       if (error) {
@@ -268,7 +269,7 @@ export const PushDeviceService = {
       if (!targetId) return;
 
       await sb.rpc('unregister_push_device', {
-        p_player_id: targetId
+        p_subscription_id: targetId
       });
       console.info('[Push] Đã hủy kích hoạt thiết bị:', targetId);
     } catch (err) {
