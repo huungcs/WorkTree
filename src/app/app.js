@@ -558,6 +558,13 @@ export async function bootstrapAuthenticatedUser(user, session) {
       if (typeof PushDeviceService.initOneSignal === 'function') {
         PushDeviceService.initOneSignal().catch(err => console.warn('[Push] init error:', err));
         PushDeviceService.loginUser(user.id).catch(err => console.warn('[Push] login error:', err));
+
+        // Hiển thị card xin quyền thông báo tinh tế chuẩn Design System sau khi workspace sẵn sàng
+        setTimeout(() => {
+          if (typeof PushDeviceService.showNotificationPromptBanner === 'function') {
+            PushDeviceService.showNotificationPromptBanner();
+          }
+        }, 3500);
       }
       if (typeof window.refreshNotificationBadge === 'function') {
         window.refreshNotificationBadge().catch(() => {});

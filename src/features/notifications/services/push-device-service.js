@@ -67,6 +67,21 @@ export const PushDeviceService = {
               notifyButton: {
                 enable: false // We use our custom UI
               },
+              promptOptions: {
+                slidedown: {
+                  prompts: [
+                    {
+                      type: 'push',
+                      autoPrompt: false, // Suppress default unstyled OneSignal popup
+                      text: {
+                        actionMessage: 'Bật thông báo đẩy để nhận cập nhật công việc, hạn chót và trao đổi theo thời gian thực.',
+                        acceptButton: 'Bật thông báo',
+                        cancelButton: 'Để sau'
+                      }
+                    }
+                  ]
+                }
+              },
               serviceWorkerParam: {
                 scope: '/'
               },
@@ -75,6 +90,9 @@ export const PushDeviceService = {
 
             isInitialized = true;
             console.info('[Push] OneSignal SDK khởi tạo thành công.');
+
+            // Setup observer to intercept any OneSignal prompt rendering
+            PushDeviceService.setupOneSignalPromptObserver();
 
             // Listen to subscription change
             OneSignal.User.PushSubscription.addEventListener('change', async (event) => {
@@ -240,6 +258,152 @@ export const PushDeviceService = {
       console.info('[Push] Đã hủy kích hoạt thiết bị:', targetId);
     } catch (err) {
       console.warn('[Push] Lỗi unregisterDevice:', err);
+    }
+  },
+
+  /**
+   * Giám sát DOM để chặn và bản địa hóa OneSignal prompt nếu SDK tự động chèn vào giao diện.
+   */
+  setupOneSignalPromptObserver() {
+    if (typeof window === 'undefined' || typeof MutationObserver === 'undefined') return;
+
+    try {
+      const observer = new MutationObserver(() => {
+        const container = document.getElementById('onesignal-slidedown-container');
+        if (container) {
+          const messageEl = document.getElementById('onesignal-slidedown-message');
+          if (messageEl && (messageEl.textContent.includes('Subscribe to our notifications') || messageEl.textContent.includes('notifications for the latest news'))) {
+            messageEl.innerHTML = '<strong style="display:block;font-size:13.5px;font-weight:650;margin-bottom:4px;color:var(--text)">Bật thông báo công việc</strong>' +
+              '<span style="font-size:12px;color:var(--muted);line-height:1.45">Nhận cập nhật khi có phân công mới, nhắc việc hạn chót và trao đổi dự án theo thời gian thực.</span>';
+          }
+
+          const allowBtn = document.getElementById('onesignal-slidedown-allow-button');
+          if (allowBtn && (allowBtn.textContent.trim() === 'Subscribe' || allowBtn.textContent.trim() === 'Allow')) {
+            allowBtn.textContent = 'Bật thông báo';
+          }
+
+          const cancelBtn = document.getElementById('onesignal-slidedown-cancel-button');
+          if (cancelBtn && (cancelBtn.textContent.trim() === 'Later' || cancelBtn.textContent.trim() === 'Cancel')) {
+            cancelBtn.textContent = 'Để sau';
+          }
+
+          // Thêm nút đóng (x) tinh tế nếu OneSignal chưa có
+          const dialog = document.getElementById('onesignal-slidedown-dialog');
+          if (dialog && !dialog.querySelector('.onesignal-wtx-close')) {
+            dialog.style.position = 'relative';
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'onesignal-wtx-close';
+            closeBtn.setAttribute('aria-label', 'Đóng');
+            closeBtn.innerHTML = '&times;';
+            closeBtn.style.cssText = 'position:absolute;top:10px;right:12px;background:none;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:6px;';
+            closeBtn.onmouseover = () => { closeBtn.style.color = 'var(--text)'; };
+            closeBtn.onmouseout = () => { closeBtn.style.color = 'var(--muted)'; };
+            closeBtn.onclick = () => {
+              container.remove();
+              localStorage.setItem('wtx_push_prompt_dismissed_at', String(Date.now()));
+            };
+            dialog.appendChild(closeBtn);
+          }
+        }
+      });
+
+      observer.observe(document.body, { childList: true, subtree: true });
+    } catch (obsErr) {
+      console.warn('[Push] setupOneSignalPromptObserver error:', obsErr);
+    }
+  },
+
+  /**
+   * Hiển thị card thông báo đẩy WorkTree X tinh tế, chuẩn Design System.
+   * Chỉ hiển thị khi:
+   * - Quyền hiện tại là 'default' (chưa hỏi hoặc chưa bị chặn)
+   * - Đã qua cooldown (mặc định 3 ngày sau khi bấm 'Để sau')
+   */
+  showNotificationPromptBanner(force = false) {
+    if (!this.isPushSupported()) return;
+    if (this.getPermissionState() !== 'default') return;
+
+    const lastDismissed = localStorage.getItem('wtx_push_prompt_dismissed_at');
+    const COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000; // 3 ngày
+    if (!force && lastDismissed && (Date.now() - parseInt(lastDismissed, 10) < COOLDOWN_MS)) {
+      return;
+    }
+
+    if (document.getElementById('wtxPushPrompt')) return;
+
+    const banner = document.createElement('aside');
+    banner.id = 'wtxPushPrompt';
+    banner.className = 'wtx-push-prompt';
+    banner.setAttribute('aria-label', 'Nhận thông báo công việc');
+    banner.innerHTML = `
+      <div class="wtx-prompt-header">
+        <div class="wtx-prompt-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </div>
+        <div class="wtx-prompt-text">
+          <h4 class="wtx-prompt-title">Bật thông báo công việc</h4>
+          <p class="wtx-prompt-desc">Nhận cập nhật khi có phân công mới, nhắc việc hạn chót và trao đổi quan trọng trong nhóm.</p>
+        </div>
+        <button type="button" class="wtx-prompt-close" id="wtxPromptClose" aria-label="Đóng thông báo" title="Để sau">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="6"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="wtx-prompt-actions">
+        <button type="button" class="wtx-prompt-btn-later" id="wtxPromptLater">Để sau</button>
+        <button type="button" class="wtx-prompt-btn-allow" id="wtxPromptAllow">
+          <svg viewBox="0 0 24 24" width="14" height="14">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Bật thông báo
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(banner);
+
+    const closePrompt = () => {
+      banner.classList.add('closing');
+      setTimeout(() => banner.remove(), 260);
+    };
+
+    const handleDismiss = () => {
+      localStorage.setItem('wtx_push_prompt_dismissed_at', String(Date.now()));
+      closePrompt();
+    };
+
+    const closeBtn = banner.querySelector('#wtxPromptClose');
+    const laterBtn = banner.querySelector('#wtxPromptLater');
+    const allowBtn = banner.querySelector('#wtxPromptAllow');
+
+    if (closeBtn) closeBtn.onclick = handleDismiss;
+    if (laterBtn) laterBtn.onclick = handleDismiss;
+
+    if (allowBtn) {
+      allowBtn.onclick = async () => {
+        allowBtn.disabled = true;
+        allowBtn.textContent = 'Đang kích hoạt...';
+        try {
+          const granted = await PushDeviceService.requestPermission();
+          if (granted) {
+            if (typeof window.toast === 'function') {
+              window.toast('Đã bật thông báo đẩy thành công!');
+            }
+            closePrompt();
+          } else {
+            handleDismiss();
+          }
+        } catch (err) {
+          console.warn('[Push] Lỗi kích hoạt:', err);
+          closePrompt();
+        }
+      };
     }
   }
 };
