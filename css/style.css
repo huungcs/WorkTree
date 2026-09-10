@@ -570,6 +570,20 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .timer-live{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px var(--green-soft)}
 .log-list{font-size:10px;color:var(--muted);margin-top:9px}
 .log-row{display:flex;justify-content:space-between;padding:4px 0;gap:10px}
+.attachment-list{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.attachment-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);transition:border-color .15s}
+.attachment-row:hover{border-color:var(--line-strong)}
+.attachment-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:6px;background:var(--primary-soft);color:var(--primary-text);flex-shrink:0}
+.attachment-icon svg{width:16px;height:16px}
+.attachment-info{flex:1;min-width:0}
+.attachment-name{font-size:12px;font-weight:550;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.attachment-meta{font-size:10px;color:var(--muted);margin-top:2px}
+.attachment-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.attachment-actions .icon-btn{width:28px;height:28px}
+.attachment-actions .icon-btn svg{width:14px;height:14px}
+@media (max-width: 900px){
+  .attachment-actions .icon-btn{min-width:44px;min-height:44px}
+}
 .command-dialog{width:625px;margin-top:min(17vh,150px)}
 .command-input{display:flex;align-items:center;gap:10px;padding:17px 20px;border-bottom:1px solid var(--line);color:var(--muted)}
 .command-input input{flex:1;min-width:0;font-size:13px;padding:3px 0;border:0;outline-offset:6px}

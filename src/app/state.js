@@ -23,23 +23,26 @@ export const appState = {
     dependencies: [],
     comments: [],
     timeEntries: [],
+    attachments: [],
     loading: {
       checklist: false,
       dependencies: false,
       comments: false,
-      timeEntries: false
+      timeEntries: false,
+      attachments: false
     },
     errors: {
       checklist: null,
       dependencies: null,
       comments: null,
-      timeEntries: null
+      timeEntries: null,
+      attachments: null
     }
   },
   selectedNodeId: null,
   currentView: 'overview',
-  theme: localStorage.getItem('worktree_theme') || 'light',
-  isSidebarCollapsed: localStorage.getItem('worktree_sidebar_collapsed') === 'true',
+  theme: (typeof localStorage !== 'undefined' ? localStorage.getItem('worktree_theme') : null) || 'light',
+  isSidebarCollapsed: typeof localStorage !== 'undefined' ? localStorage.getItem('worktree_sidebar_collapsed') === 'true' : false,
 
   listeners: new Set(),
 
@@ -64,10 +67,12 @@ export const appState = {
   setActiveOrg(orgId, membership = null) {
     this.activeOrganizationId = orgId;
     this.activeMembership = membership;
-    if (orgId) {
-      localStorage.setItem(PREF_ORG_KEY, orgId);
-    } else {
-      localStorage.removeItem(PREF_ORG_KEY);
+    if (typeof localStorage !== 'undefined') {
+      if (orgId) {
+        localStorage.setItem(PREF_ORG_KEY, orgId);
+      } else {
+        localStorage.removeItem(PREF_ORG_KEY);
+      }
     }
     this.notify();
   },
@@ -76,7 +81,7 @@ export const appState = {
    * Lấy ID tổ chức ưa thích đã lưu, chỉ trả về nếu hợp lệ trong danh sách memberships
    */
   getPreferredOrgId() {
-    const saved = localStorage.getItem(PREF_ORG_KEY);
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(PREF_ORG_KEY) : null;
     if (!saved || !this.organizations.length) return null;
     const exists = this.organizations.some(o => (o.organizationId || o.id) === saved);
     return exists ? saved : null;
@@ -99,8 +104,9 @@ export const appState = {
       dependencies: [],
       comments: [],
       timeEntries: [],
-      loading: { checklist: false, dependencies: false, comments: false, timeEntries: false },
-      errors: { checklist: null, dependencies: null, comments: null, timeEntries: null }
+      attachments: [],
+      loading: { checklist: false, dependencies: false, comments: false, timeEntries: false, attachments: false },
+      errors: { checklist: null, dependencies: null, comments: null, timeEntries: null, attachments: null }
     };
     this.selectedNodeId = null;
     this.currentView = 'overview';

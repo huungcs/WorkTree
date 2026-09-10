@@ -1528,3 +1528,125 @@ export const BillingRepository = {
     return data;
   }
 };
+
+// ============================================================================
+// 12. ATTACHMENT REPOSITORY (Table: public.task_attachments & Bucket: worktree-files)
+// Schema: id, organization_id, task_id, storage_path, original_name, mime_type, size_bytes, uploaded_by, created_at
+// ============================================================================
+
+export const CANONICAL_STORAGE_BUCKET = 'worktree-files';
+export const STORAGE_MAX_FILE_SIZE = 52428800; // 50 MB
+
+export const AttachmentRepository = {
+  /**
+   * Lấy danh sách attachment metadata của một task
+   */
+  async getAttachments(taskId, organizationId = null) {
+    if (!taskId) return [];
+    const sb = await getSupabase();
+    let query = sb
+      .from('task_attachments')
+      .select('id, organization_id, task_id, storage_path, original_name, mime_type, size_bytes, uploaded_by, created_at')
+      .eq('task_id', taskId);
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+    const { data, error } = await query.order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Upload binary object lên Supabase Storage bucket 'worktree-files'
+   * Upsert = false bắt buộc
+   */
+  async uploadStorageObject(storagePath, fileBody, options = {}) {
+    if (!storagePath || !fileBody) {
+      throw new Error('Thiếu đường dẫn hoặc nội dung tệp để tải lên.');
+    }
+    const sb = await getSupabase();
+    const { data, error } = await sb.storage
+      .from(CANONICAL_STORAGE_BUCKET)
+      .upload(storagePath, fileBody, {
+        upsert: false,
+        contentType: options.contentType || 'application/octet-stream',
+        ...options
+      });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Lưu attachment metadata vào public.task_attachments
+   */
+  async insertMetadata({ organizationId, taskId, storagePath, originalName, mimeType = null, sizeBytes = null, uploadedBy = null }) {
+    if (!organizationId || !taskId || !storagePath || !originalName) {
+      throw new Error('Thiếu thông tin bắt buộc để lưu metadata tệp đính kèm.');
+    }
+    const sb = await getSupabase();
+    const payload = {
+      organization_id: organizationId,
+      task_id: taskId,
+      storage_path: storagePath,
+      original_name: originalName,
+      mime_type: mimeType || null,
+      size_bytes: sizeBytes != null ? Number(sizeBytes) : null
+    };
+    if (uploadedBy) {
+      payload.uploaded_by = uploadedBy;
+    }
+    const { data, error } = await sb
+      .from('task_attachments')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Xóa storage object khỏi bucket 'worktree-files'
+   */
+  async deleteStorageObject(storagePath) {
+    if (!storagePath) return { success: true };
+    const sb = await getSupabase();
+    const { data, error } = await sb.storage
+      .from(CANONICAL_STORAGE_BUCKET)
+      .remove([storagePath]);
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Xóa metadata row khỏi public.task_attachments
+   */
+  async deleteMetadata(attachmentId, organizationId = null) {
+    if (!attachmentId) throw new Error('Thiếu attachmentId.');
+    const sb = await getSupabase();
+    let query = sb
+      .from('task_attachments')
+      .delete()
+      .eq('id', attachmentId);
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+    const { error } = await query;
+    if (error) throw error;
+    return { success: true };
+  },
+
+  /**
+   * Download binary object từ bucket 'worktree-files'
+   * Trả về Blob
+   */
+  async downloadStorageObject(storagePath) {
+    if (!storagePath) throw new Error('Thiếu đường dẫn tệp.');
+    const sb = await getSupabase();
+    const { data, error } = await sb.storage
+      .from(CANONICAL_STORAGE_BUCKET)
+      .download(storagePath);
+    if (error) throw error;
+    return data; // Blob
+  }
+};
+

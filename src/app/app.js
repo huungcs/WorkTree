@@ -8,7 +8,7 @@ import { appState } from './state.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
-import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository } from '../lib/supabase/repositories.js';
+import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository, AttachmentRepository } from '../lib/supabase/repositories.js';
 import { EmployeeService } from '../features/employees/index.js';
 import { TaskService, StarService } from '../features/tasks/index.js';
 import { TreeService } from '../features/organization-tree/index.js';
@@ -18,6 +18,7 @@ import { CommentService } from '../features/comments/index.js';
 import { TimeEntryService } from '../features/time-tracking/index.js';
 import { PinService } from '../features/pins/index.js';
 import { SavedViewService } from '../features/saved-views/index.js';
+import { AttachmentService } from '../features/attachments/index.js';
 
 let authViewInstance = null;
 let workspaceDialogInstance = null;
@@ -701,6 +702,8 @@ if (typeof window !== 'undefined') {
   window.PinService = PinService;
   window.StarService = StarService;
   window.SavedViewService = SavedViewService;
+  window.AttachmentRepository = AttachmentRepository;
+  window.AttachmentService = AttachmentService;
 }
 
 // Tự khởi chạy khi file được nạp
