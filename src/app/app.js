@@ -5,7 +5,7 @@
  */
 
 import { appState } from './state.js';
-import { publishLegacyGlobals } from './legacy/legacy-bridge.js';
+import { callLegacyGlobal, getLegacyGlobal, publishLegacyGlobals } from './legacy/legacy-bridge.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
@@ -236,9 +236,7 @@ export async function loadWorkspaceData(orgId) {
 
   try {
     // 3. Purge dữ liệu tenant trước đó để tránh flash / mix data
-    if (typeof window.clearTenantUI === 'function') {
-      window.clearTenantUI(membership.name);
-    }
+    callLegacyGlobal('clearTenantUI', [membership.name]);
 
     // 4, 5, 6. Fetch song song từ canonical repositories (kể cả personal cloud data: pins, stars, saved views, activities)
     const [rawNodes, rawEmployees, rawTasks, rawPins, rawStarredTaskIds, rawSavedViews, rawActivities] = await Promise.all([
@@ -313,18 +311,16 @@ export async function loadWorkspaceData(orgId) {
     appState.activities = rawActivities || [];
 
     // 11. Cập nhật UI projection layer
-    if (typeof window.setCloudWorkspaceData === 'function') {
-      window.setCloudWorkspaceData({
-        nodes: mappedNodes,
-        employees: mappedEmployees,
-        tasks: mappedTasks,
-        pins: rawPins || [],
-        starredTaskIds: rawStarredTaskIds || new Set(),
-        savedViews: rawSavedViews || [],
-        activities: rawActivities || [],
-        orgName: membership.name
-      });
-    }
+    callLegacyGlobal('setCloudWorkspaceData', [{
+      nodes: mappedNodes,
+      employees: mappedEmployees,
+      tasks: mappedTasks,
+      pins: rawPins || [],
+      starredTaskIds: rawStarredTaskIds || new Set(),
+      savedViews: rawSavedViews || [],
+      activities: rawActivities || [],
+      orgName: membership.name
+    }]);
 
     // 12. STEP 10: Thiết lập Secure Realtime Synchronization cho Workspace
     try {
@@ -402,9 +398,7 @@ export async function syncCloudTasksQuietly(orgId) {
     const mappedTasks = mapCloudTasks(rawTasks);
     appState.tasks = mappedTasks;
 
-    if (typeof window.updateCloudTasksQuietly === 'function') {
-      window.updateCloudTasksQuietly(mappedTasks);
-    }
+    callLegacyGlobal('updateCloudTasksQuietly', [mappedTasks]);
   } catch (err) {
     console.warn('[Realtime] Lỗi sync tasks âm thầm:', err);
   }
@@ -425,9 +419,7 @@ export async function syncCloudNodesQuietly(orgId) {
     const mappedNodes = mapCloudNodes(rawNodes, membership?.name);
     appState.nodes = mappedNodes;
 
-    if (typeof window.updateCloudNodesQuietly === 'function') {
-      window.updateCloudNodesQuietly(mappedNodes);
-    }
+    callLegacyGlobal('updateCloudNodesQuietly', [mappedNodes]);
   } catch (err) {
     console.warn('[Realtime] Lỗi sync nodes âm thầm:', err);
   }
@@ -447,9 +439,7 @@ export async function syncCloudEmployeesQuietly(orgId) {
     const mappedEmployees = mapCloudEmployees(rawEmployees);
     appState.employees = mappedEmployees;
 
-    if (typeof window.updateCloudEmployeesQuietly === 'function') {
-      window.updateCloudEmployeesQuietly(mappedEmployees);
-    }
+    callLegacyGlobal('updateCloudEmployeesQuietly', [mappedEmployees]);
   } catch (err) {
     console.warn('[Realtime] Lỗi sync employees âm thầm:', err);
   }
@@ -466,9 +456,7 @@ export async function syncCloudActivitiesQuietly(orgId, taskId = null) {
     const leakedAct = rawActs.find(a => a.organization_id !== orgId);
     if (leakedAct) return;
 
-    if (typeof window.mergeCloudActivities === 'function') {
-      window.mergeCloudActivities(rawActs);
-    }
+    callLegacyGlobal('mergeCloudActivities', [rawActs]);
   } catch (err) {
     console.warn('[Realtime] Lỗi sync activities âm thầm:', err);
   }
@@ -537,16 +525,15 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
   updateUserProfileUI(accountAdapter);
 
   // 5. Làm sạch UI dữ liệu cục bộ và hiển thị workspace
-  if (typeof window.clearTenantUI === 'function') {
-    window.clearTenantUI(targetOrg.name);
-  }
+  callLegacyGlobal('clearTenantUI', [targetOrg.name]);
 
   // 6. STEP 05/06 READ MODEL: Tải dữ liệu đám mây thật cho workspace
   await loadWorkspaceData(targetOrg.organizationId);
 
   // 7. Vào workspace
-  if (typeof window.enterWorkspace === 'function') {
-    await window.enterWorkspace(accountAdapter, false, true);
+  const enterWorkspace = getLegacyGlobal('enterWorkspace');
+  if (typeof enterWorkspace === 'function') {
+    await enterWorkspace(accountAdapter, false, true);
   } else {
     const authScreen = document.getElementById('authScreen');
     const appEl = document.getElementById('app');
@@ -557,8 +544,8 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
     }
   }
 
-  if (shouldShowToast && typeof window.toast === 'function') {
-    window.toast('Đã chuyển sang workspace: ' + targetOrg.name);
+  if (shouldShowToast) {
+    callLegacyGlobal('toast', ['Đã chuyển sang workspace: ' + targetOrg.name]);
   }
 }
 
@@ -585,16 +572,15 @@ export async function bootstrapAuthenticatedUser(user, session) {
         sessionStorage.removeItem('worktree_pending_invite');
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
-        if (typeof window.toast === 'function') {
-          window.toast('Bạn đã tham gia tổ chức thành công!');
-        }
+        callLegacyGlobal('toast', ['Bạn đã tham gia tổ chức thành công!']);
       }
     } catch (invErr) {
       console.warn('[Bootstrap] Lỗi kích hoạt lời mời:', invErr.message);
       sessionStorage.removeItem('worktree_pending_invite');
-      if (typeof window.toast === 'function') {
-        window.toast('Không thể chấp nhận lời mời: ' + (invErr.message || 'Hết hạn hoặc không hợp lệ'), 'warning');
-      }
+      callLegacyGlobal('toast', [
+        'Không thể chấp nhận lời mời: ' + (invErr.message || 'Hết hạn hoặc không hợp lệ'),
+        'warning'
+      ]);
     }
 
     // 2. Tải danh sách Organization memberships của người dùng từ Supabase
@@ -620,18 +606,14 @@ export async function bootstrapAuthenticatedUser(user, session) {
       await RealtimeService.subscribeUserNotifications(user.id, {
         onNotificationChange: async (payload) => {
           console.info('[Notification Realtime] Thay đổi bản ghi thông báo:', payload.eventType);
-          if (typeof window.refreshNotificationBadge === 'function') {
-            await window.refreshNotificationBadge();
-          }
+          await callLegacyGlobal('refreshNotificationBadge');
         },
         onBroadcastNotification: (payload) => {
           console.info('[Notification Realtime] Push broadcast nhận được:', payload?.title);
-          if (typeof window.toast === 'function' && payload?.title) {
-            window.toast(`🔔 ${payload.title}: ${payload.body || ''}`);
+          if (payload?.title) {
+            callLegacyGlobal('toast', [`🔔 ${payload.title}: ${payload.body || ''}`]);
           }
-          if (typeof window.refreshNotificationBadge === 'function') {
-            window.refreshNotificationBadge();
-          }
+          callLegacyGlobal('refreshNotificationBadge');
         },
         onSubscribed: (topic) => {
           console.info('[Notification Realtime] Đã kết nối kênh thông báo cá nhân:', topic);
@@ -650,9 +632,7 @@ export async function bootstrapAuthenticatedUser(user, session) {
           }
         }, 3500);
       }
-      if (typeof window.refreshNotificationBadge === 'function') {
-        window.refreshNotificationBadge().catch(() => {});
-      }
+      Promise.resolve(callLegacyGlobal('refreshNotificationBadge')).catch(() => {});
     } catch (notifErr) {
       console.warn('[Bootstrap] Không thể đăng ký Realtime thông báo:', notifErr);
     }
@@ -680,9 +660,7 @@ export async function bootstrapAuthenticatedUser(user, session) {
         appEl.inert = false;
       }
 
-      if (typeof window.clearTenantUI === 'function') {
-        window.clearTenantUI('Chưa có workspace');
-      }
+      callLegacyGlobal('clearTenantUI', ['Chưa có workspace']);
 
       workspaceDialogInstance.openCreateWorkspace({
         isZeroOrg: true,
@@ -713,9 +691,7 @@ export async function bootstrapAuthenticatedUser(user, session) {
           appEl.inert = false;
         }
 
-        if (typeof window.clearTenantUI === 'function') {
-          window.clearTenantUI('Chọn workspace');
-        }
+        callLegacyGlobal('clearTenantUI', ['Chọn workspace']);
 
         workspaceDialogInstance.openSwitcher({
           organizations: memberships,
@@ -813,7 +789,7 @@ export async function bootstrapApp() {
       await switchWorkspace(orgId, true);
     },
     onLogout: async () => {
-      await window.supabaseSignOut();
+      await callLegacyGlobal('supabaseSignOut');
     }
   });
 
@@ -848,7 +824,7 @@ export async function bootstrapApp() {
     }
   });
 
-  window.renderSupabaseAuth = (msg) => {
+  const renderSupabaseAuth = (msg) => {
     const authScreen = document.getElementById('authScreen');
     const appEl = document.getElementById('app');
     if (authScreen) authScreen.hidden = false;
@@ -872,13 +848,11 @@ export async function bootstrapApp() {
 
   RealtimeService.onConnectionStatusChange((status) => {
     appState.realtimeStatus = status;
-    if (typeof window.updateRealtimeIndicator === 'function') {
-      window.updateRealtimeIndicator(status);
-    }
+    callLegacyGlobal('updateRealtimeIndicator', [status]);
     appState.notify();
   });
 
-  window.supabaseSignOut = async () => {
+  const supabaseSignOut = async () => {
     try {
       if (window.WorkTreeOnboarding?.TourController) {
         window.WorkTreeOnboarding.TourController.endTour(false);
@@ -905,13 +879,16 @@ export async function bootstrapApp() {
       }
       window.scrollTo(0, 0);
 
-      if (typeof window.lockWorkspace === 'function') {
-        window.lockWorkspace('Đã đăng xuất.');
+      const lockWorkspace = getLegacyGlobal('lockWorkspace');
+      if (typeof lockWorkspace === 'function') {
+        lockWorkspace('Đã đăng xuất.');
       } else {
         authViewInstance.render('login');
       }
     }
   };
+
+  publishLegacyGlobals({ renderSupabaseAuth, supabaseSignOut });
 
   // 5. Kiểm tra session hiện tại từ Supabase Auth
   try {
@@ -986,8 +963,9 @@ export async function bootstrapApp() {
           }
           window.scrollTo(0, 0);
 
-          if (typeof window.lockWorkspace === 'function') {
-            window.lockWorkspace('Đã đăng xuất.');
+          const lockWorkspace = getLegacyGlobal('lockWorkspace');
+          if (typeof lockWorkspace === 'function') {
+            lockWorkspace('Đã đăng xuất.');
           } else {
             authViewInstance.render('login');
           }

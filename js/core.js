@@ -2296,7 +2296,7 @@ function legacyOpenSettings(){
  <section class="settings-section"><h3>${icon('info')}Về phiên bản này</h3><p>WorkTree X V7 · Nâng cấp từ tệp V6 được cung cấp.<br>Ứng dụng cục bộ một người sử dụng. Chưa có máy chủ, đồng bộ đa người dùng, thông báo đẩy, kiểm soát truy cập hoặc AI kết nối API. “Nhắc việc” và “Gợi ý hành động” được tính bằng quy tắc từ dữ liệu thực trong tệp.</p><button class="link-btn" data-action="help" style="margin-top:12px">Hướng dẫn sử dụng & cách tính chỉ số ${icon('arrow-right')}</button></section>`;
  closeSidebar();showDialog('settingsDialog');
 }
-function legacyOpenHelp(){
+function openHelp(){
  $('infoTitle').textContent='Làm việc nhanh hơn, rõ ràng hơn';$('infoEyebrow').textContent='HƯỚNG DẪN SỬ DỤNG';
  const shortcuts=[['Tìm toàn bộ & lệnh nhanh','Ctrl / ⌘ K'],['Thu / mở thanh điều hướng','Ctrl / ⌘ B'],['Tạo công việc mới','N'],['Tìm trong phạm vi','/'],['Chuyển 7 chế độ xem','1 – 7'],['Hoàn tác thay đổi','Ctrl / ⌘ Z'],['Làm lại','Ctrl / ⌘ Shift Z'],['Đóng hộp thoại','Esc'],['Gửi bình luận','Ctrl / ⌘ Enter'],['Lưu biểu mẫu','Ctrl / ⌘ Enter'],['Mở hướng dẫn','?'],['Xóa các việc đã chọn','Delete']];
  $('infoContent').innerHTML=`<section class="help-section"><h3>Bắt đầu trong 4 thao tác</h3><ol><li>Chọn một đơn vị trong cây để giới hạn phạm vi. “Bao gồm cấp con” tổng hợp công việc từ mọi nhánh phía dưới.</li><li>Tạo công việc với tên rõ ràng, người phụ trách và thời hạn. Bấm tên công việc để sửa, chia checklist, ghi giờ và bình luận.</li><li>Chuyển giữa Danh sách, Kanban, Tiến độ, Lịch và Tải công việc. Bộ lọc được giữ nhất quán khi đổi cách xem.</li><li>Xuất JSON để sao lưu toàn bộ. Dùng CSV khi cần báo cáo các công việc đang lọc. Nhập JSON của V5/V6 hoặc V7 để chuyển dữ liệu.</li></ol></section>
@@ -2307,6 +2307,7 @@ function legacyOpenHelp(){
  <section class="help-section"><h3>Giữ dữ liệu an toàn</h3><p>Dữ liệu được lưu trên trình duyệt và nguồn trang đang dùng, không đồng bộ giữa máy. Đường dẫn file:// có cách lưu tùy trình duyệt; không nên chỉ dựa vào khả năng tự chuyển dữ liệu cũ. Hãy xuất JSON từ bản cũ rồi nhập vào V8 khi không thấy dữ liệu.</p><p>Hoàn tác giữ tối đa 20 thay đổi trong phiên (5 với tập dữ liệu lớn), không giữ sau khi tải lại trang. Một bản dự phòng trước lần ghi gần nhất được lưu riêng nếu bộ nhớ trình duyệt cho phép. Khi nhập JSON, ứng dụng xác thực trước rồi yêu cầu xác nhận thay thế. Khi lỗi lưu xuất hiện, xuất JSON ngay trước khi đóng trang.</p><p>Bình luận và tài khoản lưu cục bộ. Quyền trên giao diện không thay thế kiểm soát truy cập tại máy chủ. Khi phiên tự khóa, bộ đếm tạm dừng. Bộ đếm tiếp tục tính thời gian khi trang đóng và chỉ cộng vào giờ thực hiện khi bấm Dừng; trình duyệt phải cho phép lưu thiết lập để giữ bộ đếm qua lần mở lại.</p></section>`;
   showDialog('infoDialog');
 }
+const legacyOpenHelp = openHelp;
 window.openHelp = openHelp;
 async function openNotifications(){
  if(window.__worktree_is_cloud_workspace && window.NotificationService){
@@ -2704,7 +2705,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     break;
    }
    case 'calendar-day':openCalendarDay(el.dataset.date);break;
-   case 'help':if(window.HelpCenterDialog&&typeof window.HelpCenterDialog.open==='function')window.HelpCenterDialog.open();else openHelp();break;
+   case 'help':if(window.HelpCenterDialog&&typeof window.HelpCenterDialog.open==='function')window.HelpCenterDialog.open();else legacyOpenHelp();break;
    case 'theme':toggleTheme();break;
    case 'set-theme':state.theme=el.dataset.theme;applyTheme();savePrefs();openSettings();break;
    case 'density':state.density=state.density==='compact'?'comfortable':'compact';applyTheme();savePrefs();break;
@@ -2908,7 +2909,7 @@ document.addEventListener('keydown',e=>{
  if(editing||modal||e.ctrlKey||e.metaKey)return;
  if(key==='n'){e.preventDefault();openTaskForm();}
  else if(e.key==='/'){e.preventDefault();$('taskSearch').focus();}
- else if(e.key==='?'){e.preventDefault();if(window.HelpCenterDialog&&typeof window.HelpCenterDialog.open==='function')window.HelpCenterDialog.open();else openHelp();}
+ else if(e.key==='?'){e.preventDefault();if(window.HelpCenterDialog&&typeof window.HelpCenterDialog.open==='function')window.HelpCenterDialog.open();else legacyOpenHelp();}
  else if(/^[1-7]$/.test(key)){e.preventDefault();setView(Object.keys(VIEWS)[Number(key)-1]);}
  else if(e.key==='Delete'&&state.view==='list'&&state.selectedTasks.size){e.preventDefault();deleteTasks([...state.selectedTasks]);}
 });
