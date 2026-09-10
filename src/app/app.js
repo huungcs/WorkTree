@@ -276,6 +276,18 @@ export async function loadWorkspaceData(orgId) {
     const mappedEmployees = mapCloudEmployees(rawEmployees);
     const mappedTasks = mapCloudTasks(rawTasks);
 
+    if (!membership.employeeId && appState.user) {
+      const match = (rawEmployees || []).find(e => 
+        (e.user_id && e.user_id === appState.user.id) || 
+        (e.email && appState.user.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
+      );
+      if (match) {
+        membership.employeeId = match.id;
+        if (appState.activeMembership) appState.activeMembership.employeeId = match.id;
+        if (window.__worktree_supabase_user) window.__worktree_supabase_user.personId = match.id;
+      }
+    }
+
     // 10. Commit snapshot atomically vào appState
     appState.nodes = mappedNodes;
     appState.employees = mappedEmployees;

@@ -30,7 +30,30 @@ function currentAccount(){
  }
  return null;
 }
-function currentPerson(){const a=currentAccount();return a?{id:byNode.has(a.personId)?a.personId:null,name:a.name}:{id:null,name:T.account};}
+function currentPerson(){
+ const a=currentAccount();
+ if(!a) return {id:null,name:T.account};
+ if(window.__worktree_is_cloud_workspace || window.__worktree_supabase_user){
+  let empId = a.personId;
+  if(!empId && Array.isArray(window.cloudEmployees)){
+   const match = window.cloudEmployees.find(e => 
+    (e.user_id && a.id && e.user_id === a.id) || 
+    (e.email && a.email && e.email.toLowerCase() === a.email.toLowerCase())
+   );
+   if(match){
+    empId = match.id;
+    a.personId = match.id;
+   }
+  }
+  let empName = a.name || T.account;
+  if(empId && Array.isArray(window.cloudEmployees)){
+   const emp = window.cloudEmployees.find(e => e.id === empId);
+   if(emp && (emp.full_name || emp.name)) empName = emp.full_name || emp.name;
+  }
+  return { id: empId || a.id || null, name: empName };
+ }
+ return {id:byNode.has(a.personId)?a.personId:null,name:a.name};
+}
 function isAdmin(){const r=currentAccount()?.role;return r==='admin'||r==='owner';}
 function inScope(nodeId,a=currentAccount()){
  if(!a)return false;if(a.role==='admin'||a.role==='owner')return byNode.has(nodeId);

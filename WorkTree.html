@@ -1610,7 +1610,7 @@ function rebuild(){
  data.nodes.forEach(n=>{if(!byParent.has(n.parent))byParent.set(n.parent,[]);byParent.get(n.parent).push(n);});
  if(!byNode.has(state.selected))state.selected=rootNode()?.id ?? null;
  if(!byNode.has(state.currentUser)||(byNode.get(state.currentUser)?.type!=='person' && !window.__worktree_is_cloud_workspace))state.currentUser=people()[0]?.id??null;
- if(state.filters.owner&&state.filters.owner!=='unassigned'&&!byNode.has(state.filters.owner)&&!window.employeesById?.has(state.filters.owner))state.filters.owner='';
+ if(state.filters.owner&&state.filters.owner!=='unassigned'&&!byNode.has(state.filters.owner)&&!window.employeesById?.has(state.filters.owner)&&(!window.__worktree_is_cloud_workspace||(state.filters.owner!==String(currentAccount()?.id)&&state.filters.owner!==String(currentAccount()?.personId))))state.filters.owner='';
  state.selectedTasks=new Set([...state.selectedTasks].filter(id=>byTask.has(id)));
  if(state.timer&&!byTask.has(state.timer.taskId))state.timer=null;
 }
@@ -1628,7 +1628,7 @@ function people(){
  return permittedPeople();
 }
 function nodeName(id){
- return byNode.get(id)?.name || window.employeesById?.get(id)?.full_name || window.employeesById?.get(id)?.name || 'Chưa giao';
+ return byNode.get(id)?.name || window.employeesById?.get(id)?.full_name || window.employeesById?.get(id)?.name || (window.__worktree_supabase_user && (window.__worktree_supabase_user.id === id || window.__worktree_supabase_user.personId === id) ? window.__worktree_supabase_user.name : null) || 'Chưa giao';
 }
 function person(){return currentPerson();}
 
@@ -1928,7 +1928,16 @@ function currentScopeTasks(){const ids=state.includeChildren?subtree(state.selec
 function filteredTasks(){
  const f=state.filters,q=fold(f.q);let arr=currentScopeTasks().filter(t=>{
   if(f.status&&t.status!==f.status)return false;if(f.priority&&t.priority!==f.priority)return false;
-  if(f.owner&&(f.owner==='unassigned'?t.owner!==null:String(t.owner)!==f.owner))return false;
+  if(f.owner){
+   if(f.owner==='unassigned'){if(t.owner!==null)return false;}
+   else{
+    const matchesOwner = String(t.owner)===f.owner || 
+     (window.__worktree_is_cloud_workspace && currentAccount() && 
+      (f.owner===String(currentAccount().id) || f.owner===String(currentAccount().personId)) &&
+      (String(t.owner)===String(currentAccount().id) || String(t.owner)===String(currentAccount().personId)));
+    if(!matchesOwner)return false;
+   }
+  }
   if(f.favorite&&!t.favorite)return false;
   if(f.due==='late'&&!isLate(t))return false;if(f.due==='today'&&!isToday(t))return false;
   if(f.due==='week'&&(t.status==='Hoàn thành'||!t.due||t.due<TODAY||t.due>addDays(TODAY,6)))return false;
@@ -1958,7 +1967,21 @@ function selectNode(id){
 }
 function navigate(which){
  state.selected=rootNode().id;state.includeChildren=true;state.filters=blankFilters();state.page=1;state.selectedTasks.clear();
- if(which==='mine'){if(!person().id){toast('Thêm nhân sự trước khi chọn hồ sơ của tôi.','error');openSettings();return;}state.filters.owner=String(person().id);state.view='list';}
+ if(which==='mine'){
+  const myPerson = person();
+  const myId = myPerson?.id || (window.__worktree_is_cloud_workspace ? (currentAccount()?.personId || currentAccount()?.id) : null);
+  if(!myId){
+   if(window.__worktree_is_cloud_workspace){
+    toast('Tài khoản chưa được liên kết với nhân sự trong không gian này.','error');
+   }else{
+    toast('Thêm nhân sự trước khi chọn hồ sơ của tôi.','error');
+    openSettings();
+   }
+   return;
+  }
+  state.filters.owner=String(myId);
+  state.view='list';
+ }
  else if(which==='attention'){state.view='list';state.filters.due='attention';}
  else state.view=Object.hasOwn(VIEWS,which)?which:'overview';
  closeSidebar();syncFilters();savePrefs();renderAll(true);
@@ -2009,7 +2032,12 @@ function renderShell(arr){
  $('profileName').textContent=user.name;$('userAvatar').textContent=initials(user.name);$('topAvatar').textContent=initials(user.name);
  $('topAvatar').setAttribute('aria-label','Hồ sơ cục bộ: '+user.name);
  $('topScope').textContent=node.id===root.id?'Toàn công ty':node.name;
- const mine=state.filters.owner===String(user.id)&&node.id===root.id;
+ const isMineFilter = state.filters.owner && user?.id && (
+  state.filters.owner === String(user.id) ||
+  (window.__worktree_is_cloud_workspace && currentAccount() && 
+   (state.filters.owner === String(currentAccount().personId) || state.filters.owner === String(currentAccount().id)))
+ );
+ const mine=isMineFilter&&node.id===root.id;
  const attentionView=state.filters.due==='attention'&&node.id===root.id;
  let title=node.id!==root.id?node.name:state.view==='overview'?'Tổng quan công việc':state.view==='list'?'Tất cả công việc':VIEWS[state.view][0];
  if(mine&&state.view==='list')title='Công việc của tôi';
@@ -2021,7 +2049,16 @@ function renderShell(arr){
  const displayDate=new Intl.DateTimeFormat('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:TZ}).format(new Date());
  $('todayLabel').textContent=displayDate[0].toUpperCase()+displayDate.slice(1);
  $('breadcrumbs').innerHTML=pathNodes(state.selected).map((n,i,a)=>`${i?'<span class="crumb-arrow" aria-hidden="true">/</span>':''}<button class="crumb ${i===a.length-1?'current':''}" data-action="select-node" data-id="${n.id}" title="${esc(n.name)}" ${i===a.length-1?'aria-current="location"':''}>${i===0?icon('building'):''}<span>${esc(n.name.replace(/^Công ty /,''))}</span></button>`).join('');
- const all=readableTasks(),mineCount=all.filter(t=>t.owner===user.id&&t.status!=='Hoàn thành').length,attentionCount=all.filter(attention).length;
+ const isMyTask = t => {
+  if(!user || !user.id || t.owner === null || t.owner === undefined) return false;
+  if(String(t.owner) === String(user.id)) return true;
+  if(window.__worktree_is_cloud_workspace){
+   const a = currentAccount();
+   if(a && (String(t.owner) === String(a.personId) || String(t.owner) === String(a.id))) return true;
+  }
+  return false;
+ };
+ const all=readableTasks(),mineCount=all.filter(t=>isMyTask(t)&&t.status!=='Hoàn thành').length,attentionCount=all.filter(attention).length;
  $('allCount').textContent=all.length;$('mineCount').textContent=mineCount;$('attentionCount').textContent=attentionCount;
  $('notificationDot').hidden=!attentionCount;document.querySelector('.notification-btn').setAttribute('aria-label',`Nhắc việc: ${attentionCount} công việc cần chú ý`);
  $('.primary-nav .nav-item').forEach(b=>{
@@ -4037,6 +4074,12 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds
  window.cloudEmployees=employees||[];
  window.employeesById=new Map((employees||[]).map(e=>[e.id,e]));
 
+ if(window.__worktree_supabase_user && !window.__worktree_supabase_user.personId){
+  const u=window.__worktree_supabase_user;
+  const match=(employees||[]).find(e=>(e.user_id&&u.id&&e.user_id===u.id)||(e.email&&u.email&&e.email.toLowerCase()===u.email.toLowerCase()));
+  if(match) window.__worktree_supabase_user.personId=match.id;
+ }
+
  // Personal Cloud Data: Pins, Stars, Saved Views
  window.__worktree_cloud_pins = (pins||[]).map(p => ({
   kind: p.task_id ? 'task' : 'node',
@@ -4270,7 +4313,30 @@ function currentAccount(){
  }
  return null;
 }
-function currentPerson(){const a=currentAccount();return a?{id:byNode.has(a.personId)?a.personId:null,name:a.name}:{id:null,name:T.account};}
+function currentPerson(){
+ const a=currentAccount();
+ if(!a) return {id:null,name:T.account};
+ if(window.__worktree_is_cloud_workspace || window.__worktree_supabase_user){
+  let empId = a.personId;
+  if(!empId && Array.isArray(window.cloudEmployees)){
+   const match = window.cloudEmployees.find(e => 
+    (e.user_id && a.id && e.user_id === a.id) || 
+    (e.email && a.email && e.email.toLowerCase() === a.email.toLowerCase())
+   );
+   if(match){
+    empId = match.id;
+    a.personId = match.id;
+   }
+  }
+  let empName = a.name || T.account;
+  if(empId && Array.isArray(window.cloudEmployees)){
+   const emp = window.cloudEmployees.find(e => e.id === empId);
+   if(emp && (emp.full_name || emp.name)) empName = emp.full_name || emp.name;
+  }
+  return { id: empId || a.id || null, name: empName };
+ }
+ return {id:byNode.has(a.personId)?a.personId:null,name:a.name};
+}
 function isAdmin(){const r=currentAccount()?.role;return r==='admin'||r==='owner';}
 function inScope(nodeId,a=currentAccount()){
  if(!a)return false;if(a.role==='admin'||a.role==='owner')return byNode.has(nodeId);
