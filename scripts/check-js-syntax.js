@@ -25,7 +25,7 @@ for (const sourceRoot of sourceRoots) {
 const failures = [];
 
 for (const filePath of javascriptFiles) {
-  const result = spawnSync(process.execPath, ['--check', filePath], {
+  const result = spawnSync(process.execPath, ['--max-old-space-size=64', '--check', filePath], {
     cwd: projectRoot,
     encoding: 'utf8'
   });

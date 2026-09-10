@@ -104,6 +104,12 @@ class ContextualPopoverManagerImpl {
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-label', topic.title);
 
+    // Support Top Layer via Popover API so it renders above native <dialog> (like taskDialog)
+    const supportsPopover = typeof popover.showPopover === 'function';
+    if (supportsPopover) {
+      popover.setAttribute('popover', 'manual');
+    }
+
     popover.innerHTML = `
       <div class="worktree-contextual-card">
         <div class="worktree-contextual-header">
@@ -127,7 +133,22 @@ class ContextualPopoverManagerImpl {
       </div>
     `;
 
-    document.body.appendChild(popover);
+    // If trigger is inside an active modal dialog and Popover API is not supported,
+    // append directly inside the dialog so it shares the dialog's top-layer context
+    const activeDialog = triggerEl.closest('dialog[open]');
+    if (!supportsPopover && activeDialog) {
+      activeDialog.appendChild(popover);
+      popover.style.zIndex = '10010';
+    } else {
+      document.body.appendChild(popover);
+    }
+
+    if (supportsPopover) {
+      try {
+        popover.showPopover();
+      } catch (_) {}
+    }
+
     this.activePopover = popover;
 
     popover.querySelector('#contextualCloseBtn')?.addEventListener('click', () => {
@@ -148,6 +169,8 @@ class ContextualPopoverManagerImpl {
       this.escapeListener = (e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           this.close();
         }
       };
@@ -180,17 +203,26 @@ class ContextualPopoverManagerImpl {
 
     // Desktop positioning
     const margin = 8;
+    const popoverWidth = popoverRect.width || 280;
+    const popoverHeight = popoverRect.height || 140;
+
     let top = rect.bottom + margin;
     let left = rect.left;
 
-    // Check right boundary overflow
-    if (left + popoverRect.width > window.innerWidth - 16) {
-      left = window.innerWidth - popoverRect.width - 16;
+    // If trigger is inside an open modal dialog, prevent overflowing the dialog's right edge
+    const activeDialog = triggerEl.closest('dialog[open]');
+    const dialogRect = activeDialog ? activeDialog.getBoundingClientRect() : null;
+
+    if (dialogRect && (left + popoverWidth > dialogRect.right - 12)) {
+      // Align popover's right edge with trigger or clamp to dialog's right padding
+      left = Math.max(dialogRect.left + 16, rect.right - popoverWidth);
+    } else if (left + popoverWidth > window.innerWidth - 16) {
+      left = window.innerWidth - popoverWidth - 16;
     }
 
     // Check bottom boundary overflow
-    if (top + popoverRect.height > window.innerHeight - 16) {
-      top = rect.top - popoverRect.height - margin;
+    if (top + popoverHeight > window.innerHeight - 16) {
+      top = rect.top - popoverHeight - margin;
     }
 
     popover.style.position = 'fixed';
@@ -212,6 +244,11 @@ class ContextualPopoverManagerImpl {
     }
 
     if (this.activePopover) {
+      if (typeof this.activePopover.hidePopover === 'function') {
+        try {
+          this.activePopover.hidePopover();
+        } catch (_) {}
+      }
       this.activePopover.remove();
       this.activePopover = null;
     }
