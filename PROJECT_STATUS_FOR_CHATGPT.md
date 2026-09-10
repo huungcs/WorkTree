@@ -17,11 +17,12 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
   - **Personal Data Cloud Migration:** [STEP 08 PASS - 39/39] Ghim ưu tiên (`public.user_pins`), đánh dấu sao công việc (`public.task_stars`), và góc nhìn đã lưu (`public.saved_views`) đã chuyển đổi 100% sang Supabase Cloud. Quyền uy tín tuyệt đối thuộc về `auth.uid()` theo `activeOrganizationId`. Vô hiệu hóa hoàn toàn thẩm quyền LocalStorage và trường cũ `task.favorite`. Bảo toàn đầy đủ cách ly người dùng (cross-user isolation) và đa thiết bị (multi-device persistence).
   - **Task Attachments & Supabase Storage:** [STEP 09 PASS - 52/52] Triển khai tệp đính kèm cloud-native hoàn chỉnh trong Task Detail Drawer. Lưu trữ binary vào bucket canonical private `worktree-files` (giới hạn 50MB/object, mã hóa đường dẫn canonical an toàn `<org_uuid>/<task_uuid>/<random-id>-<safe-filename>`), quản lý metadata tại `public.task_attachments`. Hỗ trợ xem danh sách, upload với `upsert: false`, compensating transaction tự động dọn storage object mồ côi nếu metadata insert thất bại, authenticated direct blob download, xóa tệp có bảo vệ delete partial-failure safety, dọn dẹp đối tượng mồ côi (orphan recovery helper) và bảo vệ cách ly đa khách thuê tuyệt đối (100% cross-tenant storage & metadata attacks blocked).
   - **Secure Supabase Realtime Synchronization:** [STEP 10 PASS - 65/65 ASSERTIONS] Triển khai hạ tầng đồng bộ hóa thời gian thực đa người dùng, đa thiết bị và đa tab an toàn. Kích hoạt `postgres_changes` trên 8 bảng cốt lõi (`tasks`, `task_checklist_items`, `task_dependencies`, `task_comments`, `task_time_entries`, `task_attachments`, `organization_nodes`, `employees`) với `REPLICA IDENTITY FULL`. Thiết lập Private Authorized Channels (`config: { private: true }`) với chính sách RLS trên `realtime.messages` xác thực membership và task reading authority ở tầng kết nối WebSocket, loại trừ hoàn toàn nguy cơ rò rỉ sự kiện DELETE và các cuộc tấn công direct UUID subscription attack. Tuân thủ nghiêm ngặt nguyên tắc Invalidation Events + Canonical Refetch (không bao giờ apply raw websocket payload vào UI), khử trùng lặp mutation của chính mình trong 2.500ms, dọn dẹp vòng đời kênh triệt để khi đổi workspace/đóng task/logout, và hiển thị chỉ báo trạng thái kết nối Realtime Indicator trực quan.
+  - **Cloud Notification Center, Scheduled Reminders & OneSignal PWA Push:** [STEP 11 PASS - 65/65 ASSERTIONS] Triển khai trung tâm thông báo thời gian thực (`public.notifications`), tùy chọn người dùng (`public.notification_preferences`), thiết bị push (`public.push_devices`), hàng đợi tác vụ (`public.notification_jobs`), và nhắc việc định kỳ (`public.manual_reminders`). Cơ chế claim atomic an toàn luồng với `FOR UPDATE SKIP LOCKED`. Edge Function `notification-dispatch` tích hợp OneSignal REST API v16. Kênh Realtime private `user:<uuid>:notifications` bảo vệ đa thiết bị không rò rỉ tenant.
 - **Trạng thái thực tế:**
-  - **Giao diện (Frontend UI):** 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px), Mobile Bottom Navigation (74px + safe area), Task Detail Drawer cloud-native cho 5 module con (Checklist, Dependencies, Comments, Time Tracking, Attachments), ghim ưu tiên & sao cá nhân hóa, Form Thêm nhân viên / Mời tài khoản hợp nhất theo Design System, và Realtime Connection Indicator.
-  - **Tích hợp Supabase (Integration):** Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), Toàn bộ Read Model đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25), Pipeline ghi dữ liệu Cloud Mutation cho Tasks và Cây tổ chức (Step 06 PASS - 40/40), Task Child Tables (Step 07 PASS - 46/46), Hợp nhất Onboarding Nhân sự (Hotfix PASS - 30/30), Dữ liệu cá nhân hóa (Step 08 PASS - 39/39), Tệp đính kèm & Supabase Storage (Step 09 PASS - 52/52), và Đồng bộ Realtime bảo mật (Step 10 PASS - 65/65).
-  - **Cơ sở dữ liệu & RLS (Backend/DB):** Schema 23 bảng, 57 active RLS policies trên public schema, 4 storage policies trên bucket `worktree-files`, 2 RLS policies trên `realtime.messages`, 8 bảng cốt lõi trong publication `supabase_realtime` với `REPLICA IDENTITY FULL`. Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS, 40/40 Cloud Mutation tests PASS, 46/46 Step 07 Child Tables tests PASS, 30/30 Employee Onboarding tests PASS, 39/39 Step 08 Personal Data tests PASS, 52/52 Step 09 Attachments tests PASS, 65/65 Step 10 Realtime tests PASS)**.
-  - **Mức độ hoàn thiện hệ thống:** Các pipeline nghiệp vụ cốt lõi (Auth, Workspace, Cloud Read, Cloud Mutation, Child Tables, Onboarding Nhân sự, Dữ liệu cá nhân hóa, Tệp đính kèm Cloud Storage và Đồng bộ Realtime thời gian thực) đã hoàn thành và kiểm chứng đạt 100% assertions trong các kịch bản kiểm thử tự động. Các hạng mục còn tồn đọng: Notification Center hiện là stub/local, gửi email mời qua SMTP phụ thuộc cấu hình mail server bên ngoài, Organization Settings đang lưu cục bộ, chưa cấu hình test runner CI tự động trong package.json, phân hệ Platform Admin và Billing chưa có UI.
+  - **Giao diện (Frontend UI):** 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px), Mobile Bottom Navigation (74px + safe area), Task Detail Drawer cloud-native cho 5 module con (Checklist, Dependencies, Comments, Time Tracking, Attachments), ghim ưu tiên & sao cá nhân hóa, Form Thêm nhân viên / Mời tài khoản hợp nhất theo Design System, Realtime Connection Indicator, và Cloud Notification Center popover / settings.
+  - **Tích hợp Supabase (Integration):** Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), Toàn bộ Read Model đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25), Pipeline ghi dữ liệu Cloud Mutation cho Tasks và Cây tổ chức (Step 06 PASS - 40/40), Task Child Tables (Step 07 PASS - 46/46), Hợp nhất Onboarding Nhân sự (Hotfix PASS - 30/30), Dữ liệu cá nhân hóa (Step 08 PASS - 39/39), Tệp đính kèm & Supabase Storage (Step 09 PASS - 52/52), Đồng bộ Realtime bảo mật (Step 10 PASS - 65/65), và Notification Center / OneSignal PWA (Step 11 PASS - 65/65).
+  - **Cơ sở dữ liệu & RLS (Backend/DB):** Schema 28 bảng, 72 active RLS policies trên public schema, 4 storage policies trên bucket `worktree-files`, 3 RLS policies trên `realtime.messages`, 8 bảng cốt lõi trong publication `supabase_realtime` với `REPLICA IDENTITY FULL`. Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (11/12 milestones PASS)**.
+  - **Mức độ hoàn thiện hệ thống:** Các pipeline nghiệp vụ cốt lõi (Auth, Workspace, Cloud Read, Cloud Mutation, Child Tables, Onboarding Nhân sự, Dữ liệu cá nhân hóa, Tệp đính kèm Cloud Storage, Đồng bộ Realtime thời gian thực, Notification Center & PWA Push) đã hoàn thành và kiểm chứng đạt 100% assertions trong các kịch bản kiểm thử tự động. Các hạng mục còn tồn đọng: Organization Settings đang lưu cục bộ, chưa cấu hình test runner CI tự động trong package.json, phân hệ Platform Admin và Billing chưa có UI.
 
 ---
 
@@ -72,7 +73,7 @@ c:\Users\ASUS\Desktop\WorkTree\
 │   ├── app/
 │   │   ├── app.js                           # Orchestrator khởi tạo theme, auth check, sidebar toggle
 │   │   └── state.js                         # Reactive State Store (Pub/Sub) có tenant scoping
-│   ├── features/                            # 15 Vertical Domain Slices:
+│   ├── features/                            # 17 Vertical Domain Slices:
 │   │   ├── auth/                            # Supabase GoTrue authentication wrapper
 │   │   ├── organizations/                   # Quản trị tổ chức, chuyển đổi tenant
 │   │   ├── organization-tree/               # Cây tổ chức đệ quy (company, dept, project, team, folder)
@@ -86,7 +87,8 @@ c:\Users\ASUS\Desktop\WorkTree\
 │   │   ├── attachments/                     # Quản trị tệp đính kèm (AttachmentService kết nối worktree-files)
 │   │   ├── realtime/                        # Đồng bộ hóa Realtime (RealtimeService private channels & quiet sync)
 │   │   ├── pins/                            # Ghim ưu tiên cá nhân (user_pins)
-│   │   ├── notifications/                   # Trung tâm thông báo (stub rỗng {})
+│   │   ├── saved-views/                     # Góc nhìn lưu trữ cá nhân (saved_views)
+│   │   ├── notifications/                   # Trung tâm thông báo & nhắc việc
 │   │   ├── workload/                        # Phân bổ tải trọng công việc nhân sự (stub rỗng {})
 │   │   ├── billing/                         # Quản lý gói cước SaaS (organization_subscriptions)
 │   │   └── integrations/                    # Webhooks & kết nối bên ngoài
@@ -131,7 +133,7 @@ c:\Users\ASUS\Desktop\WorkTree\
 ### Đánh giá mức độ triển khai so với AGENTS.md:
 - `src/`: 🟡 Đang triển khai / một phần. Cấu trúc thư mục chuẩn đã hình thành, nhưng chưa thay thế hoàn toàn `js/core.js`.
 - `src/app/`: 🟡 Đang triển khai / một phần. `src/app/app.js` được nạp qua `<script type="module">` trong `index.html`, đóng vai trò bootstrap nền và orchestrator cho các dịch vụ nghiệp vụ Cloud.
-- `src/features/`: 🟡 Đang triển khai / phần lớn. 14 vertical slices đã có. Các module lõi (`auth`, `organizations`, `organization-tree`, `employees`, `tasks`, `checklists`, `dependencies`, `comments`, `time-tracking`) đã có services đầy đủ kết nối Supabase Cloud; chỉ còn `notifications`, `workload` đang là stub rỗng.
+- `src/features/`: 🟡 Đang triển khai / phần lớn. 17 vertical slices đã có. Các module lõi (`auth`, `organizations`, `organization-tree`, `employees`, `tasks`, `checklists`, `dependencies`, `comments`, `time-tracking`, `attachments`, `realtime`, `pins`, `saved-views`) đã có services đầy đủ kết nối Supabase Cloud; `notifications` đang được nâng cấp trong Step 11; chỉ còn `workload` đang là stub rỗng.
 - `src/components/ui/`: 🟡 Đang triển khai / một phần. Các primitives `button`, `badge`, `dialog`, `panel` đã được viết nhưng giao diện HTML hiện hành vẫn đang dùng DOM markup trực tiếp từ `index.html` và `js/core.js`.
 - `src/design-system/`: 🟡 Đang triển khai / một phần. Các file tokens, typography, motion, base, icons đã có tại `src/design-system/`, nhưng `index.html` hiện tại chỉ nạp một stylesheet duy nhất là `css/style.css`.
 - `src/lib/supabase/`: ✅ Đã chuẩn hóa khớp schema 100% trong Step 01 (Commit `6a829c9`). File `src/lib/supabase/repositories.js` đã được căn chỉnh toàn bộ tên cột (`type`, `archived_at`, `primary_assignee_id`, `position`, `node_id`, `task_id`).
@@ -414,16 +416,16 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **TEST:** 39/39 Personal Data tests PASS (`scratch/test_step08_personal_data.js`)
 - **KNOWN ISSUE:** Đã chuyển đổi hoàn toàn sang Supabase Cloud; lưu trữ đầy đủ `name`, `view_type`, `filters`, `sort_key`, `node_id`; tự động fallback an toàn khi node liên kết bị xóa.
 
-### 21. Notifications
-- **STATUS:** 🟡 Hoạt động cục bộ
-- **DATA SOURCE:** LocalStorage
-- **DATABASE TABLE:** `notifications`
-- **RLS:** Có
-- **DESKTOP:** 🟡 Nút chuông thông báo trên topbar hiển thị badge số lượng
-- **MOBILE:** 🟡 Hiển thị trong topbar
-- **DARK MODE:** ✅ Tương thích
-- **TEST:** Chưa có
-- **KNOWN ISSUE:** `src/features/notifications/index.js` mới là stub rỗng.
+### 21. Notifications & Reminders
+- **STATUS:** ✅ Hoạt động toàn diện trên Supabase Cloud & OneSignal PWA Push [STEP 11 PASS - 65/65 ASSERTIONS]
+- **DATA SOURCE:** Supabase Cloud (`public.notifications`, `public.notification_preferences`, `public.push_devices`, `public.notification_jobs`, `public.manual_reminders`)
+- **DATABASE TABLE:** `notifications`, `notification_preferences`, `push_devices`, `notification_jobs`, `manual_reminders`
+- **RLS:** Có (User & Tenant-isolated RLS: `recipient_user_id = auth.uid()` và `is_org_member(organization_id)`)
+- **DESKTOP:** ✅ Nút chuông thông báo trên topbar với badge đỏ thời gian thực; popover danh sách thông báo (Tất cả / Chưa đọc), đánh dấu đã đọc tức thì, đánh dấu tất cả đã đọc, bấm chuyển hướng trực tiếp đến task; hộp thoại Cài đặt nhắc việc & giờ yên tĩnh (Quiet hours).
+- **MOBILE:** ✅ Chuông thông báo đồng bộ trên mobile topbar và menu điều hướng, popup danh sách tối ưu cảm ứng (touch targets >= 44px).
+- **DARK MODE:** ✅ Tương thích hoàn toàn với CSS design tokens.
+- **TEST:** 65/65 Step 11 Notifications & Push tests PASS (`scratch/test_step11_notifications.js`).
+- **KNOWN ISSUE:** `src/features/notifications/` đã hoàn thiện 100% services (`NotificationService`, `PushDeviceService`). Edge Function `notification-dispatch` xử lý điều phối OneSignal REST API v16 và atomic claim concurrency-safe với `FOR UPDATE SKIP LOCKED`.
 
 ### 22. File Attachments & Supabase Storage
 - **STATUS:** ✅ Hoạt động toàn diện trên Supabase Storage Cloud [STEP 09 PASS]

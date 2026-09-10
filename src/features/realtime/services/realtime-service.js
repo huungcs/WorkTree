@@ -33,6 +33,11 @@ class RealtimeServiceManager {
     // Callbacks
     this.workspaceCallbacks = null;
     this.taskDetailCallbacks = null;
+
+    // STEP 11: Private User Notifications Channel: user:<uuid>:notifications
+    this.userNotificationsChannel = null;
+    this.activeUserId = null;
+    this.userNotificationCallbacks = null;
   }
 
   /**
@@ -392,6 +397,84 @@ class RealtimeServiceManager {
   }
 
   /**
+   * STEP 11: Đăng ký kênh riêng tư thông báo người dùng: user:<uuid>:notifications
+   * Phục vụ cập nhật tức thời khi có thông báo mới, đổi trạng thái đọc, hoặc push dispatch event.
+   */
+  async subscribeUserNotifications(userId, callbacks = {}) {
+    if (!userId) {
+      console.warn('[Realtime] Cần userId để đăng ký kênh thông báo người dùng.');
+      return;
+    }
+
+    if (this.userNotificationsChannel && this.activeUserId === userId) {
+      this.userNotificationCallbacks = callbacks;
+      return;
+    }
+
+    if (this.userNotificationsChannel) {
+      await this.unsubscribeUserNotifications();
+    }
+
+    this.activeUserId = userId;
+    this.userNotificationCallbacks = callbacks;
+
+    const supabase = await getSupabase();
+    const channelName = `user:${userId}:notifications`;
+    const channel = supabase.channel(channelName, { config: { private: true } });
+
+    // 1. Lắng nghe thay đổi trực tiếp từ bảng notifications (Postgres Changes)
+    channel.on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'notifications',
+      filter: `user_id=eq.${userId}`
+    }, (payload) => {
+      console.info('[Realtime] Sự kiện bảng notifications nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
+      this.debounce(`user:${userId}:notifications:db`, () => {
+        if (this.userNotificationCallbacks?.onNotificationChange && this.activeUserId === userId) {
+          this.userNotificationCallbacks.onNotificationChange(payload);
+        }
+      }, 100);
+    });
+
+    // 2. Lắng nghe sự kiện Broadcast từ Notification Dispatcher
+    channel.on('broadcast', { event: 'notification_received' }, ({ payload }) => {
+      console.info('[Realtime] Nhận thông báo đẩy trực tiếp qua Broadcast:', payload?.title);
+      if (this.userNotificationCallbacks?.onBroadcastNotification && this.activeUserId === userId) {
+        this.userNotificationCallbacks.onBroadcastNotification(payload);
+      }
+    });
+
+    channel.subscribe((status) => {
+      console.info(`[Realtime] Kênh thông báo user:${userId}:notifications trạng thái:`, status);
+      if (status === 'SUBSCRIBED' && callbacks.onSubscribed) {
+        callbacks.onSubscribed(channelName);
+      }
+    });
+
+    this.userNotificationsChannel = channel;
+  }
+
+  /**
+   * Hủy đăng ký kênh thông báo người dùng (khi logout hoặc đổi tài khoản)
+   */
+  async unsubscribeUserNotifications() {
+    if (this.userNotificationsChannel) {
+      const ch = this.userNotificationsChannel;
+      this.userNotificationsChannel = null;
+      this.activeUserId = null;
+      this.userNotificationCallbacks = null;
+
+      try {
+        const supabase = await getSupabase();
+        await supabase.removeChannel(ch);
+      } catch (err) {
+        console.warn('[Realtime] Lỗi xóa user notifications channel:', err);
+      }
+    }
+  }
+
+  /**
    * Xóa sạch toàn bộ channels (workspace switch, logout, unmount)
    */
   async cleanupAll() {
@@ -402,6 +485,7 @@ class RealtimeServiceManager {
 
     await this.unsubscribeTaskDetail();
     await this.unsubscribeWorkspace();
+    await this.unsubscribeUserNotifications();
     this.setConnectionStatus('offline');
   }
 

@@ -2236,7 +2236,75 @@ function legacyOpenHelp(){
  <section class="help-section"><h3>Giữ dữ liệu an toàn</h3><p>Dữ liệu được lưu trên trình duyệt và nguồn trang đang dùng, không đồng bộ giữa máy. Đường dẫn file:// có cách lưu tùy trình duyệt; không nên chỉ dựa vào khả năng tự chuyển dữ liệu cũ. Hãy xuất JSON từ bản cũ rồi nhập vào V8 khi không thấy dữ liệu.</p><p>Hoàn tác giữ tối đa 20 thay đổi trong phiên (5 với tập dữ liệu lớn), không giữ sau khi tải lại trang. Một bản dự phòng trước lần ghi gần nhất được lưu riêng nếu bộ nhớ trình duyệt cho phép. Khi nhập JSON, ứng dụng xác thực trước rồi yêu cầu xác nhận thay thế. Khi lỗi lưu xuất hiện, xuất JSON ngay trước khi đóng trang.</p><p>Bình luận và tài khoản lưu cục bộ. Quyền trên giao diện không thay thế kiểm soát truy cập tại máy chủ. Khi phiên tự khóa, bộ đếm tạm dừng. Bộ đếm tiếp tục tính thời gian khi trang đóng và chỉ cộng vào giờ thực hiện khi bấm Dừng; trình duyệt phải cho phép lưu thiết lập để giữ bộ đếm qua lần mở lại.</p></section>`;
  showDialog('infoDialog');
 }
-function openNotifications(){
+async function openNotifications(){
+ if(window.__worktree_is_cloud_workspace && window.NotificationService){
+  const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+  $('infoTitle').textContent='Trung tâm thông báo';
+  $('infoEyebrow').textContent='THÔNG BÁO & NHẮC VIỆC ĐÁM MÂY';
+  $('infoContent').innerHTML='<div class="tree-empty" style="text-align:center;padding:24px 0">Đang tải thông báo...</div>';
+  showDialog('infoDialog');
+
+  try {
+   const [notifications, unreadCount] = await Promise.all([
+    window.NotificationService.getNotifications(orgId, { limit: 30 }),
+    window.NotificationService.getUnreadCount(orgId)
+   ]);
+
+   let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
+     <div style="display:flex;align-items:center;gap:6px">
+      <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-weight:600">${notifications.length} thông báo</span>
+      ${unreadCount > 0 ? `<span class="tag" style="background:var(--red-soft);color:var(--red)">${unreadCount} chưa đọc</span>` : ''}
+     </div>
+     <div style="display:flex;gap:6px">
+      ${unreadCount > 0 ? `<button class="btn small" data-action="mark-all-read">${icon('check')}Đã đọc tất cả</button>` : ''}
+      <button class="btn small" data-action="notif-settings">${icon('settings')}Cài đặt thông báo</button>
+     </div>
+    </div>
+   `;
+
+   if(notifications.length === 0){
+    html += emptyState('Không có thông báo mới', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
+   } else {
+    html += `<div class="notification-list" style="display:grid;gap:6px;max-height:360px;overflow:auto">`;
+    notifications.forEach(n => {
+     const isUnread = !n.read_at;
+     const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
+     const iconName = n.kind === 'task_assigned' ? 'user' : n.kind === 'task_comment' ? 'message-square' : (n.kind === 'due_soon' || n.kind === 'overdue') ? 'alert' : 'bell';
+     html += `
+      <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" style="cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px">
+       <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px">${icon(iconName)}</span>
+       <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+         <strong style="font-size:12px;color:var(--text);font-weight:${isUnread ? '650' : '500'}">${esc(n.title)}</strong>
+         <small style="color:var(--muted);font-size:10px;white-space:nowrap">${timeStr}</small>
+        </div>
+        <p style="font-size:11px;color:var(--subtle);margin:3px 0 0;line-height:1.5">${esc(n.body)}</p>
+       </div>
+       ${isUnread ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--primary);margin-top:6px;flex-shrink:0"></span>' : ''}
+      </div>
+     `;
+    });
+    html += `</div>`;
+   }
+
+   const active=readableTasks().filter(t=>t.status!=='Hoàn thành'),late=active.filter(isLate),today=active.filter(isToday);
+   if(late.length || today.length){
+    html += `<div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line)">
+     <h4 style="font-size:11px;font-weight:600;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.8px">Hạn công việc cần chú ý (${late.length + today.length})</h4>`;
+    if(late.length) html += `<p style="font-size:11px;color:var(--red);margin:4px 0">${icon('alert')} ${late.length} công việc đã quá hạn.</p>`;
+    if(today.length) html += `<p style="font-size:11px;color:var(--amber);margin:4px 0">${icon('clock')} ${today.length} công việc đến hạn hôm nay.</p>`;
+    html += `</div>`;
+   }
+
+   $('infoContent').innerHTML = html;
+  } catch (err) {
+   console.error('Lỗi nạp thông báo đám mây:', err);
+   $('infoContent').innerHTML = emptyState('Không thể tải thông báo', err.message || 'Vui lòng thử lại sau ít phút.', null, '', false, 'alert');
+  }
+  return;
+ }
+
  const active=readableTasks().filter(t=>t.status!=='Hoàn thành'),late=active.filter(isLate),today=active.filter(isToday),other=active.filter(t=>!isLate(t)&&!isToday(t)&&(t.priority==='Khẩn cấp'||blockers(t).length));
  $('infoTitle').textContent='Nhắc việc trong không gian';$('infoEyebrow').textContent='ĐƯỢC TÍNH TỪ CÔNG VIỆC';
  const section=(title,tasks)=>tasks.length?`<section class="notification-section"><h3>${title} · ${tasks.length}</h3>${tasks.slice(0,12).map(t=>`<button class="notification-item" data-action="open-task" data-id="${t.id}"><span class="notification-icon">${icon(isLate(t)?'alert':blockers(t).length?'link':'clock')}</span><span><strong>${esc(t.title)}</strong><small>${esc(nodeName(t.owner))} · ${esc(t.due?formatDate(t.due,true):'Chưa có hạn')}${blockers(t).length?' · Đang chờ phụ thuộc':''}</small></span></button>`).join('')}${tasks.length>12?`<p class="view-note">Đang hiển thị 12/${tasks.length} việc. Mở “Cần chú ý” để xem tất cả.</p>`:''}</section>`:'';
@@ -2244,6 +2312,80 @@ function openNotifications(){
  $('infoContent').innerHTML+='<p class="view-note">Nhắc việc cục bộ trong phạm vi được cấp, không gửi email hoặc thông báo đẩy.</p>';
  showDialog('infoDialog');
 }
+
+async function openNotificationSettings() {
+ $('infoTitle').textContent = 'Cài đặt thông báo & Nhắc việc';
+ $('infoEyebrow').textContent = 'TÙY CHỌN CÁ NHÂN';
+ 
+ try {
+  const pref = window.NotificationService ? await window.NotificationService.getPreferences() : null;
+  const perm = window.PushDeviceService ? window.PushDeviceService.getPermissionState() : 'unsupported';
+  const isPushOn = perm === 'granted';
+
+  $('infoContent').innerHTML = `
+   <section class="settings-section" style="margin-bottom:16px">
+    <h3>${icon('bell')}Thông báo đẩy PWA / Web Push</h3>
+    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
+     <div>
+      <strong>Nhận thông báo trên thiết bị này</strong>
+      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Nhận thông báo khi được giao việc, có bình luận mới hoặc đến hạn.</p>
+     </div>
+     <button class="btn small ${isPushOn ? 'soft' : 'primary'}" data-action="request-push-perm">
+      ${icon(isPushOn ? 'check' : 'bell')}${isPushOn ? 'Đã bật thông báo' : 'Bật thông báo đẩy'}
+     </button>
+    </div>
+    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
+     <div>
+      <strong>Giờ yên tĩnh (22:00 – 07:00)</strong>
+      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Tự động hoãn thông báo đẩy trong khoảng thời gian nghỉ ngơi.</p>
+     </div>
+     <button class="btn small" data-action="toggle-quiet-hours" data-enabled="${pref?.quiet_hours_enabled === true}">
+      ${pref?.quiet_hours_enabled ? 'Đang bật' : 'Đang tắt'}
+     </button>
+    </div>
+   </section>
+
+   <section class="settings-section">
+    <h3>${icon('clock')}Tạo nhắc việc cá nhân</h3>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Hệ thống sẽ gửi thông báo theo đúng thời gian bạn đã chọn.</p>
+    <div style="display:grid;gap:8px">
+     <input id="manualReminderTitle" class="field" placeholder="Nội dung cần nhắc..." maxlength="240" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
+     <input id="manualReminderTime" type="datetime-local" class="field" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
+     <button class="btn primary small" data-action="submit-manual-reminder" style="justify-self:start">${icon('plus')}Lên lịch nhắc việc</button>
+    </div>
+   </section>
+   <div style="margin-top:16px"><button class="link-btn" data-action="notifications">${icon('arrow-left')} Quay lại trung tâm thông báo</button></div>
+  `;
+ } catch (err) {
+  $('infoContent').innerHTML = emptyState('Lỗi', err.message, null, '', false, 'alert');
+ }
+ showDialog('infoDialog');
+}
+
+window.refreshNotificationBadge = async function() {
+ if (window.__worktree_is_cloud_workspace && window.NotificationService) {
+  try {
+   const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+   const unreadCount = await window.NotificationService.getUnreadCount(orgId);
+   const all = readableTasks();
+   const attentionCount = all.filter(attention).length;
+   const totalDot = unreadCount > 0 || attentionCount > 0;
+   
+   const dot = $('notificationDot');
+   if (dot) {
+    dot.hidden = !totalDot;
+    dot.textContent = unreadCount > 0 ? (unreadCount > 99 ? '99+' : String(unreadCount)) : '';
+    dot.className = unreadCount > 0 ? 'notification-badge-count' : '';
+   }
+   const bell = document.querySelector('.notification-btn');
+   if (bell) {
+    bell.setAttribute('aria-label', `Thông báo: ${unreadCount} chưa đọc, ${attentionCount} việc cần chú ý`);
+   }
+  } catch (e) {
+   console.warn('Lỗi refreshNotificationBadge:', e);
+  }
+ }
+};
 function openCalendarDay(date){
  const tasks=filteredTasks().filter(t=>t.due===date);
  $('infoTitle').textContent='Công việc ngày '+formatDate(date,true);$('infoEyebrow').textContent=tasks.length+' CÔNG VIỆC ĐẾN HẠN';
@@ -2423,6 +2565,71 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'delete-view':await deleteView(id);break;
    case 'command':openCommand();break;
    case 'notifications':openNotifications();break;
+   case 'open-cloud-notif':{
+    const notifId = el.dataset.id;
+    const taskId = el.dataset.taskId;
+    if (notifId && window.NotificationService) {
+     await window.NotificationService.markAsRead(notifId);
+     if (typeof window.refreshNotificationBadge === 'function') {
+      window.refreshNotificationBadge();
+     }
+    }
+    closeDialog('infoDialog');
+    if (taskId && byTask.has(taskId)) {
+     openTask(taskId);
+    }
+    break;
+   }
+   case 'mark-all-read':{
+    if (window.NotificationService) {
+     const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+     await window.NotificationService.markAllAsRead(orgId);
+     toast('Đã đánh dấu tất cả thông báo là đã đọc');
+     if (typeof window.refreshNotificationBadge === 'function') {
+      window.refreshNotificationBadge();
+     }
+     await openNotifications();
+    }
+    break;
+   }
+   case 'notif-settings':await openNotificationSettings();break;
+   case 'request-push-perm':{
+    if (window.PushDeviceService) {
+     const granted = await window.PushDeviceService.requestPermission();
+     toast(granted ? 'Đã bật thông báo đẩy Web Push' : 'Chưa cấp quyền thông báo');
+     await openNotificationSettings();
+    }
+    break;
+   }
+   case 'toggle-quiet-hours':{
+    if (window.NotificationService) {
+     const enabled = el.dataset.enabled === 'true';
+     await window.NotificationService.updatePreferences({ quiet_hours_enabled: !enabled });
+     toast(!enabled ? 'Đã bật Giờ yên tĩnh (22h–07h)' : 'Đã tắt Giờ yên tĩnh');
+     await openNotificationSettings();
+    }
+    break;
+   }
+   case 'submit-manual-reminder':{
+    const title = $('manualReminderTitle')?.value?.trim();
+    const time = $('manualReminderTime')?.value;
+    if(!title || !time){
+     toast('Vui lòng nhập nội dung và thời gian nhắc.', 'error');
+     break;
+    }
+    const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+    const a = currentAccount();
+    if(window.NotificationService && orgId && a?.id){
+     await window.NotificationService.createManualReminder(orgId, {
+      recipientUserId: a.id,
+      title,
+      scheduledFor: new Date(time).toISOString()
+     });
+     toast('Đã lên lịch nhắc việc');
+     await openNotifications();
+    }
+    break;
+   }
    case 'calendar-day':openCalendarDay(el.dataset.date);break;
    case 'help':openHelp();break;
    case 'theme':toggleTheme();break;

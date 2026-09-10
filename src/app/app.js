@@ -20,9 +20,12 @@ import { PinService } from '../features/pins/index.js';
 import { SavedViewService } from '../features/saved-views/index.js';
 import { AttachmentService } from '../features/attachments/index.js';
 import { RealtimeService } from '../features/realtime/index.js';
+import { NotificationService, PushDeviceService } from '../features/notifications/index.js';
 
 if (typeof window !== 'undefined') {
   window.RealtimeService = RealtimeService;
+  window.NotificationService = NotificationService;
+  window.PushDeviceService = PushDeviceService;
 }
 
 let authViewInstance = null;
@@ -524,6 +527,41 @@ export async function bootstrapAuthenticatedUser(user, session) {
     window.__worktree_supabase_user = initialAdapter;
     updateUserProfileUI(initialAdapter);
 
+    // STEP 11: Khởi tạo lắng nghe kênh riêng tư thông báo người dùng: user:<uuid>:notifications
+    try {
+      await RealtimeService.subscribeUserNotifications(user.id, {
+        onNotificationChange: async (payload) => {
+          console.info('[Notification Realtime] Thay đổi bản ghi thông báo:', payload.eventType);
+          if (typeof window.refreshNotificationBadge === 'function') {
+            await window.refreshNotificationBadge();
+          }
+        },
+        onBroadcastNotification: (payload) => {
+          console.info('[Notification Realtime] Push broadcast nhận được:', payload?.title);
+          if (typeof window.toast === 'function' && payload?.title) {
+            window.toast(`🔔 ${payload.title}: ${payload.body || ''}`);
+          }
+          if (typeof window.refreshNotificationBadge === 'function') {
+            window.refreshNotificationBadge();
+          }
+        },
+        onSubscribed: (topic) => {
+          console.info('[Notification Realtime] Đã kết nối kênh thông báo cá nhân:', topic);
+        }
+      });
+
+      // Khởi tạo OneSignal Web Push / PWA
+      if (typeof PushDeviceService.initOneSignal === 'function') {
+        PushDeviceService.initOneSignal().catch(err => console.warn('[Push] init error:', err));
+        PushDeviceService.loginUser(user.id).catch(err => console.warn('[Push] login error:', err));
+      }
+      if (typeof window.refreshNotificationBadge === 'function') {
+        window.refreshNotificationBadge().catch(() => {});
+      }
+    } catch (notifErr) {
+      console.warn('[Bootstrap] Không thể đăng ký Realtime thông báo:', notifErr);
+    }
+
     // 3. Xử lý các trường hợp Onboarding / Auto-select / Multi-org
     if (memberships.length === 0) {
       // CASE A: 0 organizations -> Onboarding state
@@ -704,6 +742,7 @@ export async function bootstrapApp() {
 
   window.supabaseSignOut = async () => {
     try {
+      await PushDeviceService.logoutUser().catch(() => {});
       await RealtimeService.cleanupAll();
       await AuthService.signOut();
     } catch (err) {
@@ -834,6 +873,8 @@ if (typeof window !== 'undefined') {
   window.SavedViewService = SavedViewService;
   window.AttachmentRepository = AttachmentRepository;
   window.AttachmentService = AttachmentService;
+  window.NotificationService = NotificationService;
+  window.PushDeviceService = PushDeviceService;
 }
 
 // Tự khởi chạy khi file được nạp
