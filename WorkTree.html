@@ -5040,23 +5040,29 @@ async function openNotifications(){
   showDialog('infoDialog');
 
   try {
-   const [notifications, unreadCount] = await Promise.all([
-    window.NotificationService.getNotifications(orgId, { limit: 30 }),
-    window.NotificationService.getUnreadCount(orgId)
-   ]);
+    if (orgId) {
+     await window.NotificationService.processDueReminders(orgId).catch(() => {});
+    }
+    const [notifications, unreadCount, reminders] = await Promise.all([
+     window.NotificationService.getNotifications(orgId, { limit: 30 }),
+     window.NotificationService.getUnreadCount(orgId),
+     window.NotificationService.getManualReminders(orgId).catch(() => [])
+    ]);
+    const pendingReminders = (reminders || []).filter(r => r.status === 'pending');
 
-   let html = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
-     <div style="display:flex;align-items:center;gap:6px">
-      <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-weight:600">${notifications.length} thông báo</span>
-      ${unreadCount > 0 ? `<span class="tag" style="background:var(--red-soft);color:var(--red)">${unreadCount} chưa đọc</span>` : ''}
+    let html = `
+     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+       <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-weight:600">${notifications.length} thông báo</span>
+       ${unreadCount > 0 ? `<span class="tag" style="background:var(--red-soft);color:var(--red)">${unreadCount} chưa đọc</span>` : ''}
+       ${pendingReminders.length > 0 ? `<button class="tag" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
+      </div>
+      <div style="display:flex;gap:6px">
+       ${unreadCount > 0 ? `<button class="btn small" data-action="mark-all-read">${icon('check')}Đã đọc tất cả</button>` : ''}
+       <button class="btn small" data-action="notif-settings">${icon('clock')}Lịch nhắc & Cài đặt</button>
+      </div>
      </div>
-     <div style="display:flex;gap:6px">
-      ${unreadCount > 0 ? `<button class="btn small" data-action="mark-all-read">${icon('check')}Đã đọc tất cả</button>` : ''}
-      <button class="btn small" data-action="notif-settings">${icon('settings')}Cài đặt thông báo</button>
-     </div>
-    </div>
-   `;
+    `;
 
    if(notifications.length === 0){
     html += emptyState('Không có thông báo mới', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
@@ -5114,11 +5120,94 @@ async function openNotificationSettings() {
  $('infoEyebrow').textContent = 'TÙY CHỌN CÁ NHÂN';
  
  try {
+  const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+  if (window.NotificationService && orgId) {
+   await window.NotificationService.processDueReminders(orgId).catch(() => {});
+  }
   const pref = window.NotificationService ? await window.NotificationService.getPreferences() : null;
   const perm = window.PushDeviceService ? window.PushDeviceService.getPermissionState() : 'unsupported';
   const isPushOn = perm === 'granted';
   const badgeStyle = localStorage.getItem('wtx_notif_badge_style') || 'number';
   const isDotOnly = badgeStyle === 'dot';
+
+  const reminders = (window.NotificationService && orgId) 
+   ? await window.NotificationService.getManualReminders(orgId).catch(() => [])
+   : [];
+
+  const pendingReminders = reminders.filter(r => r.status === 'pending');
+  const completedReminders = reminders.filter(r => r.status === 'completed');
+
+  let reminderListHtml = '';
+  if (reminders.length === 0) {
+   reminderListHtml = `
+    <div style="text-align:center;padding:22px 14px;border-radius:10px;border:1px dashed var(--line);background:var(--surface-2);color:var(--muted);font-size:11px;line-height:1.6">
+     <div style="font-size:20px;margin-bottom:4px">📅</div>
+     <strong>Chưa có lịch nhắc việc nào được tạo</strong>
+     <p style="margin:2px 0 0">Hãy điền nội dung và thời gian ở trên để hệ thống tự động thông báo và đổ chuông.</p>
+    </div>
+   `;
+  } else {
+   reminderListHtml = `<div style="display:grid;gap:8px;max-height:280px;overflow:auto;padding-right:2px">`;
+   reminders.forEach(r => {
+    const isPending = r.status === 'pending';
+    const isCompleted = r.status === 'completed';
+    const scheduledDate = new Date(r.scheduled_for);
+    const dateStr = !isNaN(scheduledDate.getTime())
+     ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ }).format(scheduledDate)
+     : r.scheduled_for;
+
+    let timeRel = '';
+    if (!isNaN(scheduledDate.getTime())) {
+     const diffMs = scheduledDate.getTime() - Date.now();
+     if (diffMs > 0) {
+      const diffMins = Math.round(diffMs / 60000);
+      if (diffMins < 60) timeRel = `(còn ${diffMins} phút)`;
+      else if (diffMins < 1440) {
+       const diffHours = Math.round(diffMins / 60);
+       timeRel = `(còn ~${diffHours} giờ)`;
+      } else {
+       const diffDays = Math.round(diffMins / 1440);
+       timeRel = `(còn ~${diffDays} ngày)`;
+      }
+     } else {
+      timeRel = isCompleted ? '(đã nhắc)' : '(đã đến giờ)';
+     }
+    }
+
+    const statusBadge = isPending
+     ? `<span class="tag" style="background:var(--amber-soft);color:var(--amber);font-size:9.5px;font-weight:600">Đang chờ</span>`
+     : isCompleted
+     ? `<span class="tag" style="background:var(--green-soft);color:var(--green);font-size:9.5px;font-weight:600">Đã gửi</span>`
+     : `<span class="tag" style="background:var(--surface-3);color:var(--muted);font-size:9.5px">Đã hủy</span>`;
+
+    reminderListHtml += `
+     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;border:1px solid ${isPending ? 'var(--line-strong)' : 'var(--line)'};background:${isPending ? 'var(--surface-2)' : 'var(--surface)'};gap:10px">
+      <div style="min-width:0;flex:1">
+       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+        <strong style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</strong>
+        ${statusBadge}
+       </div>
+       <div style="font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center">${icon('clock')}</span>
+        <span>${dateStr}</span>
+        ${timeRel ? `<span style="color:${isPending ? 'var(--amber)' : 'var(--muted)'};font-weight:${isPending ? '600' : '400'}">${timeRel}</span>` : ''}
+       </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+       ${isPending ? `
+        <button class="btn small" data-action="cancel-manual-reminder" data-id="${r.id}" title="Hủy lịch nhắc này">
+         ${icon('x')}Hủy
+        </button>
+       ` : ''}
+       <button class="icon-btn small" data-action="delete-manual-reminder" data-id="${r.id}" title="Xóa lịch nhắc" style="color:var(--muted)">
+        ${icon('trash')}
+       </button>
+      </div>
+     </div>
+    `;
+   });
+   reminderListHtml += `</div>`;
+  }
 
   $('infoContent').innerHTML = `
    <section class="settings-section" style="margin-bottom:16px">
@@ -5175,14 +5264,33 @@ async function openNotificationSettings() {
     </div>
    </section>
 
-   <section class="settings-section">
+   <section class="settings-section" style="margin-bottom:16px">
     <h3>${icon('clock')}Tạo nhắc việc cá nhân</h3>
-    <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Hệ thống sẽ gửi thông báo theo đúng thời gian bạn đã chọn.</p>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Hệ thống sẽ gửi thông báo và đổ chuông theo đúng thời gian bạn đã chọn.</p>
     <div style="display:grid;gap:8px">
-     <input id="manualReminderTitle" class="field" placeholder="Nội dung cần nhắc..." maxlength="240" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
-     <input id="manualReminderTime" type="datetime-local" class="field" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
+     <input id="manualReminderTitle" class="field" placeholder="Nội dung cần nhắc (ví dụ: Họp giao ban, nộp báo cáo...)" maxlength="240" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
+     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="manualReminderTime" type="datetime-local" class="field" style="flex:1;min-width:180px;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+       <button class="btn small" data-action="quick-reminder-time" data-minutes="15" title="Hẹn sau 15 phút">+15p</button>
+       <button class="btn small" data-action="quick-reminder-time" data-minutes="30" title="Hẹn sau 30 phút">+30p</button>
+       <button class="btn small" data-action="quick-reminder-time" data-minutes="60" title="Hẹn sau 1 giờ">+1h</button>
+       <button class="btn small" data-action="quick-reminder-time" data-preset="tomorrow_morning" title="Hẹn 08:30 sáng mai">Sáng mai</button>
+      </div>
+     </div>
      <button class="btn primary small" data-action="submit-manual-reminder" style="justify-self:start">${icon('plus')}Lên lịch nhắc việc</button>
     </div>
+   </section>
+
+   <section class="settings-section" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+     <h3 style="margin:0">${icon('calendar')}Lịch nhắc hẹn cá nhân (${reminders.length})</h3>
+     <div style="display:flex;gap:6px">
+      <span class="tag" style="background:var(--amber-soft);color:var(--amber);font-size:10px">${pendingReminders.length} đang chờ</span>
+      <span class="tag" style="background:var(--green-soft);color:var(--green);font-size:10px">${completedReminders.length} đã nhắc</span>
+     </div>
+    </div>
+    ${reminderListHtml}
    </section>
    <div style="margin-top:16px"><button class="link-btn" data-action="notifications">${icon('arrow-left')} Quay lại trung tâm thông báo</button></div>
   `;
@@ -5499,16 +5607,73 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      toast('Vui lòng nhập nội dung và thời gian nhắc.', 'error');
      break;
     }
+    const targetDate = new Date(time);
+    if(isNaN(targetDate.getTime())){
+     toast('Thời gian nhắc việc không hợp lệ.', 'error');
+     break;
+    }
     const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
     const a = currentAccount();
     if(window.NotificationService && orgId && a?.id){
-     await window.NotificationService.createManualReminder(orgId, {
-      recipientUserId: a.id,
-      title,
-      scheduledFor: new Date(time).toISOString()
-     });
-     toast('Đã lên lịch nhắc việc');
-     await openNotifications();
+     try {
+      await window.NotificationService.createManualReminder(orgId, {
+       recipientUserId: a.id,
+       title,
+       scheduledFor: targetDate.toISOString()
+      });
+      toast(`Đã lên lịch nhắc: "${title}"`);
+      await window.NotificationService.processDueReminders(orgId);
+      await openNotificationSettings();
+     } catch (err) {
+      console.error('Lỗi tạo nhắc hẹn:', err);
+      toast(err.message || 'Không thể tạo lịch nhắc.', 'error');
+     }
+    } else {
+     toast('Chưa kết nối tài khoản đám mây để lên lịch nhắc.', 'error');
+    }
+    break;
+   }
+   case 'quick-reminder-time':{
+    const minutes = parseInt(el.dataset.minutes, 10);
+    const preset = el.dataset.preset;
+    const input = $('manualReminderTime');
+    if(!input) break;
+    const now = new Date();
+    if(preset === 'tomorrow_morning'){
+     now.setDate(now.getDate() + 1);
+     now.setHours(8, 30, 0, 0);
+    } else if(minutes) {
+     now.setMinutes(now.getMinutes() + minutes);
+    }
+    const pad = n => String(n).padStart(2, '0');
+    const localIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    input.value = localIso;
+    input.focus();
+    break;
+   }
+   case 'cancel-manual-reminder':{
+    const id = el.dataset.id;
+    if(window.NotificationService && id){
+     try {
+      await window.NotificationService.cancelManualReminder(id);
+      toast('Đã hủy nhắc việc');
+      await openNotificationSettings();
+     } catch (err) {
+      toast(err.message || 'Không thể hủy nhắc việc.', 'error');
+     }
+    }
+    break;
+   }
+   case 'delete-manual-reminder':{
+    const id = el.dataset.id;
+    if(window.NotificationService && id){
+     try {
+      await window.NotificationService.deleteManualReminder(id);
+      toast('Đã xóa nhắc việc');
+      await openNotificationSettings();
+     } catch (err) {
+      toast(err.message || 'Không thể xóa nhắc việc.', 'error');
+     }
     }
     break;
    }
@@ -5761,7 +5926,25 @@ function boot(){
  applyTheme();applySidebar();syncFilters(true);renderAll(true);
  if(!lastRaw&&!storageProtected)persistData();else renderStorage();
  if(migrationMessage)setTimeout(()=>toast(migrationMessage),300);
- let tick=0;setInterval(()=>{if(state.timer)$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());if(++tick%30===0)checkDate();},1000);
+ let tick=0;setInterval(()=>{
+  if(state.timer)$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());
+  if(++tick%15===0){
+   checkDate();
+   if(window.__worktree_is_cloud_workspace && window.NotificationService){
+    const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+    if(orgId){
+     window.NotificationService.processDueReminders(orgId).then(res=>{
+      if(res && res.processed > 0){
+       if(typeof window.playNotificationSound === 'function') window.playNotificationSound();
+       if(navigator.vibrate) navigator.vibrate([150, 100, 200]);
+       (res.reminders || []).forEach(r => toast(`🔔 Đến giờ nhắc: ${r.title}`));
+       if(typeof window.refreshNotificationBadge === 'function') window.refreshNotificationBadge();
+      }
+     }).catch(()=>{});
+    }
+   }
+  }
+ },1000);
   window.WorkTree=Object.freeze({version:APP_VERSION,exportJSON,getSnapshot:()=>clone(data),validate:input=>validateData(input)});
 }
 window.clearTenantUI=function(orgName){

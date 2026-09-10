@@ -217,5 +217,71 @@ export const NotificationService = {
 
     if (error) throw error;
     return data;
+  },
+
+  /**
+   * Lấy danh sách lịch nhắc hẹn cá nhân.
+   */
+  async getManualReminders(orgId = null, { status = null } = {}) {
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return [];
+
+    let query = sb
+      .from('manual_reminders')
+      .select('*')
+      .or(`creator_user_id.eq.${user.id},recipient_user_id.eq.${user.id}`)
+      .order('scheduled_for', { ascending: false });
+
+    if (orgId) {
+      query = query.eq('organization_id', orgId);
+    }
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Xóa một nhắc việc cá nhân.
+   */
+  async deleteManualReminder(reminderId) {
+    if (!reminderId) return;
+    const sb = await getSupabase();
+    const { error } = await sb
+      .from('manual_reminders')
+      .delete()
+      .eq('id', reminderId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Quét và xử lý các nhắc việc đã đến hạn (scheduled_for <= now()).
+   * Chuyển thành thông báo trong quả chuông và trả về danh sách được xử lý.
+   */
+  async processDueReminders(orgId = null) {
+    if (!orgId) return { processed: 0, reminders: [] };
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return { processed: 0, reminders: [] };
+
+    try {
+      const { data, error } = await sb.rpc('process_due_manual_reminders', {
+        p_org_id: orgId
+      });
+      if (error) {
+        console.warn('[Reminders] RPC process_due_manual_reminders warning:', error);
+        return { processed: 0, reminders: [] };
+      }
+      return data || { processed: 0, reminders: [] };
+    } catch (err) {
+      console.warn('[Reminders] Lỗi xử lý nhắc việc đến hạn:', err);
+      return { processed: 0, reminders: [] };
+    }
   }
 };
+
