@@ -160,5 +160,41 @@ export const EmployeeService = {
       await InvitationRepository.revokeEmployeeInvitation(organizationId, employeeId);
     }
     return true;
+  },
+
+  /**
+   * Update an existing employee's profile and department.
+   */
+  async updateEmployee({
+    organizationId,
+    employeeId,
+    fullName,
+    email = null,
+    employeeCode = null,
+    jobTitle = null,
+    homeNodeId,
+    employmentStatus = 'active'
+  }) {
+    if (!employeeId) throw new Error('Thiếu ID nhân sự');
+    if (!fullName || !fullName.trim()) throw new Error('Họ và tên nhân viên là bắt buộc');
+    if (!homeNodeId) throw new Error('Phòng ban trực thuộc là bắt buộc');
+
+    const cleanEmail = email && email.trim() ? email.trim().toLowerCase() : null;
+    if (cleanEmail) {
+      const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+      if (!emailRegex.test(cleanEmail)) throw new Error('Định dạng email không hợp lệ');
+    }
+
+    const updated = await EmployeeRepository.updateEmployee(employeeId, {
+      full_name: fullName.trim(),
+      email: cleanEmail,
+      employee_code: employeeCode && employeeCode.trim() ? employeeCode.trim() : null,
+      job_title: jobTitle && jobTitle.trim() ? jobTitle.trim() : null,
+      home_node_id: homeNodeId,
+      employment_status: employmentStatus
+    });
+
+    return updated;
   }
 };
+
