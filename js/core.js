@@ -1241,19 +1241,19 @@ function renderDrawer(){
    return `<button class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button>`;
   }).join('');
  }else{
-  dependenciesHTML='<p class="muted" style="font-size:11px">Không có liên kết phụ thuộc.</p>';
+  dependenciesHTML='<p class="muted" style="font-size:11px;margin:0 0 10px">Chưa có liên kết phụ thuộc.</p>';
  }
 
  // Add inline dependency form for Cloud mode
  const existingDepIds=new Set(isCloud?(detail.dependencies||[]).map(d=>d.depends_on_task_id):t.dependencies);
  const availableDeps=readableTasks().filter(x=>x.id!==t.id&&!existingDepIds.has(x.id));
  const dependencyFormHTML=availableDeps.length?`
-  <form id="dependencyForm" class="inline-form" style="margin-top:8px">
-   <select id="newDepTask" style="flex:1;min-width:180px;height:32px;font-size:11px" aria-label="Chọn công việc cần phụ thuộc">
-    <option value="">-- Thêm công việc phụ thuộc --</option>
+  <form id="dependencyForm" class="inline-form">
+   <select id="newDepTask" aria-label="Chọn công việc cần phụ thuộc">
+    <option value="">Chọn công việc cần phụ thuộc...</option>
     ${availableDeps.map(x=>`<option value="${x.id}">${esc(x.title)} · ${esc(x.status)}</option>`).join('')}
    </select>
-   <button class="btn small" type="submit">${icon('plus')}Liên kết</button>
+   <button class="btn" type="submit">${icon('plus')}Liên kết</button>
   </form>`:'';
 
  // Logs HTML
@@ -1345,7 +1345,7 @@ function renderDrawer(){
   <section class="drawer-section"><h3>Bình luận <small>${currentComments.length} bình luận ${isCloud?'trên đám mây':'cục bộ'}</small></h3>${commentsHTML}<form id="commentForm" class="comment-compose"><textarea id="commentText" required maxlength="5000" placeholder="Ghi lại trao đổi, quyết định hoặc lưu ý..." aria-label="Nội dung bình luận"></textarea><div><small>${isCloud?'Lưu đám mây':'Chỉ lưu cục bộ'} · Ctrl/Cmd + Enter để gửi</small><button class="btn primary small" type="submit">${icon('message')}Gửi bình luận</button></div></form></section>
   <section class="drawer-section">
    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <h3 style="margin:0">Tệp đính kèm <small>${currentAttachments.length} tệp ${isCloud?'trên đám mây':''}</small></h3>
+    <h3 style="margin:0;display:inline-flex;align-items:baseline;gap:8px">Tệp đính kèm <small>${currentAttachments.length} tệp ${isCloud?'trên đám mây':''}</small></h3>
     ${canCollab?`<button class="btn small" type="button" data-action="pick-attachment" data-id="${t.id}">${icon('upload')}Tải tệp lên</button>`:''}
    </div>
    <input type="file" id="taskAttachmentInput" style="display:none" data-task-id="${t.id}">

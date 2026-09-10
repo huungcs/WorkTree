@@ -1105,7 +1105,7 @@ function applyPermissionUI(){
   el.disabled=el.hasAttribute('data-owner-task')||el.hasAttribute('data-priority-task')?!canManageTask(t):!canUpdateTask(t);
  });
  const t=byTask.get(drawerId);if(t){
-  for(const id of ['checklistForm','commentForm','logForm'])if($(id))$(id).hidden=!canUpdateTask(t);
+  for(const id of ['checklistForm','commentForm','logForm','dependencyForm'])if($(id))$(id).hidden=!canUpdateTask(t);
   if($('drawerAutoProgress'))$('drawerAutoProgress').disabled=!canUpdateTask(t);
   $$('#drawerContent [data-action="delete-comment"]').forEach(b=>{const c=t.comments.find(c=>String(c.id)===String(b.dataset.comment));b.hidden=!canUpdateTask(t)||a.role==='member'&&c?.authorId!==a.personId;});
  }

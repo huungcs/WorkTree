@@ -505,8 +505,8 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .field .required{color:var(--red);display:contents}
 .field input:not([type="checkbox"]):not([type="radio"]),.field select,.field textarea{width:100%;min-width:0;border:1px solid var(--line-strong);border-radius:7px;padding:9px 10px;font-size:12px;font-weight:400;box-shadow:0 1px 2px #00000002}
 .field textarea{resize:vertical;min-height:70px}
-.field input:not([type="checkbox"]):not([type="radio"]):focus,.field select:focus,.field textarea:focus{border-color:var(--primary)}
-.field-hint{display:block;font-size:10px;color:var(--muted);line-height:1.7;font-weight:400;margin:0}
+.field-hint{display:block;font-size:10px;color:var(--muted);line-height:1.7;font-weight:400;margin:3px 0 0}
+.field + .field-hint,.field + p.muted,.field + p,#nameDialog .field-hint,#nameDialog p.muted{margin-top:12px}
 .field select[multiple]{padding:4px}
 .field select[multiple] option{padding:6px 7px;border-radius:3px}
 .form-details{border-top:1px solid var(--line);padding-top:14px}
@@ -543,7 +543,7 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .drawer-meta select{padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:10px;max-width:210px}
 .drawer-meta .progress-wrap{max-width:220px}
 .drawer-section{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
-.drawer-section h3{font-size:12px;font-weight:600;margin:0 0 11px;display:flex;align-items:center;justify-content:space-between}
+.drawer-section h3{font-size:12px;font-weight:600;margin:0 0 11px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .drawer-section h3 small{font-weight:400;font-size:10px;color:var(--muted)}
 .drawer-description{font-size:12px;line-height:1.85;color:var(--subtle);white-space:pre-wrap;overflow-wrap:anywhere}
 .drawer-note{padding:11px 12px;display:flex;align-items:flex-start;gap:8px;border-radius:8px;background:var(--amber-soft);color:var(--amber);font-size:11px;margin:18px 0 0}
@@ -556,7 +556,9 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .checklist-row:hover .icon-btn,.checklist-row .icon-btn:focus-visible{opacity:1}
 .checklist-row .icon-btn svg{width:13px;height:13px}
 .inline-form{display:flex;align-items:center;gap:7px;margin-top:11px}
-.inline-form input{min-width:0;flex:1;padding:8px 9px;border:1px solid var(--line-strong);border-radius:6px;font-size:11px}
+.inline-form input,.inline-form select{min-width:0;flex:1;padding:8px 9px;border:1px solid var(--line-strong);border-radius:6px;font-size:11px;background:var(--surface);color:var(--text);height:33px;box-sizing:border-box}
+.inline-form select{cursor:pointer}
+.inline-form input:focus,.inline-form select:focus{border-color:var(--primary);outline:none}
 .inline-form .btn{font-size:10px;min-height:33px;padding:7px 10px}
 .dependency-item{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;width:100%;background:var(--surface-2);text-align:left;font-size:11px;margin-bottom:7px}
 .dependency-item svg{width:14px;height:14px}
@@ -986,7 +988,7 @@ dialog.mobile-only:not([open]){display:none!important}
  .dialog .dialog-foot,#accountForm .dialog-foot{flex-shrink:0;background:var(--surface);padding:12px 16px calc(12px + var(--m-safe));gap:9px;min-width:0}.dialog-foot>.btn{min-height:48px;font-size:14px}.dialog-foot>.btn.primary{flex:1}.dialog-foot .foot-hint{display:none}
  .form-grid{grid-template-columns:minmax(0,1fr);gap:18px}.form-grid>.field,.field.third,.field.full,.form-grid>.full{grid-column:1/-1;min-width:0}
  .field,#accountForm .form-grid>.field{font-size:13px;gap:8px}
- .field input:not([type=checkbox]):not([type=radio]),.field select,.field textarea,#accountForm .field input:not([type=checkbox]):not([type=radio]),#accountForm .field select,.inline-form input,.comment-compose textarea,.access-search input,.auth-fields input,.auth-fields select{font-size:16px;min-height:48px;border-radius:10px}
+ .field input:not([type=checkbox]):not([type=radio]),.field select,.field textarea,#accountForm .field input:not([type=checkbox]):not([type=radio]),#accountForm .field select,.inline-form input,.inline-form select,.comment-compose textarea,.access-search input,.auth-fields input,.auth-fields select{font-size:16px;min-height:48px;border-radius:10px}
  .field textarea{min-height:110px;line-height:1.6}.field-hint,#accountForm .field-hint{font-size:12px;line-height:1.65}
  .checkbox-label{min-height:48px;font-size:13px;gap:10px;line-height:1.6;cursor:pointer;align-items:center}.checkbox-label input{width:20px;height:20px;flex-shrink:0}
  .field input[type=checkbox],#accountForm input[type=checkbox]{height:20px;width:20px;min-width:20px;max-width:20px;flex:0 0 20px}
@@ -1351,7 +1353,7 @@ dialog.mobile-only:not([open]){display:none!important}
 <dialog id="settingsDialog" class="dialog settings-dialog" aria-labelledby="settingsTitle"><div class="dialog-head"><div><p class="overline">THEO CÁCH CỦA BẠN</p><h2 id="settingsTitle">Cài đặt không gian</h2></div><button class="icon-btn" data-action="close" data-dialog="settingsDialog" aria-label="Đóng cài đặt" data-icon="x"></button></div><div id="settingsContent" class="dialog-scroll"></div></dialog>
 <dialog id="infoDialog" class="dialog info-dialog" aria-labelledby="infoTitle"><div class="dialog-head"><div><p class="overline" id="infoEyebrow">WORKTREE X</p><h2 id="infoTitle">Thông tin</h2></div><button class="icon-btn" data-action="close" data-dialog="infoDialog" aria-label="Đóng cửa sổ" data-icon="x"></button></div><div id="infoContent" class="dialog-scroll"></div></dialog>
 <dialog id="confirmDialog" class="dialog confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmText"><div class="confirm-icon" id="confirmIcon" data-icon="alert"></div><h2 id="confirmTitle">Xác nhận thao tác</h2><p id="confirmText"></p><div id="confirmExtra"></div><div class="dialog-foot"><button class="btn" id="confirmCancel">Hủy</button><button class="btn primary" id="confirmOk">Xác nhận</button></div></dialog>
-<dialog id="nameDialog" class="dialog small-dialog" aria-labelledby="nameDialogTitle"><form id="nameForm"><div class="dialog-head"><h2 id="nameDialogTitle">Lưu góc nhìn</h2><button type="button" class="icon-btn" data-action="close" data-dialog="nameDialog" aria-label="Đóng lưu góc nhìn" data-icon="x"></button></div><div class="dialog-scroll"><label class="field">Tên góc nhìn<input id="savedViewName" required maxlength="60" placeholder="Ví dụ: Công việc gấp của đội Sales"></label><p class="muted">Lưu đơn vị, chế độ xem, tìm kiếm và các bộ lọc hiện tại.</p></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="nameDialog">Hủy</button><button type="submit" class="btn primary">Lưu góc nhìn</button></div></form></dialog>
+<dialog id="nameDialog" class="dialog small-dialog" aria-labelledby="nameDialogTitle"><form id="nameForm"><div class="dialog-head"><h2 id="nameDialogTitle">Lưu góc nhìn</h2><button type="button" class="icon-btn" data-action="close" data-dialog="nameDialog" aria-label="Đóng lưu góc nhìn" data-icon="x"></button></div><div class="dialog-scroll"><label class="field">Tên góc nhìn<input id="savedViewName" required maxlength="60" placeholder="Ví dụ: Công việc gấp của đội Sales"></label><p class="field-hint" style="margin-top:12px">Lưu đơn vị, chế độ xem, tìm kiếm và các bộ lọc hiện tại.</p></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="nameDialog">Hủy</button><button type="submit" class="btn primary">Lưu góc nhìn</button></div></form></dialog>
 <input type="file" id="importFile" accept=".json,application/json" hidden>
 <div id="timerDock" class="timer-dock" hidden></div>
 <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="false"></div>
@@ -2602,19 +2604,19 @@ function renderDrawer(){
    return `<button class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button>`;
   }).join('');
  }else{
-  dependenciesHTML='<p class="muted" style="font-size:11px">Không có liên kết phụ thuộc.</p>';
+  dependenciesHTML='<p class="muted" style="font-size:11px;margin:0 0 10px">Chưa có liên kết phụ thuộc.</p>';
  }
 
  // Add inline dependency form for Cloud mode
  const existingDepIds=new Set(isCloud?(detail.dependencies||[]).map(d=>d.depends_on_task_id):t.dependencies);
  const availableDeps=readableTasks().filter(x=>x.id!==t.id&&!existingDepIds.has(x.id));
  const dependencyFormHTML=availableDeps.length?`
-  <form id="dependencyForm" class="inline-form" style="margin-top:8px">
-   <select id="newDepTask" style="flex:1;min-width:180px;height:32px;font-size:11px" aria-label="Chọn công việc cần phụ thuộc">
-    <option value="">-- Thêm công việc phụ thuộc --</option>
+  <form id="dependencyForm" class="inline-form">
+   <select id="newDepTask" aria-label="Chọn công việc cần phụ thuộc">
+    <option value="">Chọn công việc cần phụ thuộc...</option>
     ${availableDeps.map(x=>`<option value="${x.id}">${esc(x.title)} · ${esc(x.status)}</option>`).join('')}
    </select>
-   <button class="btn small" type="submit">${icon('plus')}Liên kết</button>
+   <button class="btn" type="submit">${icon('plus')}Liên kết</button>
   </form>`:'';
 
  // Logs HTML
@@ -2706,7 +2708,7 @@ function renderDrawer(){
   <section class="drawer-section"><h3>Bình luận <small>${currentComments.length} bình luận ${isCloud?'trên đám mây':'cục bộ'}</small></h3>${commentsHTML}<form id="commentForm" class="comment-compose"><textarea id="commentText" required maxlength="5000" placeholder="Ghi lại trao đổi, quyết định hoặc lưu ý..." aria-label="Nội dung bình luận"></textarea><div><small>${isCloud?'Lưu đám mây':'Chỉ lưu cục bộ'} · Ctrl/Cmd + Enter để gửi</small><button class="btn primary small" type="submit">${icon('message')}Gửi bình luận</button></div></form></section>
   <section class="drawer-section">
    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <h3 style="margin:0">Tệp đính kèm <small>${currentAttachments.length} tệp ${isCloud?'trên đám mây':''}</small></h3>
+    <h3 style="margin:0;display:inline-flex;align-items:baseline;gap:8px">Tệp đính kèm <small>${currentAttachments.length} tệp ${isCloud?'trên đám mây':''}</small></h3>
     ${canCollab?`<button class="btn small" type="button" data-action="pick-attachment" data-id="${t.id}">${icon('upload')}Tải tệp lên</button>`:''}
    </div>
    <input type="file" id="taskAttachmentInput" style="display:none" data-task-id="${t.id}">
@@ -5343,7 +5345,7 @@ function applyPermissionUI(){
   el.disabled=el.hasAttribute('data-owner-task')||el.hasAttribute('data-priority-task')?!canManageTask(t):!canUpdateTask(t);
  });
  const t=byTask.get(drawerId);if(t){
-  for(const id of ['checklistForm','commentForm','logForm'])if($(id))$(id).hidden=!canUpdateTask(t);
+  for(const id of ['checklistForm','commentForm','logForm','dependencyForm'])if($(id))$(id).hidden=!canUpdateTask(t);
   if($('drawerAutoProgress'))$('drawerAutoProgress').disabled=!canUpdateTask(t);
   $('#drawerContent [data-action="delete-comment"]').forEach(b=>{const c=t.comments.find(c=>String(c.id)===String(b.dataset.comment));b.hidden=!canUpdateTask(t)||a.role==='member'&&c?.authorId!==a.personId;});
  }
