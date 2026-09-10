@@ -846,6 +846,15 @@ export async function bootstrapApp() {
   });
 
   window.renderSupabaseAuth = (msg) => {
+    const authScreen = document.getElementById('authScreen');
+    const appEl = document.getElementById('app');
+    if (authScreen) authScreen.hidden = false;
+    if (appEl) {
+      appEl.hidden = true;
+      appEl.inert = true;
+    }
+    window.scrollTo(0, 0);
+
     const pendingInvite = sessionStorage.getItem('worktree_pending_invite');
     if (pendingInvite && !msg) {
       InvitationRepository.getInvitationDetails(pendingInvite).then(details => {
@@ -883,6 +892,16 @@ export async function bootstrapApp() {
       appState.organizations = [];
       appState.purgeTenantData();
       if (workspaceDialogInstance) workspaceDialogInstance.close();
+
+      const authScreen = document.getElementById('authScreen');
+      const appEl = document.getElementById('app');
+      if (authScreen) authScreen.hidden = false;
+      if (appEl) {
+        appEl.hidden = true;
+        appEl.inert = true;
+      }
+      window.scrollTo(0, 0);
+
       if (typeof window.lockWorkspace === 'function') {
         window.lockWorkspace('Đã đăng xuất.');
       } else {
@@ -899,6 +918,15 @@ export async function bootstrapApp() {
     } else {
       console.info('No active session. Checking invite & displaying Supabase Auth screen.');
       window.__worktree_supabase_user = null;
+      const authScreen = document.getElementById('authScreen');
+      const appEl = document.getElementById('app');
+      if (authScreen) authScreen.hidden = false;
+      if (appEl) {
+        appEl.hidden = true;
+        appEl.inert = true;
+      }
+      window.scrollTo(0, 0);
+
       if (inviteToken) {
         try {
           const inviteDetails = await InvitationRepository.getInvitationDetails(inviteToken);
@@ -914,6 +942,14 @@ export async function bootstrapApp() {
   } catch (err) {
     console.warn('Auth check error:', err.message);
     window.__worktree_supabase_user = null;
+    const authScreen = document.getElementById('authScreen');
+    const appEl = document.getElementById('app');
+    if (authScreen) authScreen.hidden = false;
+    if (appEl) {
+      appEl.hidden = true;
+      appEl.inert = true;
+    }
+    window.scrollTo(0, 0);
     authViewInstance.render('login', { error: AuthService.formatAuthError(err) });
   }
 
@@ -937,6 +973,16 @@ export async function bootstrapApp() {
           appState.organizations = [];
           appState.purgeTenantData();
           if (workspaceDialogInstance) workspaceDialogInstance.close();
+
+          const authScreen = document.getElementById('authScreen');
+          const appEl = document.getElementById('app');
+          if (authScreen) authScreen.hidden = false;
+          if (appEl) {
+            appEl.hidden = true;
+            appEl.inert = true;
+          }
+          window.scrollTo(0, 0);
+
           if (typeof window.lockWorkspace === 'function') {
             window.lockWorkspace('Đã đăng xuất.');
           } else {

@@ -126,6 +126,12 @@ export class AuthView {
     `;
 
     this.container.hidden = false;
+    const appEl = document.getElementById('app');
+    if (appEl) {
+      appEl.hidden = true;
+      appEl.inert = true;
+    }
+    window.scrollTo(0, 0);
     this.attachEvents();
   }
 

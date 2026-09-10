@@ -165,6 +165,8 @@ function passwordField(label,id,autocomplete='new-password'){return `<label clas
 function dialogHead(title,id,dialog,overline='WORKTREE X'){return `<div class="dialog-head"><div><p class="overline">${overline}</p><h2 id="${id}">${title}</h2></div><button type="button" class="icon-btn" data-action="close" data-dialog="${dialog}" aria-label="${T.close}">${icon('x')}</button></div>`;}
 function authError(message){const el=$('authError');if(el){el.textContent=message;el.hidden=false;}}
 function renderAuth(message=''){
+ $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
+ window.scrollTo(0,0);
  if(typeof window.renderSupabaseAuth==='function'){
   window.renderSupabaseAuth(message);
   return;
@@ -231,6 +233,8 @@ function lockWorkspace(message=T.sessionExpired){
  if(confirmResolver){confirmResolver(false);confirmResolver=null;}
  $$('dialog[open]').forEach(d=>d.close());for(const id of ['viewContent','orgTree','savedViews','drawerContent','settingsContent','infoContent','commandResults','accessContent','accountContent','profileContent','passwordContent','pinContent','pinSection'])$(id).innerHTML='';
  $('timerDock').hidden=true;$('toastRegion').innerHTML='';state.mobileOpen=false;document.body.style.overflow='';history=[];future=[];drawerDrafts.clear();state.selectedTasks.clear();commandOptions=[];
+ $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
+ window.scrollTo(0,0);
  renderAuth(message);
 }
 async function logout(){
