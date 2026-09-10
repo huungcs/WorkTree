@@ -253,7 +253,16 @@ function accountSummary(a){
  if(a.scopes&&a.scopes.length)return a.scopes.map(id=>byNode.get(id)?.name||('#'+id)).join(' / ');
  return a.organization?.name||T.allScope;
 }
-function roleDescription(r){return {admin:'Điều hành toàn bộ, cấp tài khoản, sửa cây và sao lưu.',manager:'Xem, tạo, giao và chỉnh sửa công việc trong nhánh được cấp.',member:T.memberHint,viewer:'Xem công việc trong phạm vi được cấp. Không thay đổi dữ liệu.'}[r];}
+function roleDescription(r){
+ const descriptions = {
+  owner: 'Toàn quyền điều hành tổ chức, quản lý thành viên, cơ cấu và dữ liệu.',
+  admin: 'Điều hành toàn bộ, cấp tài khoản, sửa cây và sao lưu.',
+  manager: 'Xem, tạo, giao và chỉnh sửa công việc trong nhánh được cấp.',
+  member: T.memberHint || 'Cập nhật trạng thái, checklist, ghi giờ và bình luận trên công việc được giao.',
+  viewer: 'Xem công việc trong phạm vi được cấp. Không thay đổi dữ liệu.'
+ };
+ return descriptions[r] || 'Toàn quyền trong phạm vi được cấp.';
+}
 function accessAuditHTML(){return `<p class="view-note">${T.local} · Đây không phải nhật ký chống chỉnh sửa.</p><div class="access-audit">${identity.audit.slice().reverse().map(a=>`<div><span class="access-audit-icon">${icon('shield')}</span><p><strong>${esc(a.actor)}</strong> ${esc(a.action)}<small>${esc(a.target)} · ${esc(timeAgo(a.at))}</small></p></div>`).join('')||T.noAudit}</div>`;}
 function matrixHTML(){
  const rows=[['Xem công việc','Toàn bộ','Trong nhánh','Việc được giao','Trong nhánh'],['Tạo, giao, sửa kế hoạch','yes','yes','no','no'],['Cập nhật, checklist, ghi giờ','yes','yes','Việc được giao','no'],['Xóa công việc','yes','Trong nhánh*','no','no'],['Sửa cây, cấp tài khoản','yes','no','no','no'],['Nhập / sao lưu JSON','yes','no','no','no'],['Xuất CSV theo bộ lọc','yes','yes','no','no'],[T.pins+' · '+T.personal,'yes','yes','yes','yes']];
@@ -1270,7 +1279,7 @@ async function toggleAccount(id){
 }
 function openProfile(){
  if(!requireLogin())return;const a=currentAccount();
- $('profileContent').innerHTML=`${dialogHead(T.account,'profileTitle','profileDialog')}<div class="dialog-scroll"><div class="profile-summary"><span class="avatar av-2">${esc(initials(a.name))}</span><h3>${esc(a.name)}</h3><p>@${esc(a.username)}</p><span class="role-badge role-${a.role}">${T[a.role]}</span></div><div class="profile-scope"><strong>${T.scope}</strong><p>${esc(accountSummary(a))}</p><p class="muted">${roleDescription(a.role)}</p></div><div class="profile-actions"><button class="btn" data-v8="password-change">${icon('key')}${T.changePassword}</button><button class="btn" data-v8="pins-manage">${icon('pin')}${T.managePins}</button>${isAdmin()?`<button class="btn" data-v8="access-tab" data-tab="accounts">${icon('shield')}${T.accounts}</button>`:''}<button class="btn danger" data-v8="logout">${icon('logout')}${T.logout}</button></div><p class="view-note">${T.idle}</p></div>`;
+ $('profileContent').innerHTML=`${dialogHead(T.account,'profileTitle','profileDialog')}<div class="dialog-scroll"><div class="profile-summary"><span class="avatar av-2">${esc(initials(a.name))}</span><h3>${esc(a.name)}</h3><p>@${esc(a.username)}</p><span class="role-badge role-${a.role}">${esc(T[a.role]||a.role)}</span></div><div class="profile-scope"><strong>${T.scope}</strong><p>${esc(accountSummary(a))}</p><p class="muted">${esc(roleDescription(a.role))}</p></div><div class="profile-actions"><button class="btn" data-v8="password-change">${icon('key')}${T.changePassword}</button><button class="btn" data-v8="pins-manage">${icon('pin')}${T.managePins}</button>${isAdmin()?`<button class="btn" data-v8="access-tab" data-tab="accounts">${icon('shield')}${T.accounts}</button>`:''}<button class="btn danger" data-v8="logout">${icon('logout')}${T.logout}</button></div><p class="view-note">${T.idle}</p></div>`;
  closeSidebar();showDialog('profileDialog');
 }
 function openPassword(target=null,forced=false){
