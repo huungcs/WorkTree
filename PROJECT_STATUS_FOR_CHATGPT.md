@@ -30,17 +30,17 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
 
 - **Repository Root:** `c:\Users\ASUS\Desktop\WorkTree`
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `ec62b0512ab44b76b0b4c262e319fbf285ad86ec` (main)
-- **Commit gần nhất:** `docs: finalize step 10 realtime status`
-- **Working Tree:** Sạch hoàn toàn (Clean working tree, Step 10 finalized).
+- **Current HEAD Commit:** `07262d7` (main)
+- **Commit gần nhất:** `fix(push): permanently suppress default OneSignal popup on mobile and desktop`
+- **Working Tree:** Sạch hoàn toàn (Clean working tree, Step 11 finalized & production hardened).
 - **Remote Repository:** `https://github.com/huungcs/WorkTree.git`
 - **Các Branch trong Repo:** Chỉ có nhánh `main` (`* main`).
 - **5 Commit gần nhất trong lịch sử:**
-  1. `ec62b05` - `docs: finalize step 10 realtime status`
-  2. `28c734e` - `feat(realtime): add secure multi-user realtime synchronization`
-  3. `0d52996` - `fix(deploy): configure outputDirectory for static root and remove unnecessary build script`
-  4. `b8acefc` - `chore(deploy): configure Vercel build script and cache-control headers`
-  5. `a31d2d0` - `fix(auth): preserve string UUIDs in permission checks and restore toggleComplete`
+  1. `07262d7` - `fix(push): permanently suppress default OneSignal popup on mobile and desktop`
+  2. `2f6c23a` - `fix(comments): define hashId and use getAvatarIndex for comment avatars`
+  3. `35fe8b0` - `fix(push): eliminate activation hang by prioritizing native browser notification prompt`
+  4. `7024c5f` - `fix(db): correct task_status enum comparison in handle_task_due_and_status_change trigger`
+  5. `426ae03` - `feat(notifications): redesign push notification prompt with WorkTree X design system`
 
 ---
 
@@ -650,6 +650,18 @@ c:\Users\ASUS\Desktop\WorkTree\
 3. **KB-03 (Sidebar Toggle Selector Mismatch):**
    - *Mô tả:* File `src/components/navigation/sidebar.js` gán sự kiện click vào `#sidebarToggleBtn`, trong khi nút toggle thật trong `index.html` mang class `.collapse-control` và `data-action="sidebar"`. Do đó hàm này không bắt được sự kiện nếu chạy độc lập.
    - *File:* `src/components/navigation/sidebar.js`.
+4. **[RESOLVED — Production Hotfix] KB-04 (Attachment Upload Tenant Mismatch & Auth Mapping):**
+   - *Mô tả:* Khi tải tệp đính kèm trong Task Detail Drawer, server trả về lỗi thiếu tenant hoặc vi phạm RLS `uploaded_by`. Nguyên nhân do `uploaded_by` bị gán employee ID cục bộ thay vì `auth.uid()`, và tham số `organizationId` không đồng bộ với `id`. Đã chuẩn hóa ánh xạ `auth.uid()` và tra cứu đúng UUID tổ chức.
+   - *File:* `src/features/attachments/services/attachment-service.js`, `src/lib/supabase/repositories.js`.
+5. **[RESOLVED — Production Hotfix] KB-05 (Task Status Postgres Enum & Trigger Mismatch):**
+   - *Mô tả:* Chuyển trạng thái task bị PostgreSQL từ chối với lỗi: `invalid input value for enum public.task_status: "Hoàn thành"`. Nguyên nhân do frontend gửi nhầm chuỗi tiếng Việt và trigger database `handle_task_due_and_status_change` so sánh cứng `NEW.status = 'Hoàn thành'`. Đã chuẩn hóa chuỗi enum canonical tại client và áp dụng migration `20260910153500_fix_task_status_enum_trigger.sql` trên database Supabase thật.
+   - *File:* `src/lib/supabase/repositories.js`, `supabase/migrations/20260910153500_fix_task_status_enum_trigger.sql`.
+6. **[RESOLVED — Production Hotfix] KB-06 (Push Notification Activation Hang & Slidedown Popup):**
+   - *Mô tả:* Bấm nút "Bật thông báo" bị treo vô thời hạn ở trạng thái "Đang kích hoạt...", và sau khi cho phép vẫn hiện popup tiếng Anh unstyled từ OneSignal SDK. Đã ưu tiên trực tiếp `Notification.requestPermission()` native của trình duyệt, chuyển `OneSignal.User.PushSubscription.optIn()` chạy nền phi khóa, thay thế modal xấu bằng floating card `.wtx-push-prompt` chuẩn Design System, và triệt tiêu vĩnh viễn OneSignal slidedown trên cả mobile lẫn desktop.
+   - *File:* `src/features/notifications/services/push-device-service.js`, `css/style.css`.
+7. **[RESOLVED — Production Hotfix] KB-07 (Comment Drawer Avatar ReferenceError):**
+   - *Mô tả:* Gửi bình luận trong Task Detail Drawer báo lỗi toast `hashId is not defined`. Nguyên nhân do `commentsHTML` gọi `hashId()` thay vì hàm chuẩn `getAvatarIndex()`. Đã sửa gọi `getAvatarIndex(c.authorId)` và khai báo alias fallback an toàn.
+   - *File:* `js/core.js`.
 
 ---
 
@@ -663,22 +675,27 @@ c:\Users\ASUS\Desktop\WorkTree\
 | **TD-04** | **P1** | **[RESOLVED — Step 03] Giao diện Auth đã chuyển đổi hoàn toàn:** Form đăng nhập và đăng ký đã chuyển từ xác thực cục bộ sang Supabase GoTrue Auth thật (`signInWithPassword`, `signUp`, `signOut`, `resetPasswordForEmail`). Hệ thống local PBKDF2 đã bị vô hiệu hóa khỏi production path. | `index.html`, `WorkTree.html`, `js/access.js`, `src/features/auth/`, `src/app/app.js` | Người dùng đăng nhập/đăng ký qua Supabase Cloud với đầy đủ bảo mật JWT và session token. | **ĐÃ GIẢI QUYẾT TRONG STEP 03.** |
 | **TD-05** | **P2** | **[RESOLVED — STEP 10] Tích hợp Supabase Realtime:** Đã triển khai hoàn chỉnh hạ tầng Realtime đa người dùng tại `src/features/realtime/services/realtime-service.js`. Kết hợp kênh Private Authorized (`config: { private: true }`) với các chính sách RLS trên `realtime.messages` (`is_org_member`, `can_read_task_id`), `REPLICA IDENTITY FULL` trên 8 bảng cốt lõi, và nguyên tắc Invalidation Events + Canonical Refetch. Chặn 100% rò rỉ sự kiện DELETE, UPDATE, INSERT và tấn công direct UUID subscription. | `src/features/realtime/`, `supabase/migrations/20260910100000_enable_realtime_child_tables.sql`, `supabase/migrations/20260910120000_secure_realtime_private_topics.sql` | Dữ liệu đồng bộ tức thời giữa các tab và người dùng an toàn. | **ĐÃ GIẢI QUYẾT TRONG STEP 10 (65/65 PASS).** |
 | **TD-06** | **P2** | **Thiếu Test Runner:** `package.json` chưa cài đặt Vitest/Playwright và chưa có scripts `test`, `typecheck`, `lint`. | `package.json`, `e2e/` | Không thể kiểm thử hồi quy tự động trong quy trình CI/CD. | Thêm devDependencies và script kiểm thử tự động. |
-| **TD-07** | **P2** | **[RESOLVED — Step 07] Module Comments & Child Services:** Đã triển khai đầy đủ các vertical services cho `checklists`, `dependencies`, `comments`, và `time-tracking` kết nối Supabase Cloud. `src/features/comments/services/comment-service.js` không còn là stub rỗng. Chỉ còn `notifications`, `workload` chờ triển khai. | `src/features/comments/`, `src/features/checklists/`, `src/features/dependencies/`, `src/features/time-tracking/` | Toàn bộ 4 domain bảng con đã hoạt động độc lập và có bài test tự động. | **ĐÃ GIẢI QUYẾT TRONG STEP 07.** |
+| **TD-07** | **P2** | **[RESOLVED — Step 07] Module Comments & Child Services:** Đã triển khai đầy đủ các vertical services cho `checklists`, `dependencies`, `comments`, và `time-tracking` kết nối Supabase Cloud. `src/features/comments/services/comment-service.js` không còn là stub rỗng. Chỉ còn `workload` chờ triển khai. | `src/features/comments/`, `src/features/checklists/`, `src/features/dependencies/`, `src/features/time-tracking/` | Toàn bộ 4 domain bảng con đã hoạt động độc lập và có bài test tự động. | **ĐÃ GIẢI QUYẾT TRONG STEP 07.** |
 | **TD-08** | **P3** | **Hardcoded Hex Colors:** Tồn tại 108 dòng chứa mã màu hex cố định trong `css/style.css` chưa được quy về semantic CSS variables. | `css/style.css` | Gây khó khăn cho việc tinh chỉnh theme và tiềm ẩn lệch màu trong dark mode. | Rà soát và thay thế các mã hex bằng `var(--token)`. |
 | **TD-09** | **P3** | **CSS Modular chưa nạp:** Các tệp `src/design-system/*.css` chưa được liên kết vào `index.html`. | `index.html`, `src/design-system/` | Sự phân mảnh giữa stylesheet cũ và thiết kế mới. | Nhúng hoặc import các file design-system vào stylesheet chính. |
 | **TD-10** | **P1** | **[RESOLVED — Step 08] Dữ liệu cá nhân hóa (user_pins, task_stars, saved_views) chuyển đổi Cloud:** Đã chuyển đổi hoàn toàn `user_pins`, `task_stars`, và `saved_views` sang Supabase Cloud. Vô hiệu hóa toàn bộ quyền ghi LocalStorage đối với dữ liệu cá nhân trong Cloud Mode, loại bỏ thẩm quyền của `task.favorite`, bảo toàn cách ly người dùng và đa thiết bị. | `src/features/pins/`, `src/features/tasks/`, `src/features/saved-views/`, `src/lib/supabase/repositories.js`, `js/core.js`, `js/access.js` | Dữ liệu cá nhân theo người dùng duy trì bền vững qua hard reload và đồng bộ đa thiết bị. | **ĐÃ GIẢI QUYẾT TRONG STEP 08.** |
+| **TD-11** | **P1** | **[RESOLVED — STEP 11] Trung tâm thông báo Cloud, Lập lịch nhắc việc & OneSignal PWA Push:** Triển khai hoàn chỉnh hạ tầng thông báo đa kênh: `notifications`, `notification_preferences`, `push_devices`, `notification_jobs`, `manual_reminders`. Atomic queue processing qua `claim_notification_jobs` (`FOR UPDATE SKIP LOCKED`). Tích hợp OneSignal REST API v16 qua Edge Function `notification-dispatch`, floating card prompt bản địa hóa và ServiceWorker PWA. | `src/features/notifications/`, `supabase/migrations/20260910140000_notification_infrastructure.sql`, `supabase/functions/notification-dispatch/` | Người dùng nhận thông báo tức thời, chuông badge Realtime và nhắc việc định kỳ. | **ĐÃ GIẢI QUYẾT TRONG STEP 11 (65/65 PASS).** |
 
 ---
 
 ## 15. Files Currently Being Worked On
 
-Dựa trên tiến trình hoàn tất Step 10:
-1. `src/features/realtime/services/realtime-service.js`: `RealtimeServiceManager` quản lý kết nối private channels (`org:<uuid>:workspace`, `task:<uuid>:details`), deduplication 2.500ms, quiet sync, và lifecycle cleanup.
-2. `supabase/migrations/20260910100000_enable_realtime_child_tables.sql`: Migration kích hoạt publication cho 8 bảng cốt lõi và cấu hình `REPLICA IDENTITY FULL`.
-3. `supabase/migrations/20260910120000_secure_realtime_private_topics.sql`: Forward migration kích hoạt RLS trên `realtime.messages` với các policies kiểm tra membership và quyền đọc task.
-4. `scratch/test_step10_realtime.js`: Bộ kiểm thử tự động toàn diện Step 10 mở rộng (65 assertions PASS 100%, bao gồm kiểm tra thực nghiệm trực tiếp các WebSocket callback và kiểm tra an toàn sự kiện DELETE).
-5. `js/core.js` & `src/app/app.js`: Tích hợp RealtimeService vào chu trình nạp workspace, drawer chi tiết và dọn dẹp kết nối khi logout / switch tenant.
-6. `WorkTree.html`: Bản đóng gói bundle offline inlined mới nhất.
+Dựa trên tiến trình hoàn tất Step 11 và đợt tôi luyện Production Hardening:
+1. `src/features/notifications/services/push-device-service.js`: Quản lý cấp quyền push native không nghẽn, triệt tiêu OneSignal default slidedown, hiển thị card `.wtx-push-prompt`.
+2. `src/features/notifications/services/notification-service.js`: Quản lý truy vấn danh sách thông báo, badge unread, preferences, quiet hours và tạo manual reminder.
+3. `src/lib/supabase/repositories.js`: Bổ sung hàm `normalizeDbStatus()`, chuẩn hóa mapping `auth.uid()` cho attachments và repositories quản lý thông báo.
+4. `supabase/migrations/20260910140000_notification_infrastructure.sql`: Migration hạ tầng thông báo, RLS và queue jobs.
+5. `supabase/migrations/20260910153500_fix_task_status_enum_trigger.sql`: Migration sửa trigger so sánh enum PostgreSQL `NEW.status = 'done'`.
+6. `supabase/functions/notification-dispatch/index.ts`: Edge Function xử lý claim atomic và OneSignal REST API v16.
+7. `js/core.js`: Tích hợp Notification Center Popover, badge realtime counter, sửa lỗi `hashId` avatar bình luận và normalize status.
+8. `css/style.css`: Giao diện Notification Popover, card `.wtx-push-prompt`, và CSS triệt tiêu triệt để OneSignal slidedown container.
+9. `WorkTree.html`: Bản đóng gói bundle offline inlined mới nhất.
+10. `STEP_11_NOTIFICATIONS_ONESIGNAL_REPORT.md`: Báo cáo chi tiết kiểm thử và khắc phục lỗi thực tế Step 11.
 
 ---
 
@@ -686,10 +703,12 @@ Dựa trên tiến trình hoàn tất Step 10:
 
 - **Thư mục lưu trữ:** `supabase/migrations/`
 - **Danh sách file di trú hiện hữu:**
-  1. `20260909000000_worktree_multi_tenant_complete.sql` (90.377 bytes, 2.303 dòng) — Tạo toàn bộ schema PostgreSQL, enums, 23 tables, 61 RLS policies, closure tree triggers, RPC functions và storage bucket `worktree-files`.
-  2. `20260910000000_link_employee_invitation.sql` (7.678 bytes, 197 dòng) — Nâng cấp RPC `create_invitation` với tham số `p_employee_id`, bổ sung cột `employee_id` vào `public.invitations` và nâng cấp `accept_invitation` tự động liên kết đúng nhân sự gốc.
-  3. `20260910100000_enable_realtime_child_tables.sql` (1.050 bytes, 21 dòng) — Bổ sung `task_attachments` vào publication `supabase_realtime` và kích hoạt `REPLICA IDENTITY FULL` cho toàn bộ 8 bảng nghiệp vụ cốt lõi.
-  4. `20260910120000_secure_realtime_private_topics.sql` (1.154 bytes, 42 dòng) — Kích hoạt RLS trên bảng `realtime.messages` với các chính sách SELECT/INSERT kiểm tra thẩm quyền thành viên tổ chức (`is_org_member`) và quyền đọc công việc (`can_read_task_id`), bảo vệ kênh private trước các cuộc tấn công trực tiếp.
+  1. `20260909000000_worktree_multi_tenant_complete.sql` (90.377 bytes, 2.302 dòng) — Tạo toàn bộ schema PostgreSQL, enums, 23 tables, 61 RLS policies, closure tree triggers, RPC functions và storage bucket `worktree-files`.
+  2. `20260910000000_link_employee_invitation.sql` (7.678 bytes, 196 dòng) — Nâng cấp RPC `create_invitation` với tham số `p_employee_id`, bổ sung cột `employee_id` vào `public.invitations` và nâng cấp `accept_invitation` tự động liên kết đúng nhân sự gốc.
+  3. `20260910100000_enable_realtime_child_tables.sql` (1.359 bytes, 27 dòng) — Bổ sung `task_attachments` vào publication `supabase_realtime` và kích hoạt `REPLICA IDENTITY FULL` cho toàn bộ 8 bảng nghiệp vụ cốt lõi.
+  4. `20260910120000_secure_realtime_private_topics.sql` (1.154 bytes, 41 dòng) — Kích hoạt RLS trên bảng `realtime.messages` với các chính sách SELECT/INSERT kiểm tra thẩm quyền thành viên tổ chức (`is_org_member`) và quyền đọc công việc (`can_read_task_id`), bảo vệ kênh private trước các cuộc tấn công trực tiếp.
+  5. `20260910140000_notification_infrastructure.sql` (20.554 bytes, 586 dòng) — Tạo hạ tầng thông báo và nhắc việc: `public.notifications`, `public.notification_preferences`, `public.push_devices`, `public.notification_jobs`, `public.manual_reminders`, RLS policies, trigger sinh thông báo task/comment và RPC `claim_notification_jobs` với `FOR UPDATE SKIP LOCKED`.
+  6. `20260910153500_fix_task_status_enum_trigger.sql` (2.165 bytes, 60 dòng) — Sửa trigger `handle_task_due_and_status_change` so sánh enum chuẩn `'done'` thay vì chuỗi `'Hoàn thành'`, loại bỏ triệt để lỗi PostgreSQL 22P02 invalid input value for enum task_status.
 - **Quy tắc di trú bắt buộc (theo AGENTS.md):**
   - Mọi thay đổi schema trong tương lai **bắt buộc tạo file migration mới** theo cú pháp: `YYYYMMDDHHMMSS_<verb>_<domain>_<purpose>.sql`.
   - Tuyệt đối không sửa đổi file migration đã chạy.
@@ -724,13 +743,20 @@ Các biến môi trường bắt buộc (được cấu hình trong tệp `.env`
 9. **[DONE - Step 8] Personal Data Migration:** [HOÀN THÀNH - Report STEP_08_PERSONAL_DATA_REPORT.md] Chuyển đổi dữ liệu cá nhân hóa (ghim ưu tiên `user_pins`, đánh dấu sao `task_stars`, góc nhìn đã lưu `saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud với thẩm quyền `auth.uid()`, cách ly người dùng và multi-device persistence. Đạt 39/39 assertions PASS (100%).
 10. **[DONE - Step 9] Attachments & Storage:** [HOÀN THÀNH - Report STEP_09_ATTACHMENTS_STORAGE_REPORT.md / STEP_09_FINALIZATION_REPORT.md] Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `worktree-files` (Private, 50MB limit, authenticated direct blob download, compensating cleanup transaction, partial-failure safety, orphan recovery helper, 100% cross-tenant attacks blocked). Đạt 52/52 assertions PASS (100%).
 11. **[DONE - Step 10] Tích hợp Supabase Realtime:** [HOÀN THÀNH - Report STEP_10_FINALIZATION_REPORT.md] Hạ tầng Realtime Channels private bảo mật trên 8 bảng cốt lõi, RLS trên `realtime.messages`, invalidation refetch, deduplication, loại trừ 100% rò rỉ sự kiện DELETE và tấn công direct UUID. Đạt 65/65 assertions PASS (100%).
-12. **[NEXT - Step 11] Notifications Center, Reminders & System Polish:** Triển khai trung tâm thông báo người dùng (`public.notifications`), nhắc việc tự động và tối ưu hóa hệ thống.
+12. **[DONE - Step 11] Notifications Center, Reminders & OneSignal PWA Push:** [HOÀN THÀNH - Report STEP_11_NOTIFICATIONS_ONESIGNAL_REPORT.md] Triển khai trung tâm thông báo thời gian thực (`notifications`), tùy chọn người dùng (`notification_preferences`), thiết bị push (`push_devices`), hàng đợi atomic queue (`notification_jobs`), nhắc việc định kỳ (`manual_reminders`), Edge Function `notification-dispatch` tích hợp OneSignal REST API v16, và PWA Web Push ServiceWorker. Đạt 65/65 assertions PASS (100%).
+13. **[DONE - Production Hardening & Field Bugfix Audit]:** Đã giải quyết triệt để 5 lỗi thực tế trên môi trường live:
+    - Sửa lỗi upload tệp đính kèm (`auth.uid()` vs employee ID mapping) (Commit `9908c46`).
+    - Sửa trigger Postgres enum mismatch `NEW.status = 'Hoàn thành'` ➔ `'done'` qua migration `20260910153500_fix_task_status_enum_trigger.sql` (Commit `3eff89b`, `7024c5f`).
+    - Redesign prompt thông báo đẩy `.wtx-push-prompt` chuẩn Design System và triệt tiêu OneSignal slidedown popup (Commit `426ae03`, `07262d7`).
+    - Khắc phục treo nút "Bật thông báo" bằng native browser prompt và non-blocking background subscription (Commit `35fe8b0`).
+    - Sửa lỗi runtime `hashId is not defined` khi đăng bình luận (Commit `2f6c23a`).
+14. **[NEXT - Step 12] Organization Settings, Platform Admin & Polish:** Chuyển đổi cấu hình tổ chức (`organization_settings`) lên Cloud, hoàn thiện dashboard platform admin và audit logs.
 
 ---
 
 ## 19. Recommended Next 10 Steps
 
-Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-tenant → Cloud Read → Cloud Mutation → Personal Data → Attachments → Realtime → Polish**:
+Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-tenant → Cloud Read → Cloud Mutation → Personal Data → Attachments → Realtime → Notifications → Settings → Polish**:
 
 1. **Bước 1 (Fix Schema Mismatches):** [HOÀN THÀNH - Commit `6a829c9`] Sửa toàn bộ các tên cột sai lệch trong repositories, edge functions và tests.
 2. **Bước 2 (Verify Database RLS & RPC Tests):** [HOÀN THÀNH - Report `STEP_02_TENANT_ISOLATION_REPORT.md`] Chạy 55 bài test SQL trên remote DB xác nhận cách ly tenant A/B, RLS, RPC, Storage đạt 100% PASS.
@@ -741,8 +767,10 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 7. **Bước 7 (Child Tables Migration & Pin Bug Resolution):** [HOÀN THÀNH - Report `STEP_07_CHILD_TABLES_REPORT.md` / `STEP_07_FINALIZATION_REPORT.md`] Đồng bộ hóa toàn diện 4 bảng con: Checklist items (`task_checklist_items`), phụ thuộc công việc (`task_dependencies`), bình luận (`task_comments`), và thời gian làm việc (`task_time_entries`) trực tiếp trên Supabase Cloud. Khắc phục lỗi hiển thị lặp nút ghim (duplicate pin buttons). Đạt 46/46 assertions PASS (100%).
 8. **Hotfix (Unified Employee Onboarding UX):** [HOÀN THÀNH - Report `EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md`] Chuyển đổi primary CTA thành `+ Thêm nhân viên`, tùy chọn mời tự động liên kết `employee_id`, loại bỏ hoàn toàn yêu cầu "Liên kết nhân sự" và mật khẩu tạm cục bộ. Đạt 30/30 assertions PASS (100%).
 9. **Bước 8 (Personal Data Migration):** [HOÀN THÀNH - Report `STEP_08_PERSONAL_DATA_REPORT.md`] Chuyển tính năng ghim ưu tiên (`user_pins`), đánh dấu sao (`task_stars`), và góc nhìn đã lưu (`saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud với thẩm quyền `auth.uid()`, cách ly người dùng và multi-device persistence. Đạt 39/39 assertions PASS (100%).
-11. **Bước 10 (Realtime Synchronization):** [HOÀN THÀNH - Report `STEP_10_FINALIZATION_REPORT.md`] Tích hợp Supabase Realtime Channels private (`org:<uuid>:workspace` và `task:<uuid>:details`) đồng bộ hóa thời gian thực đa người dùng, đa thiết bị và đa tab. 8 bảng cốt lõi kích hoạt REPLICA IDENTITY FULL, RLS trên `realtime.messages`, invalidation refetch, deduplication, và RLS isolation loại trừ hoàn toàn rò rỉ DELETE sự kiện. Đạt 65/65 assertions PASS (100%).
-12. **Bước 11 (Notification Center, Reminders & OneSignal):** [NEXT] Triển khai trung tâm thông báo người dùng (`public.notifications`), nhắc việc tự động và tích hợp dịch vụ thông báo đẩy.
+10. **Bước 9 (Attachments & Supabase Storage):** [HOÀN THÀNH - Reports `STEP_09_ATTACHMENTS_STORAGE_REPORT.md` / `STEP_09_FINALIZATION_REPORT.md`] Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `worktree-files` (50MB limit, compensating transaction, authenticated blob download). Đạt 52/52 assertions PASS (100%).
+11. **Bước 10 (Realtime Synchronization):** [HOÀN THÀNH - Report `STEP_10_FINALIZATION_REPORT.md`] Tích hợp Supabase Realtime Channels private (`org:<uuid>:workspace` và `task:<uuid>:details`) đồng bộ hóa thời gian thực đa người dùng, đa thiết bị và đa tab. 8 bảng cốt lõi kích hoạt REPLICA IDENTITY FULL, RLS trên `realtime.messages`, invalidation refetch, deduplication. Đạt 65/65 assertions PASS (100%).
+12. **Bước 11 (Notification Center, Reminders & OneSignal):** [HOÀN THÀNH - Report `STEP_11_NOTIFICATIONS_ONESIGNAL_REPORT.md`] Triển khai trung tâm thông báo người dùng (`public.notifications`), nhắc việc tự động, hàng đợi atomic queue, Edge Function `notification-dispatch` tích hợp OneSignal REST API v16, và PWA Web Push ServiceWorker. Đạt 65/65 assertions PASS (100%).
+13. **Bước 12 (Organization Settings, Platform Admin & Polish):** [NEXT] Chuyển đổi cấu hình tổ chức (`organization_settings`) lên Cloud, hoàn thiện dashboard platform admin và audit logs.
 
 ---
 
@@ -768,9 +796,9 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 
 ## Verification Metadata
 
-- **Date / Time:** `2026-09-10T12:30:00+07:00`
+- **Date / Time:** `2026-09-10T15:50:00+07:00`
 - **Git Branch:** `main`
-- **Git HEAD Commit:** `ec62b0512ab44b76b0b4c262e319fbf285ad86ec` (main)
+- **Git HEAD Commit:** `07262d7` (main)
 - **Step 1 Status:** `PASS 100% (Commit 6a829c9)`
 - **Step 2 Status:** `PASS 100% (Commit 4c68676 — Report STEP_02_TENANT_ISOLATION_REPORT.md)`
 - **Step 3 Status:** `PASS 100% (24/24 PASS — Report STEP_03_SUPABASE_AUTH_SESSION_REPORT.md)`
@@ -782,14 +810,17 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 - **Step 8 Status:** `PASS 100% (39/39 PASS — Report STEP_08_PERSONAL_DATA_REPORT.md)`
 - **Step 9 Status:** `PASS 100% (52/52 PASS — Reports STEP_09_ATTACHMENTS_STORAGE_REPORT.md & STEP_09_FINALIZATION_REPORT.md)`
 - **Step 10 Status:** `PASS 100% (65/65 PASS — Report STEP_10_FINALIZATION_REPORT.md)`
+- **Step 11 Status:** `PASS 100% (65/65 PASS — Report STEP_11_NOTIFICATIONS_ONESIGNAL_REPORT.md)`
+- **Production Hardening Status:** `PASS 100% (5 critical edge cases resolved and live-verified)`
 - **Canonical Storage Bucket:** `worktree-files` (Private, 50MB limit)
 - **Tenant Isolation Verified:** `YES (All suites pass with cross-tenant storage, database & realtime isolation enforcement)`
 - **Authentication Authority:** Supabase GoTrue Auth (Production authority, local PBKDF2 disabled by default)
 - **LocalStorage Business Writes:** Disabled in Cloud Mode (`persistData()` aborts when `__worktree_is_cloud_workspace === true`, no binary or attachment authority in LocalStorage)
-- **RLS Policy Count:** 57 remote active public schema policies, 4 storage schema policies, 2 realtime schema policies, 63 declarations in migrations
+- **RLS Policy Count:** 72 remote active public schema policies, 4 storage schema policies, 3 realtime schema policies, 70+ declarations in migrations
 - **Audit & Verification Performed By:** Antigravity (Principal Software Architect + Staff Full-stack Engineer + Design System Guardian)
-- **Commands Actually Executed in Step 10:**
-  - `node scratch/test_step10_realtime.js` (65/65 PASS against remote Supabase Realtime & Database, bao gồm empirical WebSocket direct attack và DELETE security)
+- **Commands Actually Executed in Step 11 & Hardening:**
+  - `node scratch/test_step11_notifications.js` (65/65 PASS against remote Supabase Database, triggers, preferences, devices, reminders and queue)
+  - `node scratch/test_step10_realtime.js` (65/65 PASS regression suite)
   - `node scratch/test_step09_attachments.js` (52/52 PASS regression suite)
   - `node scratch/test_step08_personal_data.js` (39/39 PASS regression suite)
   - `node scratch/test_step07_child_tables.js` (46/46 PASS regression suite)
@@ -799,4 +830,5 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
   - `node scratch/test_step03_auth.js` (24/24 PASS regression suite)
   - `node scratch/test_employee_onboarding_flow.js` (30/30 PASS regression suite)
   - `node scratch/test_pin_update_security.js` (PASS regression suite)
+  - `npx supabase db query` (migration `20260910153500_fix_task_status_enum_trigger.sql` applied on live Supabase DB)
   - `npm run bundle` (`WorkTree.html bundled successfully!`)

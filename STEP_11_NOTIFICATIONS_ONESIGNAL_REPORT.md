@@ -26,18 +26,20 @@ With Step 11, WorkTree X establishes an end-to-end event-driven notification arc
 ## 2. Exact Git Baseline & Current State
 
 - **Pre-Step Baseline Commit**: `ec62b0512ab44b76b0b4c262e319fbf285ad86ec` (Step 10 Realtime Finalized)
-- **UI Bugfix Commit**: `dbc325b` (Fix "Công việc của tôi" navigation & employee ID mapping)
-- **Step 11 Changes**:
+- **Step 11 Initial Deliverable Commit**: `748954b` (Step 11 Notifications & Push Engine)
+- **Production Hardened Current Commit**: `07262d7` (All field edge cases resolved & verified)
+- **Core Changes & Deliverables**:
   - `supabase/migrations/20260910140000_notification_infrastructure.sql` (70 deterministic SQL statements applied)
+  - `supabase/migrations/20260910153500_fix_task_status_enum_trigger.sql` (Fix Postgres task_status enum trigger comparison)
   - `supabase/functions/notification-dispatch/index.ts` (Edge Function for atomic queue dispatch & OneSignal integration)
   - `src/features/notifications/services/notification-service.js` (Cloud queries, subscriptions, preferences, manual reminders)
-  - `src/features/notifications/services/push-device-service.js` (OneSignal Web SDK coordination & device registration)
+  - `src/features/notifications/services/push-device-service.js` (OneSignal Web SDK coordination, native prompt, suppression of default popups)
   - `src/features/notifications/index.js` (Public barrel export)
   - `src/features/realtime/services/realtime-service.js` (User notifications private channel integration)
   - `src/app/app.js` (Lifecycle initialization, login/logout synchronization)
-  - `js/core.js` (Cloud Notification Center UI, unread badge counter, action handlers)
+  - `js/core.js` (Cloud Notification Center UI, unread badge counter, action handlers, status normalization, avatar hash fallback)
   - `manifest.webmanifest` & `OneSignalSDKWorker.js` (PWA Web App Manifest and Service Worker)
-  - `css/style.css` (Notification center popover, list items, badges, command palette refinement)
+  - `css/style.css` (Notification center popover, list items, badges, `.wtx-push-prompt`, and OneSignal slidedown suppression)
   - `WorkTree.html` (Bundled production single-file distribution)
 
 ---
@@ -245,6 +247,68 @@ The automated verification suite executes strict checks across all layers:
 
 ---
 
-## 10. Conclusion & Handoff
+## 10. Conclusion & Initial Handoff
 
 Step 11 fulfills all 43 contract requirements specified in the project roadmap. WorkTree X now possesses an enterprise-grade cloud notification center, scheduled task reminders, quiet hours governance, and mobile PWA push notification capabilities with zero compromise on multi-tenant security or design system consistency.
+
+---
+
+## 11. Production Hardening & Field Bugfix Audit (Post-Step 11)
+
+Following initial deployment to `worktree.nguyentronghuu.com` on Vercel, extensive live end-to-end testing identified and resolved 5 critical real-world edge cases:
+
+### 1. Attachment Upload Tenant & Auth Resolution
+- **Issue**: Uploading files from the Task Detail Drawer failed with tenant missing or RLS `uploaded_by` constraint rejection.
+- **Root Cause**: In `AttachmentService` and `repositories.js`, `uploaded_by` was set to local employee ID rather than `auth.uid()`, and `organizationId` parameter mismatched `id`.
+- **Resolution**: Normalized `uploaded_by` to authenticated `auth.uid()`, resolved active tenant UUID consistently across all attachment APIs. Verified upload, storage blob download, and deletion. Commit `9908c46`.
+
+### 2. Task Status Postgres Enum Normalization & Database Trigger Fix
+- **Issue**: Updating task status threw PostgreSQL error: `invalid input value for enum public.task_status: "Hoàn thành"`.
+- **Root Cause**:
+  1. Frontend passed localized Vietnamese status strings (`"Hoàn thành"`, `"Đang làm"`) which did not match PostgreSQL's strict enum (`'todo'`, `'in_progress'`, `'review'`, `'done'`).
+  2. Database trigger `handle_task_due_and_status_change` in migration `20260910140000_notification_infrastructure.sql` had a hardcoded comparison `IF (NEW.status = 'Hoàn thành' ...)`, crashing on *any* status update.
+- **Resolution**:
+  1. Created `normalizeDbStatus()` in `src/lib/supabase/repositories.js` converting Vietnamese variants (NFC/NFD) to canonical Postgres enum strings.
+  2. Applied migration `20260910153500_fix_task_status_enum_trigger.sql` on remote Supabase: updated trigger comparison to `IF (NEW.status = 'done' OR NEW.archived_at IS NOT NULL)`. Tested status transitions `todo` ➔ `in_progress` ➔ `done` successfully. Commits `3eff89b` and `7024c5f`.
+
+### 3. Native Push Notification Prompt Redesign
+- **Issue**: Default OneSignal SDK injected an unstyled, generic English popup ("Subscribe to our notifications...") in the dead-center of the screen.
+- **Resolution**: Designed an ultra-refined, native WorkTree X floating card (`.wtx-push-prompt`) adhering strictly to `AGENTS.md`:
+  - Typography: `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`.
+  - Palette: `--surface` background, `--primary` purple accent (`#6962db`), `--line` border, `--radius: 14px`, line-art bell icon.
+  - Positioning: Floating top-right under topbar on desktop; anchored above bottom nav on mobile with `safe-area-inset`.
+  - Copy: Clean Vietnamese ("Bật thông báo công việc", "Bật thông báo", "Để sau").
+  - Dismiss Cooldown: 3 days cooldown saved in `localStorage`. Commit `426ae03`.
+
+### 4. Non-Blocking Browser Permission Dispatch & Activation Freeze Fix
+- **Issue**: Clicking "Bật thông báo" caused the button to freeze on "Đang kích hoạt..." indefinitely on `localhost` and non-registered domains.
+- **Root Cause**: `PushDeviceService.requestPermission()` called `OneSignal.Notifications.requestPermission()` which awaited a response from OneSignal cloud. When running on origins different from the OneSignal dashboard origin, the SDK promise never resolved.
+- **Resolution**: Prioritized native `Notification.requestPermission()` directly, with an 8-second safety fallback. When granted, `OneSignal.User.PushSubscription.optIn()` and Supabase device sync run non-blockingly in the background. Commit `35fe8b0`.
+
+### 5. Permanent Suppression of OneSignal Default Slidedown
+- **Issue**: On mobile devices, after granting permission, OneSignal SDK attempted to display its own secondary slidedown popup.
+- **Resolution**:
+  1. Switched OneSignal activation from `Notifications.requestPermission()` to `User.PushSubscription.optIn()`.
+  2. Set `prompts: []` in `OneSignal.init`.
+  3. Added MutationObserver auto-destroying any `#onesignal-slidedown-container` instantly.
+  4. Added global CSS rule: `#onesignal-slidedown-container, #onesignal-slidedown-dialog { display: none !important; position: absolute !important; left: -9999px !important; }`. Commit `07262d7`.
+
+### 6. Comment Drawer Avatar Runtime Error Fix
+- **Issue**: Sending a comment resulted in a toast error: `hashId is not defined`.
+- **Root Cause**: `js/core.js` line 1324 called `hashId()` instead of canonical `getAvatarIndex()`.
+- **Resolution**: Replaced with `getAvatarIndex(c.authorId)` and added `function hashId(id) { return getAvatarIndex(id); }` for backward compatibility. Commit `2f6c23a`.
+
+---
+
+## 12. Final Verification Summary
+
+| Component | Status | Verification Result |
+| :--- | :--- | :--- |
+| **Cloud Notification Center** | PASS | Popover opens, badges sync via Realtime, unread count accurate |
+| **OneSignal Push Notifications** | PASS | PWA ServiceWorker active, background optIn works, no freeze |
+| **Push Prompt UI Aesthetics** | PASS | Native WorkTree X card, top-right floating, OneSignal popup 100% suppressed |
+| **Task Status Updates** | PASS | Postgres enum errors eliminated, trigger fixed, dependency guards enforced |
+| **Comment Submission** | PASS | Comments save to cloud, realtime invalidates, avatars render with 0 errors |
+| **Attachment Management** | PASS | Uploads succeed, auth.uid() mapped, binary downloads authenticated |
+| **Vercel Production Deploy** | PASS | Bundle generated cleanly, synced to `https://github.com/huungcs/WorkTree.git` |
+
