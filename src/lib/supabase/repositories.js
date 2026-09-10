@@ -541,6 +541,16 @@ export const InvitationRepository = {
     return data; // returns invite token
   },
 
+  async getInvitationDetails(token) {
+    if (!token) return null;
+    const sb = await getSupabase();
+    const { data, error } = await sb.rpc('get_invitation_details', {
+      p_token: token
+    });
+    if (error) throw error;
+    return data;
+  },
+
   async acceptInvitation(token) {
     if (!token) throw new Error('Missing invitation token');
     const sb = await getSupabase();

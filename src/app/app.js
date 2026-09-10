@@ -731,12 +731,15 @@ export async function bootstrapApp() {
   console.info('WorkTree X initializing with authoritative Supabase Auth & Multi-Tenant Onboarding...');
 
   // 0. Kiểm tra tham số mời ?invite=<token> trên URL
+  let inviteToken = null;
   try {
     const urlParams = new URLSearchParams(window.location.search);
-    const inviteToken = urlParams.get('invite');
+    inviteToken = urlParams.get('invite');
     if (inviteToken) {
       sessionStorage.setItem('worktree_pending_invite', inviteToken);
       console.info('[Bootstrap] Đã lưu mã mời từ URL vào sessionStorage:', inviteToken);
+    } else {
+      inviteToken = sessionStorage.getItem('worktree_pending_invite');
     }
   } catch (e) {
     console.warn('[Bootstrap] Không thể đọc URL params:', e);
@@ -786,7 +789,16 @@ export async function bootstrapApp() {
   });
 
   window.renderSupabaseAuth = (msg) => {
-    authViewInstance.render('login', msg ? { error: msg } : {});
+    const pendingInvite = sessionStorage.getItem('worktree_pending_invite');
+    if (pendingInvite && !msg) {
+      InvitationRepository.getInvitationDetails(pendingInvite).then(details => {
+        authViewInstance.setInviteData(details);
+      }).catch(() => {
+        authViewInstance.render('login');
+      });
+    } else {
+      authViewInstance.render('login', msg ? { error: msg } : {});
+    }
   };
 
   RealtimeService.onConnectionStatusChange((status) => {
@@ -825,9 +837,19 @@ export async function bootstrapApp() {
     if (session?.user) {
       await bootstrapAuthenticatedUser(session.user, session);
     } else {
-      console.info('No active session. Displaying Supabase Auth screen.');
+      console.info('No active session. Checking invite & displaying Supabase Auth screen.');
       window.__worktree_supabase_user = null;
-      authViewInstance.render('login');
+      if (inviteToken) {
+        try {
+          const inviteDetails = await InvitationRepository.getInvitationDetails(inviteToken);
+          authViewInstance.setInviteData(inviteDetails);
+        } catch (e) {
+          console.warn('[Bootstrap] Không thể lấy thông tin lời mời:', e);
+          authViewInstance.render('login');
+        }
+      } else {
+        authViewInstance.render('login');
+      }
     }
   } catch (err) {
     console.warn('Auth check error:', err.message);

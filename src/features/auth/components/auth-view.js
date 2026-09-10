@@ -6,10 +6,22 @@
 
 import { AuthService } from '../services/auth-service.js';
 
+// Helper to escape HTML characters safely
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // SVG Icon Helper adhering to WorkTree X 1.7px stroke line icon standard
 const SVG_ICONS = {
   logo: `<svg viewBox="0 0 32 32" fill="none" class="icon" aria-hidden="true"><path d="M7 8v9a6 6 0 006 6h12M16 5v18M25 10v13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="7" cy="7" r="3" fill="currentColor"/><circle cx="16" cy="6" r="3" fill="currentColor"/><circle cx="25" cy="10" r="3" fill="currentColor"/></svg>`,
   shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  building: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></svg>`,
   key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-5-5 2-2m-5-1 2-2"/></svg>`,
   user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
   lock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="icon" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
@@ -27,10 +39,26 @@ export class AuthView {
   constructor(options = {}) {
     this.container = options.container || document.getElementById('authScreen');
     this.onAuthenticated = options.onAuthenticated || (() => {});
-    this.currentMode = 'login'; // 'login' | 'signup' | 'forgot' | 'recovery' | 'confirm_pending'
+    this.currentMode = 'login'; // 'login' | 'signup' | 'forgot' | 'recovery' | 'confirm_pending' | 'invite_signup' | 'invite_login'
+    this.inviteData = options.inviteData || null;
     this.isSubmitting = false;
     this.errorMessage = '';
     this.successMessage = '';
+  }
+
+  setInviteData(inviteDetails) {
+    this.inviteData = inviteDetails;
+    if (inviteDetails?.valid) {
+      if (inviteDetails.is_existing_user) {
+        this.render('invite_login');
+      } else {
+        this.render('invite_signup');
+      }
+    } else if (inviteDetails?.error) {
+      this.render('login', { error: inviteDetails.error });
+    } else {
+      this.render('login');
+    }
   }
 
   /**
@@ -106,6 +134,10 @@ export class AuthView {
    */
   renderCardContent() {
     switch (this.currentMode) {
+      case 'invite_signup':
+        return this.renderInviteSignupForm();
+      case 'invite_login':
+        return this.renderInviteLoginForm();
       case 'signup':
         return this.renderSignupForm();
       case 'forgot':
@@ -124,6 +156,23 @@ export class AuthView {
    * Hiển thị banner thông báo nếu có lời mời đang chờ
    */
   renderInviteBanner() {
+    if (this.inviteData?.valid) {
+      const orgName = esc(this.inviteData.organization_name || 'Tổ chức');
+      const email = esc(this.inviteData.email || '');
+      const isExisting = !!this.inviteData.is_existing_user;
+      return `
+        <div style="background:var(--primary-soft);border:1px solid var(--primary);color:var(--primary-text);padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+          <div style="line-height:1.4;">
+            <strong>✉️ Lời mời tham gia ${orgName}</strong>
+            <div style="font-size:12px;opacity:0.9;margin-top:2px;">Dành riêng cho: <strong>${email}</strong></div>
+          </div>
+          <button type="button" class="btn small primary" data-auth-mode="${isExisting ? 'invite_login' : 'invite_signup'}" style="font-size:12px;padding:6px 12px;white-space:nowrap;cursor:pointer;flex-shrink:0;">
+            ${isExisting ? 'Đăng nhập vào công ty' : 'Đặt mật khẩu'} →
+          </button>
+        </div>
+      `;
+    }
+
     let hasInvite = false;
     try {
       hasInvite = !!sessionStorage.getItem('worktree_pending_invite');
@@ -136,6 +185,160 @@ export class AuthView {
           <strong>Bạn nhận được lời mời tham gia tổ chức!</strong>
           <div style="font-size:12px;opacity:0.9;">Đăng nhập hoặc đăng ký tài khoản để tự động kết nối vào không gian làm việc.</div>
         </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Biểu mẫu Đặt mật khẩu vào công ty khi nhận link mời
+   */
+  renderInviteSignupForm() {
+    const inv = this.inviteData || {};
+    const orgName = esc(inv.organization_name || 'Tổ chức');
+    const fullName = esc(inv.full_name || '');
+    const email = esc(inv.email || '');
+    const roleLabel = inv.role === 'admin' ? 'Quản trị viên' : (inv.role === 'manager' ? 'Quản lý' : 'Thành viên');
+
+    return `
+      <div class="auth-card-header">
+        <span class="auth-chip" style="background:var(--primary-soft);color:var(--primary-text);border:1px solid var(--primary);">
+          ${SVG_ICONS.building} Lời mời gia nhập tổ chức
+        </span>
+        <h2>Thiết lập mật khẩu</h2>
+        <p>
+          Chào mừng <strong>${fullName || 'bạn'}</strong>! Bạn được mời tham gia <strong>${orgName}</strong> với vai trò <em>${roleLabel}</em>. Hãy đặt mật khẩu để kích hoạt tài khoản.
+        </p>
+      </div>
+
+      <div class="form-error" id="authError" role="alert" ${this.errorMessage ? '' : 'hidden'}>
+        ${this.errorMessage}
+      </div>
+      ${this.successMessage ? `<div class="form-success" role="status" style="background:var(--green-soft);color:var(--green);padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;">${this.successMessage}</div>` : ''}
+
+      <form id="inviteSignupForm" autocomplete="on">
+        <div class="auth-fields">
+          <label class="field">
+            <span>Họ và tên <span class="required" style="color:var(--red);">*</span></span>
+            <input id="inviteFullName" type="text" required maxlength="180" autocomplete="name" value="${fullName}" placeholder="Nhập họ và tên" ${this.isSubmitting ? 'disabled' : ''}>
+          </label>
+
+          <label class="field">
+            <span>Email đăng nhập (được chỉ định)</span>
+            <div style="position:relative;display:flex;align-items:center;">
+              <input id="inviteEmail" type="email" value="${email}" readonly style="background:var(--surface-2);color:var(--text);cursor:not-allowed;padding-right:36px;font-weight:500;" ${this.isSubmitting ? 'disabled' : ''}>
+              <span style="position:absolute;right:12px;color:var(--muted);display:inline-flex;align-items:center;" title="Email đã được gắn với lời mời">
+                ${SVG_ICONS.lock}
+              </span>
+            </div>
+            <span style="font-size:11px;color:var(--muted);margin-top:2px;">Email này được quản trị viên công ty phân quyền cố định.</span>
+          </label>
+
+          <label class="field">
+            <span>Mật khẩu mới <span class="required" style="color:var(--red);">*</span></span>
+            <span class="password-wrap">
+              <input id="invitePassword" type="password" required minlength="6" autocomplete="new-password" placeholder="Tối thiểu 6 ký tự" ${this.isSubmitting ? 'disabled' : ''}>
+              <button type="button" class="icon-btn" data-auth-action="toggle-password" data-target="invitePassword" aria-label="Hiện / ẩn mật khẩu" title="Hiện / ẩn mật khẩu">
+                ${SVG_ICONS.eye}
+              </button>
+            </span>
+          </label>
+
+          <label class="field">
+            <span>Xác nhận mật khẩu mới <span class="required" style="color:var(--red);">*</span></span>
+            <span class="password-wrap">
+              <input id="inviteConfirmPassword" type="password" required minlength="6" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới" ${this.isSubmitting ? 'disabled' : ''}>
+              <button type="button" class="icon-btn" data-auth-action="toggle-password" data-target="inviteConfirmPassword" aria-label="Hiện / ẩn mật khẩu" title="Hiện / ẩn mật khẩu">
+                ${SVG_ICONS.eye}
+              </button>
+            </span>
+          </label>
+        </div>
+
+        <button type="submit" id="inviteSubmit" class="btn primary auth-submit" style="margin-top:16px;" ${this.isSubmitting ? 'disabled' : ''}>
+          <span>${this.isSubmitting ? 'Đang kích hoạt tài khoản...' : 'Đặt mật khẩu & Vào công ty'}</span>
+          ${this.isSubmitting ? SVG_ICONS.spinner : SVG_ICONS.arrowRight}
+        </button>
+      </form>
+
+      <div style="margin-top:16px;text-align:center;border-top:1px solid var(--line);padding-top:14px;">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 6px;">Đã có tài khoản WorkTree X với email này?</p>
+        <button type="button" class="link-btn" data-auth-mode="invite_login" style="background:none;border:none;color:var(--primary-text);font-size:13px;font-weight:600;cursor:pointer;">
+          Đăng nhập bằng mật khẩu sẵn có →
+        </button>
+      </div>
+
+      <div class="auth-local-note">
+        ${SVG_ICONS.shield}
+        <p>Sau khi đặt mật khẩu, bạn sẽ được tự động kết nối vào không gian làm việc của ${orgName}.</p>
+      </div>
+    `;
+  }
+
+  /**
+   * Biểu mẫu Đăng nhập vào công ty khi email đã có tài khoản
+   */
+  renderInviteLoginForm() {
+    const inv = this.inviteData || {};
+    const orgName = esc(inv.organization_name || 'Tổ chức');
+    const email = esc(inv.email || '');
+
+    return `
+      <div class="auth-card-header">
+        <span class="auth-chip" style="background:var(--primary-soft);color:var(--primary-text);border:1px solid var(--primary);">
+          ${SVG_ICONS.building} Lời mời gia nhập tổ chức
+        </span>
+        <h2>Đăng nhập vào công ty</h2>
+        <p>
+          Email <strong>${email}</strong> đã có tài khoản WorkTree X. Vui lòng đăng nhập để gia nhập <strong>${orgName}</strong>.
+        </p>
+      </div>
+
+      <div class="form-error" id="authError" role="alert" ${this.errorMessage ? '' : 'hidden'}>
+        ${this.errorMessage}
+      </div>
+      ${this.successMessage ? `<div class="form-success" role="status" style="background:var(--green-soft);color:var(--green);padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;">${this.successMessage}</div>` : ''}
+
+      <form id="inviteLoginForm" autocomplete="on">
+        <div class="auth-fields">
+          <label class="field">
+            <span>Email đăng nhập</span>
+            <div style="position:relative;display:flex;align-items:center;">
+              <input id="inviteLoginEmail" type="email" value="${email}" readonly style="background:var(--surface-2);color:var(--text);cursor:not-allowed;padding-right:36px;font-weight:500;" ${this.isSubmitting ? 'disabled' : ''}>
+              <span style="position:absolute;right:12px;color:var(--muted);display:inline-flex;align-items:center;">
+                ${SVG_ICONS.lock}
+              </span>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>Mật khẩu <span class="required" style="color:var(--red);">*</span></span>
+            <span class="password-wrap">
+              <input id="inviteLoginPassword" type="password" required autocomplete="current-password" placeholder="••••••••" ${this.isSubmitting ? 'disabled' : ''}>
+              <button type="button" class="icon-btn" data-auth-action="toggle-password" data-target="inviteLoginPassword" aria-label="Hiện / ẩn mật khẩu" title="Hiện / ẩn mật khẩu">
+                ${SVG_ICONS.eye}
+              </button>
+            </span>
+          </label>
+        </div>
+
+        <button type="submit" id="inviteLoginSubmit" class="btn primary auth-submit" style="margin-top:16px;" ${this.isSubmitting ? 'disabled' : ''}>
+          <span>${this.isSubmitting ? 'Đang xác thực...' : 'Đăng nhập & Tham gia công ty'}</span>
+          ${this.isSubmitting ? SVG_ICONS.spinner : SVG_ICONS.arrowRight}
+        </button>
+      </form>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;">
+        <button type="button" class="link-btn auth-forgot" data-auth-mode="forgot" style="background:none;border:none;padding:0;color:var(--primary-text);font-size:12px;cursor:pointer;">
+          Quên mật khẩu?
+        </button>
+        <button type="button" class="link-btn" data-auth-mode="invite_signup" style="background:none;border:none;padding:0;color:var(--muted);font-size:12px;cursor:pointer;">
+          Chưa có mật khẩu? Đặt mật khẩu
+        </button>
+      </div>
+
+      <div class="auth-local-note">
+        ${SVG_ICONS.shield}
+        <p>Đăng nhập sẽ tự động kết nối tài khoản của bạn vào không gian làm việc của ${orgName}.</p>
       </div>
     `;
   }
@@ -179,7 +382,7 @@ export class AuthView {
         <div class="auth-fields">
           <label class="field">
             <span>Email đăng nhập <span class="required" style="color:var(--red);">*</span></span>
-            <input id="loginEmail" type="email" required autocomplete="username" placeholder="name@company.com" spellcheck="false" ${this.isSubmitting ? 'disabled' : ''}>
+            <input id="loginEmail" type="email" required autocomplete="username" value="${esc(this.inviteData?.valid ? this.inviteData.email : '')}" placeholder="name@company.com" spellcheck="false" ${this.isSubmitting ? 'disabled' : ''}>
           </label>
 
           <label class="field">
@@ -234,12 +437,12 @@ export class AuthView {
         <div class="auth-fields">
           <label class="field">
             <span>Họ và tên <span class="required" style="color:var(--red);">*</span></span>
-            <input id="signupFullName" type="text" required maxlength="180" autocomplete="name" placeholder="Nguyễn Văn A" ${this.isSubmitting ? 'disabled' : ''}>
+            <input id="signupFullName" type="text" required maxlength="180" autocomplete="name" value="${esc(this.inviteData?.valid ? this.inviteData.full_name : '')}" placeholder="Nguyễn Văn A" ${this.isSubmitting ? 'disabled' : ''}>
           </label>
 
           <label class="field">
             <span>Email công việc <span class="required" style="color:var(--red);">*</span></span>
-            <input id="signupEmail" type="email" required autocomplete="email" placeholder="name@company.com" spellcheck="false" ${this.isSubmitting ? 'disabled' : ''}>
+            <input id="signupEmail" type="email" required autocomplete="email" value="${esc(this.inviteData?.valid ? this.inviteData.email : '')}" placeholder="name@company.com" spellcheck="false" ${this.isSubmitting ? 'disabled' : ''}>
           </label>
 
           <label class="field">
@@ -488,6 +691,98 @@ export class AuthView {
           this.showError(AuthService.formatAuthError(err));
         }
       });
+    }
+
+    // 8. Xử lý submit InviteSignupForm
+    const inviteSignupForm = document.getElementById('inviteSignupForm');
+    if (inviteSignupForm) {
+      inviteSignupForm.addEventListener('submit', (e) => this.handleInviteSignup(e));
+      const passInput = document.getElementById('invitePassword');
+      if (passInput && !this.errorMessage) passInput.focus();
+    }
+
+    // 9. Xử lý submit InviteLoginForm
+    const inviteLoginForm = document.getElementById('inviteLoginForm');
+    if (inviteLoginForm) {
+      inviteLoginForm.addEventListener('submit', (e) => this.handleInviteLogin(e));
+      const passInput = document.getElementById('inviteLoginPassword');
+      if (passInput && !this.errorMessage) passInput.focus();
+    }
+  }
+
+  /**
+   * Xử lý Đặt mật khẩu và kích hoạt tài khoản theo lời mời
+   */
+  async handleInviteSignup(e) {
+    e.preventDefault();
+    if (this.isSubmitting) return;
+
+    const fullName = document.getElementById('inviteFullName')?.value.trim();
+    const email = (this.inviteData?.email || document.getElementById('inviteEmail')?.value || '').trim();
+    const password = document.getElementById('invitePassword')?.value;
+    const confirm = document.getElementById('inviteConfirmPassword')?.value;
+
+    if (!fullName || !email || !password) {
+      this.showError('Vui lòng điền đầy đủ các thông tin bắt buộc.');
+      return;
+    }
+    if (password.length < 6) {
+      this.showError('Mật khẩu cần tối thiểu 6 ký tự.');
+      return;
+    }
+    if (password !== confirm) {
+      this.showError('Mật khẩu xác nhận không trùng khớp.');
+      return;
+    }
+
+    this.setSubmitting(true);
+    this.pendingEmail = email;
+    try {
+      const data = await AuthService.signUp(email, password, { fullName });
+
+      if (data?.session) {
+        this.onAuthenticated(data.session);
+      } else {
+        this.render('confirm_pending');
+      }
+    } catch (err) {
+      console.warn('Kích hoạt tài khoản thất bại:', err.message);
+      if (err.message?.toLowerCase().includes('already registered') || err.message?.toLowerCase().includes('already exists')) {
+        this.showError('Tài khoản với email này đã tồn tại trên hệ thống. Vui lòng nhấn "Đăng nhập bằng mật khẩu sẵn có" bên dưới.');
+      } else {
+        this.showError(AuthService.formatAuthError(err));
+      }
+    } finally {
+      this.setSubmitting(false);
+    }
+  }
+
+  /**
+   * Xử lý Đăng nhập vào công ty bằng tài khoản đã có
+   */
+  async handleInviteLogin(e) {
+    e.preventDefault();
+    if (this.isSubmitting) return;
+
+    const email = (this.inviteData?.email || document.getElementById('inviteLoginEmail')?.value || '').trim();
+    const password = document.getElementById('inviteLoginPassword')?.value;
+
+    if (!email || !password) {
+      this.showError('Vui lòng nhập mật khẩu của bạn.');
+      return;
+    }
+
+    this.setSubmitting(true);
+    try {
+      const data = await AuthService.signIn(email, password);
+      if (data?.session) {
+        this.onAuthenticated(data.session);
+      }
+    } catch (err) {
+      console.warn('Đăng nhập vào công ty thất bại:', err.message);
+      this.showError(AuthService.formatAuthError(err));
+    } finally {
+      this.setSubmitting(false);
     }
   }
 
