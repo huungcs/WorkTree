@@ -5,6 +5,7 @@
  */
 
 import { appState } from './state.js';
+import { publishLegacyGlobals } from './legacy/legacy-bridge.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
@@ -23,10 +24,12 @@ import { RealtimeService } from '../features/realtime/index.js';
 import { NotificationService, PushDeviceService } from '../features/notifications/index.js';
 
 if (typeof window !== 'undefined') {
-  window.RealtimeService = RealtimeService;
-  window.NotificationService = NotificationService;
-  window.PushDeviceService = PushDeviceService;
-  window.ActivityRepository = ActivityRepository;
+  publishLegacyGlobals({
+    RealtimeService,
+    NotificationService,
+    PushDeviceService,
+    ActivityRepository
+  });
 }
 
 let authViewInstance = null;
@@ -1038,29 +1041,31 @@ export async function bootstrapApp() {
 }
 
 if (typeof window !== 'undefined') {
-  window.appState = appState;
-  window.loadWorkspaceData = loadWorkspaceData;
-  window.getWorkspaceLoadGeneration = () => workspaceLoadGeneration;
-  window.TaskService = TaskService;
-  window.TreeService = TreeService;
-  window.ChecklistService = ChecklistService;
-  window.DependencyService = DependencyService;
-  window.CommentService = CommentService;
-  window.TimeEntryService = TimeEntryService;
-  window.EmployeeService = EmployeeService;
-  window.EmployeeRepository = EmployeeRepository;
-  window.InvitationRepository = InvitationRepository;
-  window.PinRepository = PinRepository;
-  window.StarRepository = StarRepository;
-  window.SavedViewRepository = SavedViewRepository;
-  window.PinService = PinService;
-  window.StarService = StarService;
-  window.SavedViewService = SavedViewService;
-  window.OrganizationRepository = OrganizationRepository;
-  window.AttachmentRepository = AttachmentRepository;
-  window.AttachmentService = AttachmentService;
-  window.NotificationService = NotificationService;
-  window.PushDeviceService = PushDeviceService;
+  publishLegacyGlobals({
+    appState,
+    loadWorkspaceData,
+    getWorkspaceLoadGeneration: () => workspaceLoadGeneration,
+    TaskService,
+    TreeService,
+    ChecklistService,
+    DependencyService,
+    CommentService,
+    TimeEntryService,
+    EmployeeService,
+    EmployeeRepository,
+    InvitationRepository,
+    PinRepository,
+    StarRepository,
+    SavedViewRepository,
+    PinService,
+    StarService,
+    SavedViewService,
+    OrganizationRepository,
+    AttachmentRepository,
+    AttachmentService,
+    NotificationService,
+    PushDeviceService
+  });
 }
 
 // Tự khởi chạy khi file được nạp
