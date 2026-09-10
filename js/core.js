@@ -2305,8 +2305,9 @@ function legacyOpenHelp(){
  <section class="help-section"><h3>Lịch, tiến độ và năng lực tuần</h3><p>Lịch tháng dùng ngày đến hạn. Thanh tiến độ sử dụng ngày bắt đầu và hạn; nếu thiếu ngày bắt đầu, ứng dụng ước tính ngược từ số giờ, giả định 8 giờ/ngày làm việc và đánh dấu bằng đường viền nét đứt.</p><p>Tải tuần dùng max(giờ ước tính − giờ đã làm, 0), phân bổ đều trên ngày làm việc trong lịch của công việc. Nếu khoảng lịch chỉ có cuối tuần, giờ được gán vào ngày đến hạn. Công việc hoàn thành không tính vào giờ còn lại; công việc chưa có hạn được tách riêng. Năng lực tuần chỉnh được trong hồ sơ nhân sự. Đây không phải dữ liệu chấm công hay báo cáo lịch sử năng suất.</p></section>
  <section class="help-section"><h3>Checklist & phụ thuộc</h3><p>Mặc định checklist độc lập với phần trăm tiến độ. Bật “Tự tính tiến độ theo checklist” để phần trăm tăng hoặc giảm đúng theo số mục hoàn tất. 100% checklist không tự đóng công việc; bạn vẫn chủ động chọn Hoàn thành. Liên kết phụ thuộc không cho phép vòng lặp; việc còn phụ thuộc đang mở không thể chuyển sang Hoàn thành.</p></section>
  <section class="help-section"><h3>Giữ dữ liệu an toàn</h3><p>Dữ liệu được lưu trên trình duyệt và nguồn trang đang dùng, không đồng bộ giữa máy. Đường dẫn file:// có cách lưu tùy trình duyệt; không nên chỉ dựa vào khả năng tự chuyển dữ liệu cũ. Hãy xuất JSON từ bản cũ rồi nhập vào V8 khi không thấy dữ liệu.</p><p>Hoàn tác giữ tối đa 20 thay đổi trong phiên (5 với tập dữ liệu lớn), không giữ sau khi tải lại trang. Một bản dự phòng trước lần ghi gần nhất được lưu riêng nếu bộ nhớ trình duyệt cho phép. Khi nhập JSON, ứng dụng xác thực trước rồi yêu cầu xác nhận thay thế. Khi lỗi lưu xuất hiện, xuất JSON ngay trước khi đóng trang.</p><p>Bình luận và tài khoản lưu cục bộ. Quyền trên giao diện không thay thế kiểm soát truy cập tại máy chủ. Khi phiên tự khóa, bộ đếm tạm dừng. Bộ đếm tiếp tục tính thời gian khi trang đóng và chỉ cộng vào giờ thực hiện khi bấm Dừng; trình duyệt phải cho phép lưu thiết lập để giữ bộ đếm qua lần mở lại.</p></section>`;
- showDialog('infoDialog');
+  showDialog('infoDialog');
 }
+window.openHelp = openHelp;
 async function openNotifications(){
  if(window.__worktree_is_cloud_workspace && window.NotificationService){
   const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
@@ -2703,7 +2704,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     break;
    }
    case 'calendar-day':openCalendarDay(el.dataset.date);break;
-   case 'help':openHelp();break;
+   case 'help':if(window.HelpCenterDialog&&typeof window.HelpCenterDialog.open==='function')window.HelpCenterDialog.open();else openHelp();break;
    case 'theme':toggleTheme();break;
    case 'set-theme':state.theme=el.dataset.theme;applyTheme();savePrefs();openSettings();break;
    case 'density':state.density=state.density==='compact'?'comfortable':'compact';applyTheme();savePrefs();break;
@@ -2907,7 +2908,7 @@ document.addEventListener('keydown',e=>{
  if(editing||modal||e.ctrlKey||e.metaKey)return;
  if(key==='n'){e.preventDefault();openTaskForm();}
  else if(e.key==='/'){e.preventDefault();$('taskSearch').focus();}
- else if(e.key==='?'){e.preventDefault();openHelp();}
+ else if(e.key==='?'){e.preventDefault();if(window.HelpCenterDialog&&typeof window.HelpCenterDialog.open==='function')window.HelpCenterDialog.open();else openHelp();}
  else if(/^[1-7]$/.test(key)){e.preventDefault();setView(Object.keys(VIEWS)[Number(key)-1]);}
  else if(e.key==='Delete'&&state.view==='list'&&state.selectedTasks.size){e.preventDefault();deleteTasks([...state.selectedTasks]);}
 });

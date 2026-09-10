@@ -115,7 +115,19 @@ class HelpCenterDialogImpl {
             </div>
           </div>
 
-          <!-- Section 3: Topic Guides -->
+          <!-- Section 3: Shortcuts & Detailed Manual -->
+          <div class="worktree-help-section">
+            <h3 class="worktree-help-section-title">Phím tắt & Sổ tay hướng dẫn</h3>
+            <div class="worktree-help-action-card">
+              <div class="worktree-help-action-text">
+                <div class="worktree-help-action-name">Bảng phím tắt & Quy tắc hoạt động</div>
+                <div class="worktree-help-action-desc">Tra cứu các phím tắt nhanh (Ctrl+K, Ctrl+B, N...), cách tính toán chỉ số và quản lý dữ liệu an toàn.</div>
+              </div>
+              <button type="button" class="worktree-btn-secondary" id="openShortcutsManualBtn">Mở sổ tay</button>
+            </div>
+          </div>
+
+          <!-- Section 4: Topic Guides -->
           <div class="worktree-help-section">
             <h3 class="worktree-help-section-title">Hướng dẫn theo chủ đề</h3>
             <div class="worktree-help-topics-list">
@@ -162,6 +174,13 @@ class HelpCenterDialogImpl {
       this.close();
       const resumeStep = progress?.step_index || 0;
       TourController.startTour(journey.id, context, resumeStep);
+    });
+
+    modal.querySelector('#openShortcutsManualBtn')?.addEventListener('click', () => {
+      this.close();
+      if (typeof window.openHelp === 'function') {
+        window.openHelp();
+      }
     });
 
     modal.querySelector('#restoreCardBtn')?.addEventListener('click', async () => {
@@ -212,3 +231,6 @@ class HelpCenterDialogImpl {
 }
 
 export const HelpCenterDialog = new HelpCenterDialogImpl();
+if (typeof window !== 'undefined') {
+  window.HelpCenterDialog = HelpCenterDialog;
+}

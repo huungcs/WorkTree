@@ -85,13 +85,15 @@ export async function initOnboarding(appState = {}) {
  * Helper to bind buttons that open the Help Center
  */
 function bindHelpCenterTriggers(appState) {
-  const helpButtons = document.querySelectorAll('[data-action="open-help-center"], #helpCenterBtn, .btn-help-center');
+  const helpButtons = document.querySelectorAll('[data-action="open-help-center"], #helpCenterBtn, .btn-help-center, [data-action="help"]');
   helpButtons.forEach(btn => {
     if (btn._hasHelpCenterBound) return;
     btn._hasHelpCenterBound = true;
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
       HelpCenterDialog.open(appState);
     });
   });

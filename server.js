@@ -17,16 +17,32 @@ const MIME_TYPES = {
   '.webmanifest': 'application/manifest+json; charset=utf-8'
 };
 
-const server = http.createServer((req, res) => {
-  let reqPath = decodeURIComponent(req.url.split('?')[0]);
+function createServer({ publicDir = PUBLIC_DIR } = {}) {
+  return http.createServer((req, res) => {
+  let reqPath;
+
+  try {
+    reqPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('400 Bad Request');
+    return;
+  }
+
   if (reqPath === '/' || reqPath === '') {
     reqPath = '/index.html';
   }
 
-  const filePath = path.join(PUBLIC_DIR, reqPath);
+  const relativeRequestPath = reqPath.replace(/^[/\\]+/, '');
+  const filePath = path.resolve(publicDir, relativeRequestPath);
+  const relativeFilePath = path.relative(publicDir, filePath);
 
   // Security check: ensure within root
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  if (
+    relativeFilePath === '..' ||
+    relativeFilePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeFilePath)
+  ) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('403 Forbidden');
     return;
@@ -50,9 +66,15 @@ const server = http.createServer((req, res) => {
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
   });
-});
+  });
+}
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`WorkTree X server is running at: http://localhost:${PORT}`);
-  console.log(`Standalone version at: http://localhost:${PORT}/WorkTree.html`);
-});
+if (require.main === module) {
+  const server = createServer();
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`WorkTree X server is running at: http://localhost:${PORT}`);
+    console.log(`Standalone version at: http://localhost:${PORT}/WorkTree.html`);
+  });
+}
+
+module.exports = { createServer };
