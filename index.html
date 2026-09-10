@@ -7,6 +7,7 @@
 <meta name="description" content="WorkTree X — Không gian điều hành công việc, hoạt động cục bộ và không cần kết nối mạng.">
 <title>WorkTree X V8 — Tài khoản & Ghim ưu tiên</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="src/features/onboarding/styles/onboarding.css">
 <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
@@ -20,28 +21,32 @@
       <span class="brand-text">WorkTree<span class="brand-x">X</span><small>KHÔNG GIAN LÀM VIỆC</small></span>
       <button class="icon-btn side-icon collapse-control" data-action="sidebar" aria-label="Thu gọn thanh điều hướng" title="Thu gọn / mở rộng (Ctrl+B)" data-icon="panel"></button>
     </div>
-    <button class="workspace-switch" data-action="workspace" title="Chuyển đổi không gian làm việc" aria-haspopup="dialog">
+    <button class="workspace-switch" data-action="workspace" data-tour="workspace-brand workspace-header" title="Chuyển đổi không gian làm việc" aria-haspopup="dialog">
       <span class="workspace-avatar">W</span><span class="side-label workspace-text"><strong id="workspaceName">Workspace</strong><small id="workspaceSub">Không gian làm việc</small></span><span class="side-label" data-icon="chevrons"></span>
     </button>
-    <button class="side-create" data-action="new-task" title="Tạo công việc (N)"><span data-icon="plus"></span><span class="side-label">Tạo công việc</span><kbd class="side-label">N</kbd></button>
+    <button class="side-create" data-action="new-task" data-tour="new-task-btn create-task" title="Tạo công việc (N)"><span data-icon="plus"></span><span class="side-label">Tạo công việc</span><kbd class="side-label">N</kbd></button>
     <div class="side-scroll">
       <p class="side-heading"><span class="side-label">KHÔNG GIAN</span></p>
       <nav class="primary-nav" aria-label="Chế độ chính">
         <button class="nav-item" data-action="nav" data-nav="overview" title="Tổng quan"><span data-icon="dashboard"></span><span class="side-label">Tổng quan</span></button>
-        <button class="nav-item" data-action="nav" data-nav="mine" title="Công việc của tôi"><span data-icon="check-circle"></span><span class="side-label">Công việc của tôi</span><span class="nav-count side-label" id="mineCount">0</span></button>
+        <button class="nav-item" data-action="nav" data-nav="mine" data-tour="my-tasks-nav my-tasks" title="Công việc của tôi"><span data-icon="check-circle"></span><span class="side-label">Công việc của tôi</span><span class="nav-count side-label" id="mineCount">0</span></button>
         <button class="nav-item" data-action="nav" data-nav="list" title="Tất cả công việc"><span data-icon="layers"></span><span class="side-label">Tất cả công việc</span><span class="nav-count side-label" id="allCount">0</span></button>
         <button class="nav-item" data-action="nav" data-nav="calendar" title="Lịch công việc"><span data-icon="calendar"></span><span class="side-label">Lịch công việc</span></button>
         <button class="nav-item" data-action="nav" data-nav="attention" title="Công việc cần chú ý"><span data-icon="inbox"></span><span class="side-label">Cần chú ý</span><span class="nav-count alert side-label" id="attentionCount">0</span></button>
       </nav>
-      <section class="pin-section side-label" id="pinSection" aria-label="Ghim ưu tiên"></section>
-      <div class="side-heading tree-heading"><span class="side-label">CÂY TỔ CHỨC</span><div class="side-label tree-controls"><button class="tiny-btn" data-action="expand-tree" title="Mở / thu toàn bộ cây" aria-label="Mở hoặc thu toàn bộ cây" data-icon="unfold"></button><button class="tiny-btn" data-action="new-node" title="Thêm đơn vị con" aria-label="Thêm đơn vị con" data-icon="plus"></button></div></div>
+      <section class="pin-section side-label" id="pinSection" data-tour="pin-section pins" aria-label="Ghim ưu tiên"></section>
+      <div class="side-heading tree-heading" data-tour="org-tree">
+        <span class="side-label">CÂY TỔ CHỨC</span>
+        <button type="button" class="tiny-btn contextual-help-btn" data-contextual-help="org-tree-help" aria-label="Trợ giúp về cây tổ chức" title="Trợ giúp về cây tổ chức"><span data-icon="help"></span></button>
+        <div class="side-label tree-controls"><button class="tiny-btn" data-action="expand-tree" title="Mở / thu toàn bộ cây" aria-label="Mở hoặc thu toàn bộ cây" data-icon="unfold"></button><button class="tiny-btn" data-action="new-node" title="Thêm đơn vị con" aria-label="Thêm đơn vị con" data-icon="plus"></button></div>
+      </div>
       <div class="tree-search side-label"><span data-icon="search"></span><input id="treeSearch" aria-label="Tìm đơn vị trong cây" placeholder="Tìm đơn vị..." autocomplete="off"></div>
-      <nav id="orgTree" class="org-tree" aria-label="Cây tổ chức"></nav>
+      <nav id="orgTree" class="org-tree" data-tour="org-tree-nav" aria-label="Cây tổ chức"></nav>
       <div class="saved-section side-label" id="savedSection"><div class="side-heading"><span>GÓC NHÌN ĐÃ LƯU</span><button class="tiny-btn" data-action="save-view" aria-label="Lưu góc nhìn hiện tại" title="Lưu góc nhìn hiện tại" data-icon="plus"></button></div><div id="savedViews"></div></div>
       <div class="side-note side-label"><span class="side-note-mark" data-icon="shield"></span><strong>Dữ liệu ở lại với bạn.</strong><p>Chạy cục bộ trên trình duyệt.<br>Chủ động sao lưu để bảo vệ công việc.</p><button data-action="export-json">Sao lưu dữ liệu <span data-icon="arrow-up-right"></span></button></div>
     </div>
     <div class="side-footer">
-      <button class="nav-item" id="accessNav" data-action="access" title="Tài khoản và phân quyền"><span data-icon="shield"></span><span class="side-label">Tài khoản &amp; quyền</span></button>
+      <button class="nav-item" id="accessNav" data-action="access" data-tour="access-nav add-employee" title="Tài khoản và phân quyền"><span data-icon="shield"></span><span class="side-label">Tài khoản &amp; quyền</span></button>
       <button class="nav-item" data-action="settings" title="Cài đặt & dữ liệu"><span data-icon="settings"></span><span class="side-label">Cài đặt & dữ liệu</span></button>
       <button class="profile" data-action="profile" title="Tài khoản của bạn"><span class="avatar user-avatar" id="userAvatar">VM</span><span class="side-label profile-text"><strong id="profileName">Võ Minh</strong><small id="profileRole"></small></span><span class="side-label" data-icon="chevrons"></span></button>
     </div>
@@ -55,6 +60,7 @@
         <span class="top-separator"></span>
         <button class="icon-btn" data-action="undo" id="undoBtn" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác thay đổi gần nhất" data-icon="undo" disabled></button>
         <button class="icon-btn" data-action="theme" id="themeBtn" title="Đổi giao diện sáng / tối" aria-label="Đổi giao diện sáng tối" data-icon="moon"></button>
+        <button class="icon-btn help-btn" data-action="help" id="helpCenterBtn" data-tour="help-nav help-center" title="Trợ giúp & Hướng dẫn (?)" aria-label="Mở bảng trợ giúp và hướng dẫn"><span data-icon="help"></span></button>
         <button class="icon-btn notification-btn" data-action="notifications" title="Nhắc việc" aria-label="Mở nhắc việc"><span data-icon="bell"></span><i id="notificationDot" hidden></i></button>
         <button class="avatar top-avatar" data-action="profile" id="topAvatar" aria-label="Thiết lập hồ sơ cục bộ">VM</button>
       </div>
@@ -67,12 +73,13 @@
         <div class="page-actions"><button class="btn" data-action="export-csv"><span data-icon="download"></span><span>Xuất báo cáo</span></button><button class="btn primary" data-action="new-task"><span data-icon="plus"></span>Công việc mới</button></div>
       </div>
       <div class="scope-strip" id="scopeStrip"><nav id="breadcrumbs" aria-label="Đường dẫn đơn vị"></nav><div class="scope-actions"><button class="icon-btn small" id="pinCurrentNode" data-action="pin-node-current" title="Ghim đơn vị" aria-label="Ghim đơn vị" data-icon="pin"></button><label class="switch-label" title="Bao gồm công việc trong toàn bộ các nhánh con"><input type="checkbox" id="includeChildren" checked><span class="mini-switch"></span>Bao gồm cấp con</label><button class="icon-btn small" data-action="node-menu" title="Chỉnh sửa đơn vị đang chọn" aria-label="Chỉnh sửa đơn vị đang chọn" data-icon="more"></button></div></div>
-      <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs"></div>
-      <div class="filterbar">
+      <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs" data-tour="view-tabs"></div>
+      <div class="filterbar" data-tour="filter-toolbar filters-search">
         <div class="inline-search"><span data-icon="search"></span><input id="taskSearch" type="search" aria-label="Tìm công việc trong phạm vi hiện tại" placeholder="Tìm công việc, thẻ, người phụ trách..." autocomplete="off"><kbd>/</kbd></div>
         <button class="btn filter-button" id="filterBtn" data-action="filters" aria-expanded="false" aria-controls="advancedFilters"><span data-icon="sliders"></span>Bộ lọc<span class="filter-count" id="filterCount" hidden>0</span></button>
         <select id="sortBy" class="toolbar-select" aria-label="Sắp xếp công việc"><option value="smart">Ưu tiên xử lý</option><option value="due">Hạn gần nhất</option><option value="priority">Mức ưu tiên</option><option value="title">Tên A → Z</option><option value="updated">Mới cập nhật</option></select>
         <button class="icon-btn filter-save" data-action="save-view" title="Lưu góc nhìn & bộ lọc" aria-label="Lưu góc nhìn và bộ lọc" data-icon="bookmark"></button>
+        <button type="button" class="icon-btn contextual-help-btn" data-contextual-help="filters-saved-views-help" title="Trợ giúp về tìm kiếm và bộ lọc" aria-label="Trợ giúp về tìm kiếm và bộ lọc"><span data-icon="help"></span></button>
       </div>
       <div class="advanced-filters" id="advancedFilters" hidden>
         <label>Trạng thái<select id="filterStatus"><option value="">Tất cả trạng thái</option></select></label>
@@ -83,8 +90,8 @@
         <button class="btn text-btn" data-action="clear-filters">Xóa bộ lọc</button>
       </div>
       <div id="activeFilters" class="active-filters" hidden></div>
-      <section id="viewContent" class="view-content" aria-label="Nội dung công việc"></section>
-      <footer class="content-footer"><span><i class="save-dot" id="saveDot"></i><span id="saveStatus">Lưu trên trình duyệt này</span></span><button data-action="help"><span data-icon="keyboard"></span>Phím tắt & hướng dẫn</button><span class="footer-version">WORKTREE X · V8</span></footer>
+      <section id="viewContent" class="view-content" data-tour="task-list" aria-label="Nội dung công việc"></section>
+      <footer class="content-footer"><span><i class="save-dot" id="saveDot"></i><span id="saveStatus">Lưu trên trình duyệt này</span></span><button data-action="help"><span data-icon="help"></span>Trợ giúp & hướng dẫn</button><span class="footer-version">WORKTREE X · V8</span></footer>
     </main>
   </div>
 </div>
@@ -103,7 +110,7 @@
     <label class="field full">Tên công việc <span class="required">*</span><input id="tTitle" name="title" maxlength="240" required placeholder="Cần hoàn thành điều gì?" autocomplete="off"></label>
     <label class="field full">Mô tả<textarea id="tDesc" maxlength="20000" rows="3" placeholder="Mục tiêu, kết quả mong đợi và tiêu chí hoàn thành..."></textarea></label>
     <label class="field">Đơn vị / dự án <span class="required">*</span><select id="tNode" required></select></label>
-    <label class="field">Người phụ trách<select id="tOwner"></select></label>
+    <label class="field">Người phụ trách <button type="button" class="tiny-btn contextual-help-btn inline-help" data-contextual-help="task-form-assignee-help" aria-label="Trợ giúp về người phụ trách và hạn" title="Trợ giúp về người phụ trách và hạn"><span data-icon="help"></span></button><select id="tOwner"></select></label>
     <label class="field">Trạng thái<select id="tStatus"></select></label>
     <label class="field">Mức ưu tiên<select id="tPriority"></select></label>
     <label class="field">Ngày bắt đầu<input id="tStart" type="date" min="1900-01-01" max="9999-12-31"></label>

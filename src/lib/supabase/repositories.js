@@ -1746,3 +1746,40 @@ export const AttachmentRepository = {
   }
 };
 
+// ============================================================================
+// ACTIVITY REPOSITORY (Multi-Tenant Activity Logs)
+// ============================================================================
+
+export const ActivityRepository = {
+  /**
+   * Lấy danh sách activity logs của organization hoặc task
+   * @param {string} organizationId - UUID của tổ chức
+   * @param {Object} options - { taskId, nodeId, limit }
+   */
+  async getActivities(organizationId, options = {}) {
+    if (!organizationId) throw new Error('Thiếu organizationId.');
+    const sb = await getSupabase();
+    let query = sb
+      .from('activity_logs')
+      .select('id, organization_id, actor_user_id, action, task_id, node_id, summary, metadata, created_at')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false });
+
+    if (options.taskId) {
+      query = query.eq('task_id', options.taskId);
+    }
+    if (options.nodeId) {
+      query = query.eq('node_id', options.nodeId);
+    }
+    const limit = Number.isInteger(options.limit) && options.limit > 0 ? options.limit : 100;
+    query = query.limit(limit);
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('[ActivityRepository] Lỗi truy vấn nhật ký hoạt động:', error.message);
+      return [];
+    }
+    return data || [];
+  }
+};
+

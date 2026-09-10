@@ -8,7 +8,7 @@ import { appState } from './state.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
-import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository, AttachmentRepository, OrganizationRepository } from '../lib/supabase/repositories.js';
+import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository, AttachmentRepository, OrganizationRepository, ActivityRepository } from '../lib/supabase/repositories.js';
 import { EmployeeService } from '../features/employees/index.js';
 import { TaskService, StarService } from '../features/tasks/index.js';
 import { TreeService } from '../features/organization-tree/index.js';
@@ -26,6 +26,7 @@ if (typeof window !== 'undefined') {
   window.RealtimeService = RealtimeService;
   window.NotificationService = NotificationService;
   window.PushDeviceService = PushDeviceService;
+  window.ActivityRepository = ActivityRepository;
 }
 
 let authViewInstance = null;
@@ -236,14 +237,18 @@ export async function loadWorkspaceData(orgId) {
       window.clearTenantUI(membership.name);
     }
 
-    // 4, 5, 6. Fetch song song từ canonical repositories (kể cả personal cloud data: pins, stars, saved views)
-    const [rawNodes, rawEmployees, rawTasks, rawPins, rawStarredTaskIds, rawSavedViews] = await Promise.all([
+    // 4, 5, 6. Fetch song song từ canonical repositories (kể cả personal cloud data: pins, stars, saved views, activities)
+    const [rawNodes, rawEmployees, rawTasks, rawPins, rawStarredTaskIds, rawSavedViews, rawActivities] = await Promise.all([
       NodeRepository.getNodes(orgId),
       EmployeeRepository.getEmployees(orgId),
       TaskRepository.getTasks(orgId),
       PinRepository.getUserPins(orgId),
       StarRepository.getStarredTaskIds(orgId),
-      SavedViewRepository.getSavedViews(orgId)
+      SavedViewRepository.getSavedViews(orgId),
+      ActivityRepository.getActivities(orgId, { limit: 100 }).catch(err => {
+        console.warn('[Activity] Fetch activities error:', err);
+        return [];
+      })
     ]);
 
     // 7. Security / Data Leak Guard: Xác nhận toàn bộ bản ghi thuộc đúng activeOrganizationId
@@ -266,6 +271,10 @@ export async function loadWorkspaceData(orgId) {
     const leakedSavedView = (rawSavedViews || []).find(sv => sv.organization_id !== orgId);
     if (leakedSavedView) {
       throw new Error(`SECURITY ALERT: Saved view ${leakedSavedView.id} organization mismatch (${leakedSavedView.organization_id} !== ${orgId})`);
+    }
+    const leakedActivity = (rawActivities || []).find(a => a.organization_id !== orgId);
+    if (leakedActivity) {
+      throw new Error(`SECURITY ALERT: Activity ${leakedActivity.id} organization mismatch (${leakedActivity.organization_id} !== ${orgId})`);
     }
 
     // 8. REQUEST CONCURRENCY / RACE CONDITION GUARD
@@ -298,6 +307,7 @@ export async function loadWorkspaceData(orgId) {
     appState.userPins = rawPins || [];
     appState.starredTaskIds = rawStarredTaskIds || new Set();
     appState.savedViews = rawSavedViews || [];
+    appState.activities = rawActivities || [];
 
     // 11. Cập nhật UI projection layer
     if (typeof window.setCloudWorkspaceData === 'function') {
@@ -308,6 +318,7 @@ export async function loadWorkspaceData(orgId) {
         pins: rawPins || [],
         starredTaskIds: rawStarredTaskIds || new Set(),
         savedViews: rawSavedViews || [],
+        activities: rawActivities || [],
         orgName: membership.name
       });
     }
@@ -318,6 +329,7 @@ export async function loadWorkspaceData(orgId) {
         onTaskChange: async (payload, { isLocal }) => {
           console.info('[Realtime] Task event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
           await syncCloudTasksQuietly(orgId);
+          await syncCloudActivitiesQuietly(orgId, payload.new?.id || payload.old?.id);
         },
         onNodeChange: async (payload, { isLocal }) => {
           console.info('[Realtime] Node event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
@@ -332,6 +344,7 @@ export async function loadWorkspaceData(orgId) {
           await syncCloudTasksQuietly(orgId);
           await syncCloudNodesQuietly(orgId);
           await syncCloudEmployeesQuietly(orgId);
+          await syncCloudActivitiesQuietly(orgId);
         },
         onSubscribed: (topic) => {
           console.info('[Realtime] Đã kết nối kênh workspace:', topic);
@@ -339,6 +352,23 @@ export async function loadWorkspaceData(orgId) {
       });
     } catch (realtimeErr) {
       console.warn('[Realtime] Không thể kết nối Realtime workspace:', realtimeErr);
+    }
+
+    // 13. PRODUCT ONBOARDING V1: Initialize Onboarding for active workspace
+    try {
+      const { initOnboarding } = await import('../features/onboarding/index.js');
+      await initOnboarding({
+        user: appState.user,
+        organization: {
+          id: orgId,
+          name: membership.name,
+          createdAt: membership.createdAt
+        },
+        role: membership.role || 'member',
+        appState
+      });
+    } catch (onboardingErr) {
+      console.warn('[Onboarding] Non-fatal initialization error:', onboardingErr);
     }
 
   } catch (err) {
@@ -422,10 +452,30 @@ export async function syncCloudEmployeesQuietly(orgId) {
   }
 }
 
+/**
+ * Đồng bộ Activities âm thầm từ Cloud
+ */
+export async function syncCloudActivitiesQuietly(orgId, taskId = null) {
+  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  try {
+    const rawActs = await ActivityRepository.getActivities(orgId, { taskId, limit: taskId ? 20 : 100 });
+    if (orgId !== appState.activeOrganizationId) return;
+    const leakedAct = rawActs.find(a => a.organization_id !== orgId);
+    if (leakedAct) return;
+
+    if (typeof window.mergeCloudActivities === 'function') {
+      window.mergeCloudActivities(rawActs);
+    }
+  } catch (err) {
+    console.warn('[Realtime] Lỗi sync activities âm thầm:', err);
+  }
+}
+
 if (typeof window !== 'undefined') {
   window.syncCloudTasksQuietly = syncCloudTasksQuietly;
   window.syncCloudNodesQuietly = syncCloudNodesQuietly;
   window.syncCloudEmployeesQuietly = syncCloudEmployeesQuietly;
+  window.syncCloudActivitiesQuietly = syncCloudActivitiesQuietly;
 }
 
 /**
@@ -462,6 +512,9 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
   document.querySelectorAll('dialog[open]').forEach(d => {
     try { d.close(); } catch (e) {}
   });
+  if (window.WorkTreeOnboarding?.TourController) {
+    window.WorkTreeOnboarding.TourController.endTour(false);
+  }
 
   // 3. Kích hoạt tenant mới trong appState
   appState.setActiveOrg(targetOrg.organizationId, {
@@ -815,6 +868,9 @@ export async function bootstrapApp() {
 
   window.supabaseSignOut = async () => {
     try {
+      if (window.WorkTreeOnboarding?.TourController) {
+        window.WorkTreeOnboarding.TourController.endTour(false);
+      }
       await PushDeviceService.logoutUser().catch(() => {});
       await RealtimeService.cleanupAll();
       await AuthService.signOut();

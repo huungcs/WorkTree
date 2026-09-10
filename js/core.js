@@ -478,6 +478,21 @@ function changeStatus(id,status){
   // Optimistic UI update
   t.status=status;
   if(status==='Hoàn thành')t.progress=100;
+
+  // Optimistic activity log entry
+  const actorName=window.__worktree_supabase_user?.name||(typeof person==='function'?person().name:'Tôi');
+  const optAct={
+   id:uid(),
+   at:new Date().toISOString(),
+   actor:actorName,
+   action:`Đổi trạng thái: ${prevStatus} ➔ ${status}`,
+   taskId:id,
+   nodeId:t.node,
+   title:t.title
+  };
+  data.activities.push(optAct);
+  if(data.activities.length>500)data.activities.shift();
+
   rebuild();
   renderView();
   if($('drawer').open&&drawerId===id)renderDrawer();
@@ -493,12 +508,19 @@ function changeStatus(id,status){
       renderView();
       if($('drawer').open&&drawerId===id)renderDrawer();
       toast(`Đã đổi trạng thái thành ${status}`,'success',true);
+
+      const currentOrgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
+      if(currentOrgId&&window.syncCloudActivitiesQuietly){
+       window.syncCloudActivitiesQuietly(currentOrgId, id);
+      }
      }
     }
    }catch(err){
     // Rollback on failure
     t.status=prevStatus;
     t.progress=prevProgress;
+    const actIdx=data.activities.findIndex(a=>a.id===optAct.id);
+    if(actIdx!==-1)data.activities.splice(actIdx,1);
     rebuild();
     renderView();
     if($('drawer').open&&drawerId===id)renderDrawer();
@@ -948,6 +970,19 @@ function saveTask(event){
         created.dependencies = selectedDeps;
        }
        data.tasks.unshift(created);
+
+       const actorName=window.__worktree_supabase_user?.name||(typeof person==='function'?person().name:'Tôi');
+       data.activities.push({
+        id:uid(),
+        at:new Date().toISOString(),
+        actor:actorName,
+        action:'Tạo công việc mới',
+        taskId:created.id,
+        nodeId:created.node,
+        title:created.title
+       });
+       if(data.activities.length>500)data.activities.shift();
+
        rebuild();
        renderAll(true);
        dirtyTask=false;
@@ -987,12 +1022,36 @@ function saveTask(event){
        }
        const idx=data.tasks.findIndex(x=>x.id===editingTask);
        if(idx!==-1)data.tasks[idx]=updated;
+
+       const actorName=window.__worktree_supabase_user?.name||(typeof person==='function'?person().name:'Tôi');
+       let actDesc='Cập nhật thông tin công việc';
+       if(updates.status&&t&&updates.status!==t.status){
+        actDesc=`Đổi trạng thái: ${t.status} ➔ ${updates.status}`;
+       }else if(updates.priority&&t&&updates.priority!==t.priority){
+        actDesc=`Đổi mức ưu tiên: ${t.priority} ➔ ${updates.priority}`;
+       }
+       data.activities.push({
+        id:uid(),
+        at:new Date().toISOString(),
+        actor:actorName,
+        action:actDesc,
+        taskId:editingTask,
+        nodeId:updated.node,
+        title:updated.title
+       });
+       if(data.activities.length>500)data.activities.shift();
+
        rebuild();
        renderAll(true);
        dirtyTask=false;
        closeDialog('taskDialog',true);
        if($('drawer').open&&drawerId===editingTask)renderDrawer();
        toast('Đã lưu thay đổi công việc.','success');
+
+       const currentOrgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
+       if(currentOrgId&&window.syncCloudActivitiesQuietly){
+        window.syncCloudActivitiesQuietly(currentOrgId, editingTask);
+       }
      }
     }
    }catch(err){
@@ -1126,8 +1185,9 @@ function openDrawer(id){
    window.DependencyService?window.DependencyService.getDependencies(id,currentOrgId):Promise.resolve([]),
    window.CommentService?window.CommentService.getComments(id,currentOrgId):Promise.resolve([]),
    window.TimeEntryService?window.TimeEntryService.getTimeEntries(id,currentOrgId):Promise.resolve([]),
-   window.AttachmentService?window.AttachmentService.getAttachments(id,currentOrgId):Promise.resolve([])
-  ]).then(([checkRes,depRes,comRes,timeRes,attachRes])=>{
+   window.AttachmentService?window.AttachmentService.getAttachments(id,currentOrgId):Promise.resolve([]),
+   window.ActivityRepository?window.ActivityRepository.getActivities(currentOrgId,{taskId:id,limit:20}):Promise.resolve([])
+  ]).then(([checkRes,depRes,comRes,timeRes,attachRes,actRes])=>{
    if(thisGen!==window.__taskDetailLoadGen||drawerId!==currentTaskId)return;
    if(currentOrgId&&window.__active_org_id&&currentOrgId!==window.__active_org_id)return;
 
@@ -1174,6 +1234,10 @@ function openDrawer(id){
     detail.attachments=attachRes.value||[];
    }else{
     detail.errors.attachments=attachRes.reason?.message||'Không thể tải tệp đính kèm.';
+   }
+
+   if(actRes&&actRes.status==='fulfilled'&&Array.isArray(actRes.value)&&window.mergeCloudActivities){
+    window.mergeCloudActivities(actRes.value, false);
    }
 
    const t=byTask.get(currentTaskId);
@@ -2918,7 +2982,82 @@ window.clearTenantUI=function(orgName){
  }
 };
 
-window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds,savedViews,orgName}){
+function mapCloudActivity(log, taskMap){
+ if(!log) return null;
+ let actionText = log.summary || 'Cập nhật công việc';
+ const meta = log.metadata || {};
+
+ if (log.action === 'task.updated') {
+  if (meta.new_status && meta.old_status && meta.new_status !== meta.old_status) {
+   const oldS = (window.STATUS_MAP?.dbToUi?.[meta.old_status]) || meta.old_status;
+   const newS = (window.STATUS_MAP?.dbToUi?.[meta.new_status]) || meta.new_status;
+   actionText = `Đổi trạng thái: ${oldS} ➔ ${newS}`;
+  } else if (meta.new_status) {
+   const newS = (window.STATUS_MAP?.dbToUi?.[meta.new_status]) || meta.new_status;
+   actionText = `Đổi trạng thái thành ${newS}`;
+  } else if (meta.new_priority && meta.old_priority && meta.new_priority !== meta.old_priority) {
+   const oldP = (window.PRIORITY_MAP?.dbToUi?.[meta.old_priority]) || meta.old_priority;
+   const newP = (window.PRIORITY_MAP?.dbToUi?.[meta.new_priority]) || meta.new_priority;
+   actionText = `Đổi mức ưu tiên: ${oldP} ➔ ${newP}`;
+  } else if (meta.new_priority) {
+   const newP = (window.PRIORITY_MAP?.dbToUi?.[meta.new_priority]) || meta.new_priority;
+   actionText = `Đổi mức ưu tiên thành ${newP}`;
+  } else if (meta.new_assignee) {
+   actionText = 'Thay đổi người phụ trách';
+  } else if (meta.new_due) {
+   actionText = 'Cập nhật hạn hoàn thành';
+  }
+ } else if (log.action === 'task.created') {
+  actionText = 'Tạo công việc';
+ } else if (log.action === 'task.deleted') {
+  actionText = 'Xóa công việc';
+ } else if (log.action === 'comment.created') {
+  actionText = 'Thêm bình luận';
+ } else if (log.action === 'time.logged') {
+  actionText = 'Ghi thời gian làm việc';
+ }
+
+ const taskTitle = (log.task_id && taskMap?.has(log.task_id))
+  ? taskMap.get(log.task_id).title
+  : (log.summary || '');
+
+ return {
+  id: log.id,
+  at: log.created_at || new Date().toISOString(),
+  actor: typeof resolveCommentAuthor === 'function' ? resolveCommentAuthor(log.actor_user_id) : 'Thành viên',
+  action: actionText,
+  taskId: log.task_id || null,
+  nodeId: log.node_id || null,
+  title: taskTitle
+ };
+}
+
+window.mergeCloudActivities=function(rawActivities, triggerRender = true){
+ if(!Array.isArray(rawActivities) || !data || !Array.isArray(data.activities)) return;
+ const taskMap = byTask;
+ const existingIds = new Set(data.activities.map(a => String(a.id)));
+ let hasNew = false;
+ for(const raw of rawActivities){
+  if(!existingIds.has(String(raw.id))){
+   const mapped = mapCloudActivity(raw, taskMap);
+   if(mapped){
+    data.activities.push(mapped);
+    existingIds.add(String(raw.id));
+    hasNew = true;
+   }
+  }
+ }
+ if(hasNew){
+  data.activities.sort((a,b)=>new Date(a.at)-new Date(b.at));
+  if(data.activities.length>500) data.activities = data.activities.slice(-500);
+  if(triggerRender){
+   renderView();
+   if($('drawer')?.open && byTask.has(drawerId)) renderDrawer();
+  }
+ }
+};
+
+window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds,savedViews,activities,orgName}){
  window.__worktree_is_cloud_workspace=true;
  window.cloudEmployees=employees||[];
  window.employeesById=new Map((employees||[]).map(e=>[e.id,e]));
@@ -2957,10 +3096,14 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds
   favorite: window.__worktree_starred_task_ids.has(t.id)
  }));
 
+ const taskMap = new Map((taskList||[]).map(t => [t.id, t]));
+ const mappedActs = (activities||[]).map(a => mapCloudActivity(a, taskMap)).filter(Boolean);
+ mappedActs.sort((a,b)=>new Date(a.at)-new Date(b.at));
+
  data={
   nodes:nodes||[],
   tasks:taskList,
-  activities:[]
+  activities:mappedActs
  };
 
  const root=rootNode();

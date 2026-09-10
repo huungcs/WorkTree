@@ -1480,7 +1480,888 @@ div[class*="onesignal-slidedown"] {
 
 
 
+
+/* ==========================================================================
+   WORKTREE X — PRODUCT ONBOARDING V1 STYLES
+   ========================================================================== */
+
+/**
+ * WorkTree X — Onboarding Styles
+ * Fully compliant with WorkTree Design System tokens (Light & Dark modes).
+ * Supports both desktop popover and mobile bottom sheet.
+ */
+
+/* ==========================================================================
+   1. TARGET SPOTLIGHT & BACKDROP
+   ========================================================================== */
+
+.worktree-tour-backdrop,
+.tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 26, 0.45);
+  z-index: 10000;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+.worktree-tour-spotlight {
+  position: fixed;
+  z-index: 10001;
+  pointer-events: none;
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(10, 15, 26, 0.48), 0 0 0 3px var(--primary, #6962db);
+  transition: top 0.2s cubic-bezier(0.16, 1, 0.3, 1), left 0.2s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s ease, height 0.2s ease;
+  display: none;
+}
+
+.worktree-tour-spotlight.is-active {
+  display: block;
+}
+
+[data-tour-target-highlight="true"] {
+  position: relative !important;
+  z-index: 10002 !important;
+  outline: 2px solid var(--primary, #6962db) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 6px var(--primary-soft, rgba(105, 98, 219, 0.2)), 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+  transition: outline 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ==========================================================================
+   2. TOUR POPOVER CARD (DESKTOP)
+   ========================================================================== */
+
+.worktree-tour-popover,
+.tour-card {
+  position: fixed;
+  z-index: 10003;
+  width: 350px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line-strong, #d8deea);
+  border-radius: var(--radius, 14px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+  color: var(--text, #20283d);
+  animation: tourCardFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tourCardFadeIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.worktree-tour-card {
+  padding: 18px 20px;
+}
+
+.worktree-tour-header,
+.tour-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.worktree-tour-step-badge,
+.tour-step-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--primary-text, #6256ca);
+  background: var(--primary-soft, #eeecfc);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.worktree-tour-close-btn,
+.tour-card-close {
+  background: transparent;
+  border: none;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.worktree-tour-close-btn:hover,
+.tour-card-close:hover {
+  color: var(--text, #20283d);
+  background: var(--surface-3, #f1f3f8);
+}
+
+.worktree-tour-title,
+.tour-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0 0 6px;
+  color: var(--text, #20283d);
+}
+
+.worktree-tour-desc,
+.tour-card-body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted, #65728a);
+  margin: 0 0 16px;
+}
+
+.worktree-tour-target-note {
+  font-size: 11px;
+  color: var(--amber, #93540c);
+  background: var(--amber-soft, #fcf3df);
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.worktree-tour-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--line, #e8ebf2);
+  padding-top: 14px;
+}
+
+.worktree-tour-footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.worktree-tour-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Button Primitives */
+.worktree-btn-subtle {
+  background: transparent;
+  border: none;
+  font-size: 11.5px;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.worktree-btn-subtle:hover {
+  color: var(--text, #20283d);
+  background: var(--surface-3, #f1f3f8);
+}
+
+.worktree-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line, #e8ebf2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 12px;
+  color: var(--text, #20283d);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.worktree-btn-ghost:hover {
+  background: var(--surface-3, #f1f3f8);
+}
+
+.worktree-btn-primary {
+  background: var(--primary, #6962db);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.worktree-btn-primary:hover {
+  background: var(--primary-hover, #5851c4);
+}
+
+.worktree-btn-secondary {
+  background: var(--surface-2, #f9fafc);
+  color: var(--text, #20283d);
+  border: 1px solid var(--line-strong, #d8deea);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+.worktree-btn-action {
+  background: var(--primary-soft, #eeecfc);
+  color: var(--primary-text, #6256ca);
+  border: 1px dashed var(--primary, #6962db);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   3. MOBILE TOUR CARD (BOTTOM SHEET)
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  .worktree-tour-popover--mobile,
+  .worktree-tour-popover,
+  .tour-card {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 18px 18px 0 0 !important;
+    border-bottom: none !important;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 12px)) !important;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.22) !important;
+    animation: mobileTourSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  @keyframes mobileTourSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .worktree-tour-footer button,
+  .worktree-btn-primary,
+  .worktree-btn-ghost,
+  .worktree-btn-subtle {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ==========================================================================
+   4. WELCOME DIALOG
+   ========================================================================== */
+
+.worktree-welcome-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 26, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 10010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: tourCardFadeIn 0.2s ease;
+}
+
+.worktree-welcome-dialog {
+  width: 480px;
+  max-width: 100%;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line-strong, #d8deea);
+  border-radius: var(--radius, 14px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  color: var(--text, #20283d);
+  position: relative;
+  overflow: hidden;
+}
+
+.worktree-welcome-card {
+  padding: 28px 28px 24px;
+  position: relative;
+}
+
+.worktree-welcome-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: transparent;
+  border: none;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.worktree-welcome-close:hover {
+  color: var(--text, #20283d);
+  background: var(--surface-3, #f1f3f8);
+}
+
+.worktree-welcome-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #c1f0d6;
+  color: #1c594b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.worktree-welcome-title {
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.4px;
+  margin: 0 0 8px;
+  color: var(--text, #20283d);
+  line-height: 1.3;
+}
+
+.worktree-welcome-desc {
+  font-size: 13.5px;
+  color: var(--muted, #65728a);
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+
+.worktree-welcome-features {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  background: var(--surface-2, #f9fafc);
+  border-radius: 10px;
+  border: 1px solid var(--line, #e8ebf2);
+}
+
+.worktree-welcome-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text, #20283d);
+}
+
+.worktree-welcome-feature-icon {
+  font-weight: 700;
+  color: var(--primary, #6962db);
+  flex-shrink: 0;
+}
+
+.worktree-welcome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ==========================================================================
+   5. GETTING STARTED CHECKLIST (OVERVIEW)
+   ========================================================================== */
+
+.worktree-getting-started-card,
+.getting-started-panel {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e8ebf2);
+  border-radius: var(--radius, 14px);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  transition: box-shadow 0.2s;
+}
+
+.worktree-getting-started-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.worktree-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.worktree-checklist-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.worktree-checklist-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--primary-soft, #eeecfc);
+  color: var(--primary-text, #6256ca);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.worktree-checklist-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  color: var(--text, #20283d);
+}
+
+.worktree-checklist-subtitle {
+  font-size: 12px;
+  color: var(--muted, #65728a);
+  margin: 0;
+}
+
+.worktree-checklist-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.worktree-checklist-btn-toggle,
+.worktree-checklist-btn-hide {
+  background: transparent;
+  border: none;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.worktree-checklist-btn-toggle:hover,
+.worktree-checklist-btn-hide:hover {
+  background: var(--surface-3, #f1f3f8);
+  color: var(--text, #20283d);
+}
+
+.worktree-checklist-progress-bar {
+  margin: 14px 0 16px;
+  height: 6px;
+  background: var(--surface-3, #f1f3f8);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.worktree-checklist-progress-fill {
+  height: 100%;
+  background: var(--primary, #6962db);
+  border-radius: 4px;
+  transition: width 0.35s ease;
+}
+
+.worktree-checklist-content.is-collapsed {
+  display: none;
+}
+
+.worktree-checklist-items {
+  display: grid;
+  gap: 8px;
+}
+
+.worktree-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--surface-2, #f9fafc);
+  border: 1px solid var(--line, #e8ebf2);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.worktree-checklist-item.is-completed {
+  opacity: 0.78;
+  background: var(--surface, #ffffff);
+}
+
+.worktree-checklist-item-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-3, #f1f3f8);
+  color: var(--muted, #65728a);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.worktree-checklist-item.is-completed .worktree-checklist-item-check {
+  background: var(--green-soft, #e8f5ef);
+  color: var(--green, #107353);
+}
+
+.worktree-checklist-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.worktree-checklist-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text, #20283d);
+}
+
+.worktree-checklist-item.is-completed .worktree-checklist-item-title {
+  text-decoration: line-through;
+  color: var(--muted, #65728a);
+}
+
+.worktree-checklist-item-desc {
+  font-size: 11.5px;
+  color: var(--muted, #65728a);
+  margin-top: 1px;
+}
+
+.worktree-checklist-item-note {
+  font-size: 11px;
+  color: var(--amber, #93540c);
+  margin-top: 2px;
+}
+
+.worktree-checklist-action-btn {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line-strong, #d8deea);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  color: var(--primary-text, #6256ca);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.worktree-checklist-action-btn:hover {
+  background: var(--primary-soft, #eeecfc);
+  border-color: var(--primary, #6962db);
+}
+
+.worktree-checklist-footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #e8ebf2);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.worktree-checklist-tour-btn {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-text, #6256ca);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ==========================================================================
+   6. CONTEXTUAL HELP POPOVER
+   ========================================================================== */
+
+.worktree-contextual-trigger {
+  background: transparent;
+  border: none;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  transition: color 0.15s, background 0.15s;
+}
+
+.worktree-contextual-trigger:hover,
+.worktree-contextual-trigger:focus-visible {
+  color: var(--primary-text, #6256ca);
+  background: var(--primary-soft, #eeecfc);
+}
+
+.worktree-contextual-popover {
+  position: fixed;
+  z-index: 10005;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line-strong, #d8deea);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+  color: var(--text, #20283d);
+  animation: tourCardFadeIn 0.18s ease;
+}
+
+.worktree-contextual-card {
+  padding: 12px 14px;
+}
+
+.worktree-contextual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.worktree-contextual-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #20283d);
+}
+
+.worktree-contextual-close {
+  background: transparent;
+  border: none;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.worktree-contextual-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted, #65728a);
+  margin: 0 0 6px;
+}
+
+.worktree-contextual-tip {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--primary-text, #6256ca);
+  background: var(--primary-soft, #eeecfc);
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+
+.worktree-contextual-tip-label {
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+/* ==========================================================================
+   7. HELP CENTER DIALOG ("Trợ giúp & Hướng dẫn")
+   ========================================================================== */
+
+.worktree-help-center-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 26, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 10010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: tourCardFadeIn 0.2s ease;
+}
+
+.worktree-help-center-dialog {
+  width: 600px;
+  max-width: 100%;
+  max-height: 90vh;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line-strong, #d8deea);
+  border-radius: var(--radius, 14px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  color: var(--text, #20283d);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.worktree-help-center-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 90vh;
+}
+
+.worktree-help-center-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line, #e8ebf2);
+}
+
+.worktree-help-center-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text, #20283d);
+}
+
+.worktree-help-center-header-title h2 {
+  font-size: 17px;
+  font-weight: 750;
+  margin: 0;
+}
+
+.worktree-help-center-close {
+  background: transparent;
+  border: none;
+  color: var(--muted, #65728a);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.worktree-help-center-close:hover {
+  color: var(--text, #20283d);
+  background: var(--surface-3, #f1f3f8);
+}
+
+.worktree-help-center-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: grid;
+  gap: 20px;
+}
+
+.worktree-help-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--muted, #65728a);
+  margin: 0 0 10px;
+}
+
+.worktree-help-actions-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.worktree-help-action-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--surface-2, #f9fafc);
+  border: 1px solid var(--line, #e8ebf2);
+}
+
+.worktree-help-action-name {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text, #20283d);
+  margin-bottom: 2px;
+}
+
+.worktree-help-action-desc {
+  font-size: 12px;
+  color: var(--muted, #65728a);
+}
+
+.worktree-help-topics-list {
+  display: grid;
+  gap: 10px;
+}
+
+.worktree-help-topic-item {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-2, #f9fafc);
+  border: 1px solid var(--line, #e8ebf2);
+}
+
+.worktree-help-topic-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text, #20283d);
+  margin-bottom: 4px;
+}
+
+.worktree-help-topic-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted, #65728a);
+  margin-bottom: 6px;
+}
+
+.worktree-help-topic-tip {
+  font-size: 11px;
+  color: var(--primary-text, #6256ca);
+  background: var(--primary-soft, #eeecfc);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.worktree-help-center-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: var(--surface-2, #f9fafc);
+  border-top: 1px solid var(--line, #e8ebf2);
+}
+
+.worktree-help-footer-status {
+  font-size: 11.5px;
+  color: var(--muted, #65728a);
+}
+
+/* ==========================================================================
+   8. DARK MODE ADJUSTMENTS
+   ========================================================================== */
+
+html[data-theme="dark"] .worktree-tour-popover,
+html[data-theme="dark"] .worktree-welcome-dialog,
+html[data-theme="dark"] .worktree-getting-started-card,
+html[data-theme="dark"] .worktree-contextual-popover,
+html[data-theme="dark"] .worktree-help-center-dialog {
+  border-color: var(--line-strong, #424d68);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="dark"] .worktree-tour-spotlight {
+  box-shadow: 0 0 0 9999px rgba(5, 8, 14, 0.65), 0 0 0 3px var(--primary, #8d82f1);
+}
+
+html[data-theme="dark"] .worktree-welcome-badge {
+  background: #1c3a34;
+  color: #73d6b4;
+}
+
+html[data-theme="dark"] .worktree-checklist-item-check {
+  background: var(--surface-3, #252e43);
+  color: var(--muted, #a0acc4);
+}
+
+html[data-theme="dark"] .worktree-checklist-item.is-completed .worktree-checklist-item-check {
+  background: var(--green-soft, #1c3a34);
+  color: var(--green, #73d6b4);
+}
+
+html[data-theme="dark"] .worktree-tour-target-note {
+  background: var(--amber-soft, #3e3424);
+  color: var(--amber, #e9bd72);
+}
+
 </style>
+<link rel="stylesheet" href="src/features/onboarding/styles/onboarding.css">
 <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
@@ -1494,28 +2375,32 @@ div[class*="onesignal-slidedown"] {
       <span class="brand-text">WorkTree<span class="brand-x">X</span><small>KHÔNG GIAN LÀM VIỆC</small></span>
       <button class="icon-btn side-icon collapse-control" data-action="sidebar" aria-label="Thu gọn thanh điều hướng" title="Thu gọn / mở rộng (Ctrl+B)" data-icon="panel"></button>
     </div>
-    <button class="workspace-switch" data-action="workspace" title="Chuyển đổi không gian làm việc" aria-haspopup="dialog">
+    <button class="workspace-switch" data-action="workspace" data-tour="workspace-brand workspace-header" title="Chuyển đổi không gian làm việc" aria-haspopup="dialog">
       <span class="workspace-avatar">W</span><span class="side-label workspace-text"><strong id="workspaceName">Workspace</strong><small id="workspaceSub">Không gian làm việc</small></span><span class="side-label" data-icon="chevrons"></span>
     </button>
-    <button class="side-create" data-action="new-task" title="Tạo công việc (N)"><span data-icon="plus"></span><span class="side-label">Tạo công việc</span><kbd class="side-label">N</kbd></button>
+    <button class="side-create" data-action="new-task" data-tour="new-task-btn create-task" title="Tạo công việc (N)"><span data-icon="plus"></span><span class="side-label">Tạo công việc</span><kbd class="side-label">N</kbd></button>
     <div class="side-scroll">
       <p class="side-heading"><span class="side-label">KHÔNG GIAN</span></p>
       <nav class="primary-nav" aria-label="Chế độ chính">
         <button class="nav-item" data-action="nav" data-nav="overview" title="Tổng quan"><span data-icon="dashboard"></span><span class="side-label">Tổng quan</span></button>
-        <button class="nav-item" data-action="nav" data-nav="mine" title="Công việc của tôi"><span data-icon="check-circle"></span><span class="side-label">Công việc của tôi</span><span class="nav-count side-label" id="mineCount">0</span></button>
+        <button class="nav-item" data-action="nav" data-nav="mine" data-tour="my-tasks-nav my-tasks" title="Công việc của tôi"><span data-icon="check-circle"></span><span class="side-label">Công việc của tôi</span><span class="nav-count side-label" id="mineCount">0</span></button>
         <button class="nav-item" data-action="nav" data-nav="list" title="Tất cả công việc"><span data-icon="layers"></span><span class="side-label">Tất cả công việc</span><span class="nav-count side-label" id="allCount">0</span></button>
         <button class="nav-item" data-action="nav" data-nav="calendar" title="Lịch công việc"><span data-icon="calendar"></span><span class="side-label">Lịch công việc</span></button>
         <button class="nav-item" data-action="nav" data-nav="attention" title="Công việc cần chú ý"><span data-icon="inbox"></span><span class="side-label">Cần chú ý</span><span class="nav-count alert side-label" id="attentionCount">0</span></button>
       </nav>
-      <section class="pin-section side-label" id="pinSection" aria-label="Ghim ưu tiên"></section>
-      <div class="side-heading tree-heading"><span class="side-label">CÂY TỔ CHỨC</span><div class="side-label tree-controls"><button class="tiny-btn" data-action="expand-tree" title="Mở / thu toàn bộ cây" aria-label="Mở hoặc thu toàn bộ cây" data-icon="unfold"></button><button class="tiny-btn" data-action="new-node" title="Thêm đơn vị con" aria-label="Thêm đơn vị con" data-icon="plus"></button></div></div>
+      <section class="pin-section side-label" id="pinSection" data-tour="pin-section pins" aria-label="Ghim ưu tiên"></section>
+      <div class="side-heading tree-heading" data-tour="org-tree">
+        <span class="side-label">CÂY TỔ CHỨC</span>
+        <button type="button" class="tiny-btn contextual-help-btn" data-contextual-help="org-tree-help" aria-label="Trợ giúp về cây tổ chức" title="Trợ giúp về cây tổ chức"><span data-icon="help"></span></button>
+        <div class="side-label tree-controls"><button class="tiny-btn" data-action="expand-tree" title="Mở / thu toàn bộ cây" aria-label="Mở hoặc thu toàn bộ cây" data-icon="unfold"></button><button class="tiny-btn" data-action="new-node" title="Thêm đơn vị con" aria-label="Thêm đơn vị con" data-icon="plus"></button></div>
+      </div>
       <div class="tree-search side-label"><span data-icon="search"></span><input id="treeSearch" aria-label="Tìm đơn vị trong cây" placeholder="Tìm đơn vị..." autocomplete="off"></div>
-      <nav id="orgTree" class="org-tree" aria-label="Cây tổ chức"></nav>
+      <nav id="orgTree" class="org-tree" data-tour="org-tree-nav" aria-label="Cây tổ chức"></nav>
       <div class="saved-section side-label" id="savedSection"><div class="side-heading"><span>GÓC NHÌN ĐÃ LƯU</span><button class="tiny-btn" data-action="save-view" aria-label="Lưu góc nhìn hiện tại" title="Lưu góc nhìn hiện tại" data-icon="plus"></button></div><div id="savedViews"></div></div>
       <div class="side-note side-label"><span class="side-note-mark" data-icon="shield"></span><strong>Dữ liệu ở lại với bạn.</strong><p>Chạy cục bộ trên trình duyệt.<br>Chủ động sao lưu để bảo vệ công việc.</p><button data-action="export-json">Sao lưu dữ liệu <span data-icon="arrow-up-right"></span></button></div>
     </div>
     <div class="side-footer">
-      <button class="nav-item" id="accessNav" data-action="access" title="Tài khoản và phân quyền"><span data-icon="shield"></span><span class="side-label">Tài khoản &amp; quyền</span></button>
+      <button class="nav-item" id="accessNav" data-action="access" data-tour="access-nav add-employee" title="Tài khoản và phân quyền"><span data-icon="shield"></span><span class="side-label">Tài khoản &amp; quyền</span></button>
       <button class="nav-item" data-action="settings" title="Cài đặt & dữ liệu"><span data-icon="settings"></span><span class="side-label">Cài đặt & dữ liệu</span></button>
       <button class="profile" data-action="profile" title="Tài khoản của bạn"><span class="avatar user-avatar" id="userAvatar">VM</span><span class="side-label profile-text"><strong id="profileName">Võ Minh</strong><small id="profileRole"></small></span><span class="side-label" data-icon="chevrons"></span></button>
     </div>
@@ -1529,6 +2414,7 @@ div[class*="onesignal-slidedown"] {
         <span class="top-separator"></span>
         <button class="icon-btn" data-action="undo" id="undoBtn" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác thay đổi gần nhất" data-icon="undo" disabled></button>
         <button class="icon-btn" data-action="theme" id="themeBtn" title="Đổi giao diện sáng / tối" aria-label="Đổi giao diện sáng tối" data-icon="moon"></button>
+        <button class="icon-btn help-btn" data-action="help" id="helpCenterBtn" data-tour="help-nav help-center" title="Trợ giúp & Hướng dẫn (?)" aria-label="Mở bảng trợ giúp và hướng dẫn"><span data-icon="help"></span></button>
         <button class="icon-btn notification-btn" data-action="notifications" title="Nhắc việc" aria-label="Mở nhắc việc"><span data-icon="bell"></span><i id="notificationDot" hidden></i></button>
         <button class="avatar top-avatar" data-action="profile" id="topAvatar" aria-label="Thiết lập hồ sơ cục bộ">VM</button>
       </div>
@@ -1541,12 +2427,13 @@ div[class*="onesignal-slidedown"] {
         <div class="page-actions"><button class="btn" data-action="export-csv"><span data-icon="download"></span><span>Xuất báo cáo</span></button><button class="btn primary" data-action="new-task"><span data-icon="plus"></span>Công việc mới</button></div>
       </div>
       <div class="scope-strip" id="scopeStrip"><nav id="breadcrumbs" aria-label="Đường dẫn đơn vị"></nav><div class="scope-actions"><button class="icon-btn small" id="pinCurrentNode" data-action="pin-node-current" title="Ghim đơn vị" aria-label="Ghim đơn vị" data-icon="pin"></button><label class="switch-label" title="Bao gồm công việc trong toàn bộ các nhánh con"><input type="checkbox" id="includeChildren" checked><span class="mini-switch"></span>Bao gồm cấp con</label><button class="icon-btn small" data-action="node-menu" title="Chỉnh sửa đơn vị đang chọn" aria-label="Chỉnh sửa đơn vị đang chọn" data-icon="more"></button></div></div>
-      <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs"></div>
-      <div class="filterbar">
+      <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs" data-tour="view-tabs"></div>
+      <div class="filterbar" data-tour="filter-toolbar filters-search">
         <div class="inline-search"><span data-icon="search"></span><input id="taskSearch" type="search" aria-label="Tìm công việc trong phạm vi hiện tại" placeholder="Tìm công việc, thẻ, người phụ trách..." autocomplete="off"><kbd>/</kbd></div>
         <button class="btn filter-button" id="filterBtn" data-action="filters" aria-expanded="false" aria-controls="advancedFilters"><span data-icon="sliders"></span>Bộ lọc<span class="filter-count" id="filterCount" hidden>0</span></button>
         <select id="sortBy" class="toolbar-select" aria-label="Sắp xếp công việc"><option value="smart">Ưu tiên xử lý</option><option value="due">Hạn gần nhất</option><option value="priority">Mức ưu tiên</option><option value="title">Tên A → Z</option><option value="updated">Mới cập nhật</option></select>
         <button class="icon-btn filter-save" data-action="save-view" title="Lưu góc nhìn & bộ lọc" aria-label="Lưu góc nhìn và bộ lọc" data-icon="bookmark"></button>
+        <button type="button" class="icon-btn contextual-help-btn" data-contextual-help="filters-saved-views-help" title="Trợ giúp về tìm kiếm và bộ lọc" aria-label="Trợ giúp về tìm kiếm và bộ lọc"><span data-icon="help"></span></button>
       </div>
       <div class="advanced-filters" id="advancedFilters" hidden>
         <label>Trạng thái<select id="filterStatus"><option value="">Tất cả trạng thái</option></select></label>
@@ -1557,8 +2444,8 @@ div[class*="onesignal-slidedown"] {
         <button class="btn text-btn" data-action="clear-filters">Xóa bộ lọc</button>
       </div>
       <div id="activeFilters" class="active-filters" hidden></div>
-      <section id="viewContent" class="view-content" aria-label="Nội dung công việc"></section>
-      <footer class="content-footer"><span><i class="save-dot" id="saveDot"></i><span id="saveStatus">Lưu trên trình duyệt này</span></span><button data-action="help"><span data-icon="keyboard"></span>Phím tắt & hướng dẫn</button><span class="footer-version">WORKTREE X · V8</span></footer>
+      <section id="viewContent" class="view-content" data-tour="task-list" aria-label="Nội dung công việc"></section>
+      <footer class="content-footer"><span><i class="save-dot" id="saveDot"></i><span id="saveStatus">Lưu trên trình duyệt này</span></span><button data-action="help"><span data-icon="help"></span>Trợ giúp & hướng dẫn</button><span class="footer-version">WORKTREE X · V8</span></footer>
     </main>
   </div>
 </div>
@@ -1577,7 +2464,7 @@ div[class*="onesignal-slidedown"] {
     <label class="field full">Tên công việc <span class="required">*</span><input id="tTitle" name="title" maxlength="240" required placeholder="Cần hoàn thành điều gì?" autocomplete="off"></label>
     <label class="field full">Mô tả<textarea id="tDesc" maxlength="20000" rows="3" placeholder="Mục tiêu, kết quả mong đợi và tiêu chí hoàn thành..."></textarea></label>
     <label class="field">Đơn vị / dự án <span class="required">*</span><select id="tNode" required></select></label>
-    <label class="field">Người phụ trách<select id="tOwner"></select></label>
+    <label class="field">Người phụ trách <button type="button" class="tiny-btn contextual-help-btn inline-help" data-contextual-help="task-form-assignee-help" aria-label="Trợ giúp về người phụ trách và hạn" title="Trợ giúp về người phụ trách và hạn"><span data-icon="help"></span></button><select id="tOwner"></select></label>
     <label class="field">Trạng thái<select id="tStatus"></select></label>
     <label class="field">Mức ưu tiên<select id="tPriority"></select></label>
     <label class="field">Ngày bắt đầu<input id="tStart" type="date" min="1900-01-01" max="9999-12-31"></label>
@@ -2101,6 +2988,21 @@ function changeStatus(id,status){
   // Optimistic UI update
   t.status=status;
   if(status==='Hoàn thành')t.progress=100;
+
+  // Optimistic activity log entry
+  const actorName=window.__worktree_supabase_user?.name||(typeof person==='function'?person().name:'Tôi');
+  const optAct={
+   id:uid(),
+   at:new Date().toISOString(),
+   actor:actorName,
+   action:`Đổi trạng thái: ${prevStatus} ➔ ${status}`,
+   taskId:id,
+   nodeId:t.node,
+   title:t.title
+  };
+  data.activities.push(optAct);
+  if(data.activities.length>500)data.activities.shift();
+
   rebuild();
   renderView();
   if($('drawer').open&&drawerId===id)renderDrawer();
@@ -2116,12 +3018,19 @@ function changeStatus(id,status){
       renderView();
       if($('drawer').open&&drawerId===id)renderDrawer();
       toast(`Đã đổi trạng thái thành ${status}`,'success',true);
+
+      const currentOrgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
+      if(currentOrgId&&window.syncCloudActivitiesQuietly){
+       window.syncCloudActivitiesQuietly(currentOrgId, id);
+      }
      }
     }
    }catch(err){
     // Rollback on failure
     t.status=prevStatus;
     t.progress=prevProgress;
+    const actIdx=data.activities.findIndex(a=>a.id===optAct.id);
+    if(actIdx!==-1)data.activities.splice(actIdx,1);
     rebuild();
     renderView();
     if($('drawer').open&&drawerId===id)renderDrawer();
@@ -2571,6 +3480,19 @@ function saveTask(event){
         created.dependencies = selectedDeps;
        }
        data.tasks.unshift(created);
+
+       const actorName=window.__worktree_supabase_user?.name||(typeof person==='function'?person().name:'Tôi');
+       data.activities.push({
+        id:uid(),
+        at:new Date().toISOString(),
+        actor:actorName,
+        action:'Tạo công việc mới',
+        taskId:created.id,
+        nodeId:created.node,
+        title:created.title
+       });
+       if(data.activities.length>500)data.activities.shift();
+
        rebuild();
        renderAll(true);
        dirtyTask=false;
@@ -2610,12 +3532,36 @@ function saveTask(event){
        }
        const idx=data.tasks.findIndex(x=>x.id===editingTask);
        if(idx!==-1)data.tasks[idx]=updated;
+
+       const actorName=window.__worktree_supabase_user?.name||(typeof person==='function'?person().name:'Tôi');
+       let actDesc='Cập nhật thông tin công việc';
+       if(updates.status&&t&&updates.status!==t.status){
+        actDesc=`Đổi trạng thái: ${t.status} ➔ ${updates.status}`;
+       }else if(updates.priority&&t&&updates.priority!==t.priority){
+        actDesc=`Đổi mức ưu tiên: ${t.priority} ➔ ${updates.priority}`;
+       }
+       data.activities.push({
+        id:uid(),
+        at:new Date().toISOString(),
+        actor:actorName,
+        action:actDesc,
+        taskId:editingTask,
+        nodeId:updated.node,
+        title:updated.title
+       });
+       if(data.activities.length>500)data.activities.shift();
+
        rebuild();
        renderAll(true);
        dirtyTask=false;
        closeDialog('taskDialog',true);
        if($('drawer').open&&drawerId===editingTask)renderDrawer();
        toast('Đã lưu thay đổi công việc.','success');
+
+       const currentOrgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
+       if(currentOrgId&&window.syncCloudActivitiesQuietly){
+        window.syncCloudActivitiesQuietly(currentOrgId, editingTask);
+       }
      }
     }
    }catch(err){
@@ -2749,8 +3695,9 @@ function openDrawer(id){
    window.DependencyService?window.DependencyService.getDependencies(id,currentOrgId):Promise.resolve([]),
    window.CommentService?window.CommentService.getComments(id,currentOrgId):Promise.resolve([]),
    window.TimeEntryService?window.TimeEntryService.getTimeEntries(id,currentOrgId):Promise.resolve([]),
-   window.AttachmentService?window.AttachmentService.getAttachments(id,currentOrgId):Promise.resolve([])
-  ]).then(([checkRes,depRes,comRes,timeRes,attachRes])=>{
+   window.AttachmentService?window.AttachmentService.getAttachments(id,currentOrgId):Promise.resolve([]),
+   window.ActivityRepository?window.ActivityRepository.getActivities(currentOrgId,{taskId:id,limit:20}):Promise.resolve([])
+  ]).then(([checkRes,depRes,comRes,timeRes,attachRes,actRes])=>{
    if(thisGen!==window.__taskDetailLoadGen||drawerId!==currentTaskId)return;
    if(currentOrgId&&window.__active_org_id&&currentOrgId!==window.__active_org_id)return;
 
@@ -2797,6 +3744,10 @@ function openDrawer(id){
     detail.attachments=attachRes.value||[];
    }else{
     detail.errors.attachments=attachRes.reason?.message||'Không thể tải tệp đính kèm.';
+   }
+
+   if(actRes&&actRes.status==='fulfilled'&&Array.isArray(actRes.value)&&window.mergeCloudActivities){
+    window.mergeCloudActivities(actRes.value, false);
    }
 
    const t=byTask.get(currentTaskId);
@@ -4541,7 +5492,82 @@ window.clearTenantUI=function(orgName){
  }
 };
 
-window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds,savedViews,orgName}){
+function mapCloudActivity(log, taskMap){
+ if(!log) return null;
+ let actionText = log.summary || 'Cập nhật công việc';
+ const meta = log.metadata || {};
+
+ if (log.action === 'task.updated') {
+  if (meta.new_status && meta.old_status && meta.new_status !== meta.old_status) {
+   const oldS = (window.STATUS_MAP?.dbToUi?.[meta.old_status]) || meta.old_status;
+   const newS = (window.STATUS_MAP?.dbToUi?.[meta.new_status]) || meta.new_status;
+   actionText = `Đổi trạng thái: ${oldS} ➔ ${newS}`;
+  } else if (meta.new_status) {
+   const newS = (window.STATUS_MAP?.dbToUi?.[meta.new_status]) || meta.new_status;
+   actionText = `Đổi trạng thái thành ${newS}`;
+  } else if (meta.new_priority && meta.old_priority && meta.new_priority !== meta.old_priority) {
+   const oldP = (window.PRIORITY_MAP?.dbToUi?.[meta.old_priority]) || meta.old_priority;
+   const newP = (window.PRIORITY_MAP?.dbToUi?.[meta.new_priority]) || meta.new_priority;
+   actionText = `Đổi mức ưu tiên: ${oldP} ➔ ${newP}`;
+  } else if (meta.new_priority) {
+   const newP = (window.PRIORITY_MAP?.dbToUi?.[meta.new_priority]) || meta.new_priority;
+   actionText = `Đổi mức ưu tiên thành ${newP}`;
+  } else if (meta.new_assignee) {
+   actionText = 'Thay đổi người phụ trách';
+  } else if (meta.new_due) {
+   actionText = 'Cập nhật hạn hoàn thành';
+  }
+ } else if (log.action === 'task.created') {
+  actionText = 'Tạo công việc';
+ } else if (log.action === 'task.deleted') {
+  actionText = 'Xóa công việc';
+ } else if (log.action === 'comment.created') {
+  actionText = 'Thêm bình luận';
+ } else if (log.action === 'time.logged') {
+  actionText = 'Ghi thời gian làm việc';
+ }
+
+ const taskTitle = (log.task_id && taskMap?.has(log.task_id))
+  ? taskMap.get(log.task_id).title
+  : (log.summary || '');
+
+ return {
+  id: log.id,
+  at: log.created_at || new Date().toISOString(),
+  actor: typeof resolveCommentAuthor === 'function' ? resolveCommentAuthor(log.actor_user_id) : 'Thành viên',
+  action: actionText,
+  taskId: log.task_id || null,
+  nodeId: log.node_id || null,
+  title: taskTitle
+ };
+}
+
+window.mergeCloudActivities=function(rawActivities, triggerRender = true){
+ if(!Array.isArray(rawActivities) || !data || !Array.isArray(data.activities)) return;
+ const taskMap = byTask;
+ const existingIds = new Set(data.activities.map(a => String(a.id)));
+ let hasNew = false;
+ for(const raw of rawActivities){
+  if(!existingIds.has(String(raw.id))){
+   const mapped = mapCloudActivity(raw, taskMap);
+   if(mapped){
+    data.activities.push(mapped);
+    existingIds.add(String(raw.id));
+    hasNew = true;
+   }
+  }
+ }
+ if(hasNew){
+  data.activities.sort((a,b)=>new Date(a.at)-new Date(b.at));
+  if(data.activities.length>500) data.activities = data.activities.slice(-500);
+  if(triggerRender){
+   renderView();
+   if($('drawer')?.open && byTask.has(drawerId)) renderDrawer();
+  }
+ }
+};
+
+window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds,savedViews,activities,orgName}){
  window.__worktree_is_cloud_workspace=true;
  window.cloudEmployees=employees||[];
  window.employeesById=new Map((employees||[]).map(e=>[e.id,e]));
@@ -4580,10 +5606,14 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds
   favorite: window.__worktree_starred_task_ids.has(t.id)
  }));
 
+ const taskMap = new Map((taskList||[]).map(t => [t.id, t]));
+ const mappedActs = (activities||[]).map(a => mapCloudActivity(a, taskMap)).filter(Boolean);
+ mappedActs.sort((a,b)=>new Date(a.at)-new Date(b.at));
+
  data={
   nodes:nodes||[],
   tasks:taskList,
-  activities:[]
+  activities:mappedActs
  };
 
  const root=rootNode();
