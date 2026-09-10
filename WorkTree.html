@@ -103,6 +103,7 @@ button{border:0}
 .nav-count{font-size:10px;background:rgba(184,195,220,.08);border:1px solid rgba(184,195,220,.04);color:#bfcbe0;padding:0px 6px;border-radius:5px;min-width:21px;text-align:center;line-height:18px}
 .nav-count.alert{color:#f0c295;background:#48382c}
 .tree-heading{margin-top:25px}
+.tree-heading-left{display:inline-flex;align-items:center;gap:4px}
 .tree-controls{display:flex;gap:4px}
 .tiny-btn{width:22px;height:22px;padding:0;background:transparent;color:inherit;border-radius:5px;display:inline-flex;align-items:center;justify-content:center}
 .tiny-btn svg{width:14px;height:14px}
@@ -2425,8 +2426,10 @@ html[data-theme="dark"] .worktree-tour-target-note {
       </nav>
       <section class="pin-section side-label" id="pinSection" data-tour="pin-section pins" aria-label="Ghim ưu tiên"></section>
       <div class="side-heading tree-heading" data-tour="org-tree">
-        <span class="side-label">CÂY TỔ CHỨC</span>
-        <button type="button" class="tiny-btn contextual-help-btn" data-contextual-help="org-tree-help" aria-label="Trợ giúp về cây tổ chức" title="Trợ giúp về cây tổ chức"><span data-icon="help"></span></button>
+        <div class="tree-heading-left side-label">
+          <span>CÂY TỔ CHỨC</span>
+          <button type="button" class="tiny-btn contextual-help-btn" data-contextual-help="org-tree-help" aria-label="Trợ giúp về cây tổ chức" title="Trợ giúp về cây tổ chức"><span data-icon="help"></span></button>
+        </div>
         <div class="side-label tree-controls"><button class="tiny-btn" data-action="expand-tree" title="Mở / thu toàn bộ cây" aria-label="Mở hoặc thu toàn bộ cây" data-icon="unfold"></button><button class="tiny-btn" data-action="new-node" title="Thêm đơn vị con" aria-label="Thêm đơn vị con" data-icon="plus"></button></div>
       </div>
       <div class="tree-search side-label"><span data-icon="search"></span><input id="treeSearch" aria-label="Tìm đơn vị trong cây" placeholder="Tìm đơn vị..." autocomplete="off"></div>

@@ -94,6 +94,7 @@ button{border:0}
 .nav-count{font-size:10px;background:rgba(184,195,220,.08);border:1px solid rgba(184,195,220,.04);color:#bfcbe0;padding:0px 6px;border-radius:5px;min-width:21px;text-align:center;line-height:18px}
 .nav-count.alert{color:#f0c295;background:#48382c}
 .tree-heading{margin-top:25px}
+.tree-heading-left{display:inline-flex;align-items:center;gap:4px}
 .tree-controls{display:flex;gap:4px}
 .tiny-btn{width:22px;height:22px;padding:0;background:transparent;color:inherit;border-radius:5px;display:inline-flex;align-items:center;justify-content:center}
 .tiny-btn svg{width:14px;height:14px}
