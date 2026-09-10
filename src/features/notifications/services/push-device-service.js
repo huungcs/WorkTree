@@ -166,29 +166,46 @@ export const PushDeviceService = {
     if (!this.isPushSupported()) return false;
 
     try {
-      if (window.OneSignalDeferred) {
-        return await new Promise((resolve) => {
+      // 1. Luôn kích hoạt native browser Notification.requestPermission() trực tiếp
+      // để trình duyệt hiển thị hộp thoại cấp quyền ngay lập tức, không bị nghẽn bởi OneSignal SDK
+      let permResult = Notification.permission;
+      if (permResult === 'default') {
+        permResult = await Promise.race([
+          Notification.requestPermission(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Notification permission timeout')), 15000))
+        ]);
+      }
+
+      const granted = permResult === 'granted';
+
+      if (granted) {
+        // 2. Thông báo ngầm cho OneSignal Web SDK nếu có trong trang
+        if (window.OneSignalDeferred) {
           window.OneSignalDeferred.push(async function (OneSignal) {
             try {
-              await OneSignal.Notifications.requestPermission();
-              const granted = Notification.permission === 'granted';
-              if (granted) {
-                await PushDeviceService.syncCurrentDevice();
+              if (OneSignal?.Notifications?.requestPermission) {
+                await Promise.race([
+                  OneSignal.Notifications.requestPermission(),
+                  new Promise(res => setTimeout(res, 2500))
+                ]);
               }
-              resolve(granted);
-            } catch (err) {
-              console.warn('[Push] Lỗi khi xin quyền OneSignal:', err);
-              resolve(Notification.permission === 'granted');
+            } catch (e) {
+              console.warn('[Push] OneSignal sync note:', e);
             }
           });
-        });
-      } else {
-        const result = await Notification.requestPermission();
-        return result === 'granted';
+        }
+
+        // 3. Đồng bộ thiết bị vào Supabase trong nền (timeout 3.5s)
+        Promise.race([
+          this.syncCurrentDevice(),
+          new Promise(res => setTimeout(res, 3500))
+        ]).catch(syncErr => console.warn('[Push] Background sync error:', syncErr));
       }
+
+      return granted;
     } catch (err) {
       console.warn('[Push] Lỗi requestPermission:', err);
-      return false;
+      return Notification.permission === 'granted';
     }
   },
 
@@ -390,18 +407,42 @@ export const PushDeviceService = {
         allowBtn.disabled = true;
         allowBtn.textContent = 'Đang kích hoạt...';
         try {
-          const granted = await PushDeviceService.requestPermission();
+          const granted = await Promise.race([
+            PushDeviceService.requestPermission(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+          ]);
+
           if (granted) {
             if (typeof window.toast === 'function') {
               window.toast('Đã bật thông báo đẩy thành công!');
             }
             closePrompt();
           } else {
+            if (Notification.permission === 'denied' && typeof window.toast === 'function') {
+              window.toast('Thông báo đang bị chặn. Bấm vào biểu tượng ổ khóa/cài đặt trên thanh địa chỉ để bật lại.');
+            }
             handleDismiss();
           }
         } catch (err) {
           console.warn('[Push] Lỗi kích hoạt:', err);
-          closePrompt();
+          if (Notification.permission === 'granted') {
+            if (typeof window.toast === 'function') {
+              window.toast('Đã bật thông báo đẩy thành công!');
+            }
+            closePrompt();
+          } else {
+            // Khôi phục nút nếu trình duyệt đang chờ người dùng thao tác
+            allowBtn.disabled = false;
+            allowBtn.innerHTML = `
+              <svg viewBox="0 0 24 24" width="14" height="14">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              Bật thông báo
+            `;
+            if (typeof window.toast === 'function') {
+              window.toast('Vui lòng chọn "Cho phép" (Allow) trên hộp thoại của trình duyệt.');
+            }
+          }
         }
       };
     }
