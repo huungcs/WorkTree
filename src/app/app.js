@@ -767,9 +767,13 @@ export async function bootstrapApp() {
     if (userOrgs.length === 0) {
       workspaceDialogInstance.openCreateWorkspace({ isZeroOrg: true });
     } else {
+      const activeOrg = userOrgs.find(o => o.organizationId === appState.activeOrganizationId);
+      const role = activeOrg?.role || appState.activeMembership?.role || (typeof window.currentAccount === 'function' ? window.currentAccount()?.role : null);
+      const canCreate = role === 'owner' || role === 'admin';
       workspaceDialogInstance.openSwitcher({
         organizations: userOrgs,
-        activeOrganizationId: appState.activeOrganizationId
+        activeOrganizationId: appState.activeOrganizationId,
+        canCreateWorkspace: canCreate
       });
     }
   };

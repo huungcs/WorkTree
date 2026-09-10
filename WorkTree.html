@@ -5644,7 +5644,28 @@ function openInviteLinkDialog({ token, email, fullName, role = 'member', homeNod
 }
 
 async function openEmployeeDetailsDialog(employeeId){
- const emp = cloudEmployeesWithStatus.find(e => e.id === employeeId);
+ const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+ if((!cloudEmployeesWithStatus || !cloudEmployeesWithStatus.length) && orgId){
+  try{
+   if(window.EmployeeService?.loadEmployeesWithAccountStatus){
+    cloudEmployeesWithStatus = await window.EmployeeService.loadEmployeesWithAccountStatus(orgId);
+   } else if(Array.isArray(window.cloudEmployees)){
+    cloudEmployeesWithStatus = window.cloudEmployees.map(e=>({...e, accountStatus:'uninvited', role:'member'}));
+   }
+  }catch(err){
+   console.warn('Lỗi nạp trạng thái tài khoản nhân sự:', err);
+  }
+ }
+
+ let emp = (cloudEmployeesWithStatus || []).find(e => String(e.id) === String(employeeId));
+ if(!emp && Array.isArray(window.cloudEmployees)){
+  const raw = window.cloudEmployees.find(e => String(e.id) === String(employeeId));
+  if(raw) emp = { ...raw, accountStatus: 'uninvited', role: 'member' };
+ }
+ if(!emp && window.employeesById?.has(employeeId)){
+  const raw = window.employeesById.get(employeeId);
+  emp = { ...raw, accountStatus: 'uninvited', role: 'member' };
+ }
  if(!emp) return toast('Không tìm thấy nhân sự.', 'error');
 
  const curMember = window.appState?.activeMembership;

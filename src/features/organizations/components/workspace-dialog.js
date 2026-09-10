@@ -192,7 +192,7 @@ export class WorkspaceDialog {
   /**
    * Mở dialog Workspace Switcher cho phép chọn công ty hoặc tạo mới
    */
-  openSwitcher({ organizations = [], activeOrganizationId = null } = {}) {
+  openSwitcher({ organizations = [], activeOrganizationId = null, canCreateWorkspace = null } = {}) {
     this.close();
 
     const dialog = document.createElement('dialog');
@@ -200,6 +200,12 @@ export class WorkspaceDialog {
     dialog.id = 'workspaceSwitcherDialog';
     dialog.setAttribute('aria-labelledby', 'switcherTitle');
     dialog.setAttribute('aria-modal', 'true');
+
+    // Only Owner and Admin can create new workspaces
+    const activeOrg = organizations.find(o => o.organizationId === activeOrganizationId);
+    const activeRole = activeOrg?.role || window.appState?.activeMembership?.role || (typeof window.currentAccount === 'function' ? window.currentAccount()?.role : null);
+    const isOwnerOrAdmin = activeRole === 'owner' || activeRole === 'admin';
+    const allowCreate = canCreateWorkspace !== null ? canCreateWorkspace : isOwnerOrAdmin;
 
     const orgListHtml = organizations.map(org => {
       const isActive = org.organizationId === activeOrganizationId;
@@ -241,10 +247,12 @@ export class WorkspaceDialog {
       </div>
 
       <div class="dialog-foot" style="justify-content:space-between;">
+        ${allowCreate ? `
         <button type="button" class="btn" id="switcherCreateNewBtn" style="gap:6px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           Tạo workspace mới
         </button>
+        ` : '<div></div>'}
         <button type="button" class="btn" data-action="close-dialog">Đóng</button>
       </div>
     `;
