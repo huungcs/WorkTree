@@ -326,19 +326,23 @@ export async function loadWorkspaceData(orgId) {
     try {
       await RealtimeService.subscribeWorkspace(orgId, {
         onTaskChange: async (payload, { isLocal }) => {
+          if (!appState.user || !window.__worktree_supabase_user || orgId !== appState.activeOrganizationId) return;
           console.info('[Realtime] Task event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
           await syncCloudTasksQuietly(orgId);
           await syncCloudActivitiesQuietly(orgId, payload.new?.id || payload.old?.id);
         },
         onNodeChange: async (payload, { isLocal }) => {
+          if (!appState.user || !window.__worktree_supabase_user || orgId !== appState.activeOrganizationId) return;
           console.info('[Realtime] Node event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
           await syncCloudNodesQuietly(orgId);
         },
         onEmployeeChange: async (payload, { isLocal }) => {
+          if (!appState.user || !window.__worktree_supabase_user || orgId !== appState.activeOrganizationId) return;
           console.info('[Realtime] Employee event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
           await syncCloudEmployeesQuietly(orgId);
         },
         onReconnect: async () => {
+          if (!appState.user || !window.__worktree_supabase_user || orgId !== appState.activeOrganizationId) return;
           console.info('[Realtime] Đã kết nối lại. Đang đồng bộ lại snapshot mới nhất...');
           await syncCloudTasksQuietly(orgId);
           await syncCloudNodesQuietly(orgId);
@@ -385,13 +389,34 @@ export async function loadWorkspaceData(orgId) {
 }
 
 /**
+ * Đóng an toàn toàn bộ dialog và popover đang mở trên trang khi logout/chuyển trạng thái
+ */
+export function closeAllModalsAndPopovers() {
+  if (workspaceDialogInstance) {
+    try { workspaceDialogInstance.close(); } catch (e) {}
+  }
+  if (typeof document !== 'undefined') {
+    document.querySelectorAll('dialog[open]').forEach(dialog => {
+      try { dialog.close(); } catch (e) {}
+    });
+    const popover = document.getElementById('worktreeContextualPopover');
+    if (popover) {
+      try {
+        if (typeof popover.hidePopover === 'function') popover.hidePopover();
+        popover.remove();
+      } catch (e) {}
+    }
+  }
+}
+
+/**
  * Đồng bộ Tasks âm thầm không gây flash giao diện (Quiet Sync)
  */
 export async function syncCloudTasksQuietly(orgId) {
-  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  if (!orgId || orgId !== appState.activeOrganizationId || !appState.user || !window.__worktree_supabase_user) return;
   try {
     const rawTasks = await TaskRepository.getTasks(orgId);
-    if (orgId !== appState.activeOrganizationId) return;
+    if (orgId !== appState.activeOrganizationId || !appState.user) return;
     const leakedTask = rawTasks.find(t => t.organization_id !== orgId);
     if (leakedTask) return;
 
@@ -400,7 +425,9 @@ export async function syncCloudTasksQuietly(orgId) {
 
     callLegacyGlobal('updateCloudTasksQuietly', [mappedTasks]);
   } catch (err) {
-    console.warn('[Realtime] Lỗi sync tasks âm thầm:', err);
+    if (appState.user && orgId === appState.activeOrganizationId) {
+      console.warn('[Realtime] Lỗi sync tasks âm thầm:', err);
+    }
   }
 }
 
@@ -408,10 +435,10 @@ export async function syncCloudTasksQuietly(orgId) {
  * Đồng bộ Organization Nodes âm thầm
  */
 export async function syncCloudNodesQuietly(orgId) {
-  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  if (!orgId || orgId !== appState.activeOrganizationId || !appState.user || !window.__worktree_supabase_user) return;
   try {
     const rawNodes = await NodeRepository.getNodes(orgId);
-    if (orgId !== appState.activeOrganizationId) return;
+    if (orgId !== appState.activeOrganizationId || !appState.user) return;
     const leakedNode = rawNodes.find(n => n.organization_id !== orgId);
     if (leakedNode) return;
 
@@ -421,7 +448,9 @@ export async function syncCloudNodesQuietly(orgId) {
 
     callLegacyGlobal('updateCloudNodesQuietly', [mappedNodes]);
   } catch (err) {
-    console.warn('[Realtime] Lỗi sync nodes âm thầm:', err);
+    if (appState.user && orgId === appState.activeOrganizationId) {
+      console.warn('[Realtime] Lỗi sync nodes âm thầm:', err);
+    }
   }
 }
 
@@ -429,10 +458,10 @@ export async function syncCloudNodesQuietly(orgId) {
  * Đồng bộ Employees âm thầm
  */
 export async function syncCloudEmployeesQuietly(orgId) {
-  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  if (!orgId || orgId !== appState.activeOrganizationId || !appState.user || !window.__worktree_supabase_user) return;
   try {
     const rawEmployees = await EmployeeRepository.getEmployees(orgId);
-    if (orgId !== appState.activeOrganizationId) return;
+    if (orgId !== appState.activeOrganizationId || !appState.user) return;
     const leakedEmp = rawEmployees.find(e => e.organization_id !== orgId);
     if (leakedEmp) return;
 
@@ -441,7 +470,9 @@ export async function syncCloudEmployeesQuietly(orgId) {
 
     callLegacyGlobal('updateCloudEmployeesQuietly', [mappedEmployees]);
   } catch (err) {
-    console.warn('[Realtime] Lỗi sync employees âm thầm:', err);
+    if (appState.user && orgId === appState.activeOrganizationId) {
+      console.warn('[Realtime] Lỗi sync employees âm thầm:', err);
+    }
   }
 }
 
@@ -449,16 +480,18 @@ export async function syncCloudEmployeesQuietly(orgId) {
  * Đồng bộ Activities âm thầm từ Cloud
  */
 export async function syncCloudActivitiesQuietly(orgId, taskId = null) {
-  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  if (!orgId || orgId !== appState.activeOrganizationId || !appState.user || !window.__worktree_supabase_user) return;
   try {
     const rawActs = await ActivityRepository.getActivities(orgId, { taskId, limit: taskId ? 20 : 100 });
-    if (orgId !== appState.activeOrganizationId) return;
+    if (orgId !== appState.activeOrganizationId || !appState.user) return;
     const leakedAct = rawActs.find(a => a.organization_id !== orgId);
     if (leakedAct) return;
 
     callLegacyGlobal('mergeCloudActivities', [rawActs]);
   } catch (err) {
-    console.warn('[Realtime] Lỗi sync activities âm thầm:', err);
+    if (appState.user && orgId === appState.activeOrganizationId) {
+      console.warn('[Realtime] Lỗi sync activities âm thầm:', err);
+    }
   }
 }
 
@@ -825,6 +858,7 @@ export async function bootstrapApp() {
   });
 
   const renderSupabaseAuth = (msg) => {
+    closeAllModalsAndPopovers();
     const authScreen = document.getElementById('authScreen');
     const appEl = document.getElementById('app');
     if (authScreen) authScreen.hidden = false;
@@ -863,12 +897,12 @@ export async function bootstrapApp() {
     } catch (err) {
       console.warn('Lỗi khi signOut:', err.message);
     } finally {
+      closeAllModalsAndPopovers();
       window.__worktree_supabase_user = null;
       appState.user = null;
       appState.activeOrganizationId = null;
       appState.organizations = [];
       appState.purgeTenantData();
-      if (workspaceDialogInstance) workspaceDialogInstance.close();
 
       const authScreen = document.getElementById('authScreen');
       const appEl = document.getElementById('app');
@@ -897,6 +931,7 @@ export async function bootstrapApp() {
       await bootstrapAuthenticatedUser(session.user, session);
     } else {
       console.info('No active session. Checking invite & displaying Supabase Auth screen.');
+      closeAllModalsAndPopovers();
       window.__worktree_supabase_user = null;
       const authScreen = document.getElementById('authScreen');
       const appEl = document.getElementById('app');
@@ -921,6 +956,7 @@ export async function bootstrapApp() {
     }
   } catch (err) {
     console.warn('Auth check error:', err.message);
+    closeAllModalsAndPopovers();
     window.__worktree_supabase_user = null;
     const authScreen = document.getElementById('authScreen');
     const appEl = document.getElementById('app');
@@ -946,13 +982,13 @@ export async function bootstrapApp() {
           break;
 
         case 'SIGNED_OUT':
+          closeAllModalsAndPopovers();
           await RealtimeService.cleanupAll();
           window.__worktree_supabase_user = null;
           appState.user = null;
           appState.activeOrganizationId = null;
           appState.organizations = [];
           appState.purgeTenantData();
-          if (workspaceDialogInstance) workspaceDialogInstance.close();
 
           const authScreen = document.getElementById('authScreen');
           const appEl = document.getElementById('app');

@@ -243,7 +243,10 @@ function lockWorkspace(message=T.sessionExpired){
  if(session&&state.timer){state.timer.pausedAt=Date.now();savePrefs();}
  session=null;pendingUser=null;saveSession();dirtyTask=false;dirtyNode=false;drawerId=null;editingTask=null;editingNode=null;
  if(confirmResolver){confirmResolver(false);confirmResolver=null;}
- $$('dialog[open]').forEach(d=>d.close());for(const id of ['viewContent','orgTree','savedViews','drawerContent','settingsContent','infoContent','commandResults','accessContent','accountContent','profileContent','passwordContent','pinContent','pinSection'])$(id).innerHTML='';
+ $$('dialog[open]').forEach(d=>{try{d.close();}catch(e){}});
+ for(const id of ['viewContent','orgTree','savedViews','drawerContent','settingsContent','infoContent','commandResults','accessContent','accountContent','profileContent','passwordContent','pinContent']){
+  const el=$(id);if(el)el.innerHTML='';
+ }
  $('timerDock').hidden=true;$('toastRegion').innerHTML='';state.mobileOpen=false;document.body.style.overflow='';history=[];future=[];drawerDrafts.clear();state.selectedTasks.clear();commandOptions=[];
  $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
  window.scrollTo(0,0);
