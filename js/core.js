@@ -2400,6 +2400,56 @@ function openHelp(){
 }
 const legacyOpenHelp = openHelp;
 window.openHelp = openHelp;
+
+/**
+ * Đổ chuông âm thanh êm dịu và kích hoạt rung haptic trên điện thoại
+ * Sử dụng Web Audio API tổng hợp hai nốt nhạc E5 -> B5 (tần số 659.25Hz -> 987.77Hz)
+ */
+window.playNotificationSound = function() {
+ try {
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+   try { navigator.vibrate([160, 90, 160]); } catch (_) {}
+  }
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  const ctx = new AudioContextClass();
+  if (ctx.state === 'suspended') {
+   ctx.resume().catch(() => {});
+  }
+  const now = ctx.currentTime;
+  // Tone 1: E5 (659.25Hz)
+  const osc1 = ctx.createOscillator();
+  const gain1 = ctx.createGain();
+  osc1.type = 'sine';
+  osc1.frequency.setValueAtTime(659.25, now);
+  gain1.gain.setValueAtTime(0, now);
+  gain1.gain.linearRampToValueAtTime(0.2, now + 0.02);
+  gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+  osc1.connect(gain1);
+  gain1.connect(ctx.destination);
+  osc1.start(now);
+  osc1.stop(now + 0.36);
+
+  // Tone 2: B5 (987.77Hz) âm bổng nhẹ nhàng
+  const osc2 = ctx.createOscillator();
+  const gain2 = ctx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(987.77, now + 0.12);
+  gain2.gain.setValueAtTime(0, now + 0.12);
+  gain2.gain.linearRampToValueAtTime(0.25, now + 0.14);
+  gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+  osc2.connect(gain2);
+  gain2.connect(ctx.destination);
+  osc2.start(now + 0.12);
+  osc2.stop(now + 0.71);
+
+  setTimeout(() => {
+   try { ctx.close(); } catch (_) {}
+  }, 1000);
+ } catch (err) {
+  console.warn('[Audio] Không thể phát chuông:', err);
+ }
+};
 async function openNotifications(){
  if(window.__worktree_is_cloud_workspace && window.NotificationService){
   const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
@@ -2454,11 +2504,12 @@ async function openNotifications(){
 
    const active=readableTasks().filter(t=>t.status!=='Hoàn thành'),late=active.filter(isLate),today=active.filter(isToday);
    if(late.length || today.length){
-    html += `<div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line)">
-     <h4 style="font-size:11px;font-weight:600;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.8px">Hạn công việc cần chú ý (${late.length + today.length})</h4>`;
-    if(late.length) html += `<p style="font-size:11px;color:var(--red);margin:4px 0">${icon('alert')} ${late.length} công việc đã quá hạn.</p>`;
-    if(today.length) html += `<p style="font-size:11px;color:var(--amber);margin:4px 0">${icon('clock')} ${today.length} công việc đến hạn hôm nay.</p>`;
-    html += `</div>`;
+    html += `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+     <h4 style="font-size:11px;font-weight:600;color:var(--muted);margin:0 0 10px;text-transform:uppercase;letter-spacing:.8px">Hạn công việc cần chú ý (${late.length + today.length})</h4>
+     <div style="display:grid;gap:6px">`;
+    if(late.length) html += `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:12px;color:var(--red);background:var(--red-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(174,58,74,.15)"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('alert')}</span><span style="white-space:nowrap"><strong>${late.length}</strong> công việc đã quá hạn.</span></div>`;
+    if(today.length) html += `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:12px;color:var(--amber);background:var(--amber-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(147,84,12,.15)"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('clock')}</span><span style="white-space:nowrap"><strong>${today.length}</strong> công việc đến hạn hôm nay.</span></div>`;
+    html += `</div></div>`;
    }
 
    $('infoContent').innerHTML = html;
@@ -2488,7 +2539,7 @@ async function openNotificationSettings() {
 
   $('infoContent').innerHTML = `
    <section class="settings-section" style="margin-bottom:16px">
-    <h3>${icon('bell')}Thông báo đẩy PWA / Web Push</h3>
+    <h3>${icon('bell')}Thông báo đẩy & Chuông báo</h3>
     <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
      <div>
       <strong>Nhận thông báo trên thiết bị này</strong>
@@ -2500,12 +2551,30 @@ async function openNotificationSettings() {
     </div>
     <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
      <div>
+      <strong>Chuông báo & Rung thiết bị</strong>
+      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Đổ chuông êm dịu và rung haptic khi có việc được giao hoặc thông báo mới.</p>
+     </div>
+     <button class="btn small" data-action="test-sound" title="Bấm để nghe thử âm thanh chuông">
+      ${icon('bell')}Thử chuông
+     </button>
+    </div>
+    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
+     <div>
       <strong>Giờ yên tĩnh (22:00 – 07:00)</strong>
       <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Tự động hoãn thông báo đẩy trong khoảng thời gian nghỉ ngơi.</p>
      </div>
      <button class="btn small" data-action="toggle-quiet-hours" data-enabled="${pref?.quiet_hours_enabled === true}">
       ${pref?.quiet_hours_enabled ? 'Đang bật' : 'Đang tắt'}
      </button>
+    </div>
+    <div style="margin-top:12px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
+     <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:6px">
+      ${icon('info')}<span>Nhận thông báo & chuông trên điện thoại:</span>
+     </div>
+     <div style="font-size:11px;color:var(--muted);line-height:1.6">
+      <p style="margin:0 0 4px"><strong>• Android (Chrome/Cốc Cốc):</strong> Bấm <em>"Bật thông báo đẩy"</em> ở trên &rarr; Chọn <strong>"Cho phép" (Allow)</strong> khi trình duyệt hỏi.</p>
+      <p style="margin:0"><strong>• iPhone / iPad (iOS):</strong> Bấm nút <strong>Chia sẻ</strong> (biểu tượng ô vuông mũi tên lên) trên Safari &rarr; Chọn <strong>"Thêm vào Màn hình chính" (Add to Home Screen)</strong> &rarr; Mở app từ màn hình chính và Bật thông báo để đổ chuông như ứng dụng gốc.</p>
+     </div>
     </div>
    </section>
 
@@ -2759,6 +2828,13 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     break;
    }
    case 'notif-settings':await openNotificationSettings();break;
+   case 'test-sound':{
+    if (typeof window.playNotificationSound === 'function') {
+     window.playNotificationSound();
+    }
+    toast('🔔 Đang đổ chuông thông báo & rung thiết bị');
+    break;
+   }
    case 'request-push-perm':{
     if (window.PushDeviceService) {
      const granted = await window.PushDeviceService.requestPermission();
