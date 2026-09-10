@@ -2892,7 +2892,7 @@ function prefsObject(){return {selected:state.selected,view:state.view,includeCh
 function legacySavePrefs(){try{localStorage.setItem(KEYS.prefs,JSON.stringify(prefsObject()));}catch(e){/* Dataset save status is handled independently. */}}
 function persistData(force=false){
  if(window.__worktree_is_cloud_workspace){
-  if($('saveStatus')) $('saveStatus').textContent='Đồng bộ đám mây Supabase';
+  if($('saveStatus')) $('saveStatus').textContent='Đồng bộ đám mây an toàn';
   if($('saveDot')) $('saveDot').classList.remove('error');
   return true;
  }

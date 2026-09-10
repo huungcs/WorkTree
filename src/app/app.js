@@ -170,7 +170,7 @@ function showWorkspaceLoading(show) {
     overlay.innerHTML = `
       <div class="workspace-loading-card">
         <div class="spinner"></div>
-        <p id="workspaceLoadingText">Đang đồng bộ dữ liệu từ Supabase Cloud...</p>
+        <p id="workspaceLoadingText">Đang đồng bộ dữ liệu từ Đám mây bảo mật...</p>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -205,7 +205,7 @@ function showWorkspaceError(message, retryCallback) {
         overlay.innerHTML = `
           <div class="workspace-loading-card">
             <div class="spinner"></div>
-            <p id="workspaceLoadingText">Đang thử lại kết nối Supabase Cloud...</p>
+            <p id="workspaceLoadingText">Đang thử lại kết nối Đám mây bảo mật...</p>
           </div>
         `;
         retryCallback();

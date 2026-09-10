@@ -85,7 +85,7 @@ export class AuthView {
         <div class="auth-story">
           <p class="auth-eyebrow">WORK TOGETHER. STAY FOCUSED.</p>
           <h1>Đúng người.<br>Đúng việc.<br>Đúng ưu tiên.</h1>
-          <p class="auth-description">Hệ thống điều hành công việc và quản trị doanh nghiệp đa tổ chức, vận hành an toàn trên nền tảng Supabase Cloud.</p>
+          <p class="auth-description">Hệ thống điều hành công việc và quản trị doanh nghiệp đa tổ chức, vận hành an toàn trên nền tảng đám mây bảo mật WorkTree Cloud.</p>
           
           <div class="auth-illustration">
             <div class="auth-mini-top">
@@ -109,7 +109,7 @@ export class AuthView {
           </div>
           
           <p class="auth-story-footer">
-            ${SVG_ICONS.shield} Xác thực bảo mật qua Supabase Auth · Mã hóa Row-Level Security
+            ${SVG_ICONS.shield} Xác thực bảo mật đa tầng · Mã hóa bảo vệ dữ liệu cấp độ hàng (Row-Level Security)
           </p>
         </div>
 
@@ -416,7 +416,7 @@ export class AuthView {
 
       <div class="auth-local-note">
         ${SVG_ICONS.shield}
-        <p>Phiên làm việc được bảo mật và tự động gia hạn an toàn qua Supabase GoTrue token.</p>
+        <p>Phiên làm việc được bảo mật và tự động gia hạn an toàn qua mã hóa token bảo mật cao.</p>
       </div>
     `;
   }
@@ -582,7 +582,7 @@ export class AuthView {
       <div class="auth-card-header">
         <span class="auth-chip" style="background:var(--green-soft);color:var(--green);">${SVG_ICONS.checkCircle} Đăng ký thành công</span>
         <h2>Xác nhận địa chỉ email</h2>
-        <p>Tài khoản đã được tạo trên hệ thống xác thực Supabase.</p>
+        <p>Tài khoản đã được tạo trên hệ thống xác thực bảo mật.</p>
       </div>
 
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px;margin:20px 0;text-align:center;">
@@ -604,7 +604,7 @@ export class AuthView {
 
       <div style="background:var(--primary-soft);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:12px;line-height:1.6;color:var(--subtle);">
         <strong style="color:var(--primary-text);display:block;margin-bottom:4px;">💡 Không nhận được email kích hoạt?</strong>
-        Hệ thống gửi thư mặc định của Supabase miễn phí có giới hạn gửi thư. Nếu bạn là quản trị viên dự án: vào <strong>Supabase Dashboard → Authentication → Providers → Email → Tắt "Confirm email"</strong> để tài khoản được kích hoạt và đăng nhập ngay mà không cần chờ email.
+        Hệ thống gửi thư xác nhận tự động có thể bị chậm hoặc giới hạn lượt gửi. Nếu bạn là quản trị viên hệ thống: vào phần cấu hình <strong>Quản trị → Xác thực email</strong> để cấu hình kích hoạt tức thì không cần chờ email.
       </div>
 
       <button type="button" class="btn primary auth-submit" data-auth-mode="login">

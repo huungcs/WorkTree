@@ -1,7 +1,7 @@
 {
   "name": "WorkTree X — Không gian điều hành doanh nghiệp",
   "short_name": "WorkTree X",
-  "description": "Hệ thống điều hành công việc và quản trị doanh nghiệp đa tổ chức, vận hành an toàn trên nền tảng Supabase Cloud.",
+  "description": "Hệ thống điều hành công việc và quản trị doanh nghiệp đa tổ chức, vận hành an toàn trên nền tảng đám mây bảo mật WorkTree Cloud.",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#141c2e",

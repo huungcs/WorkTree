@@ -87,8 +87,8 @@ export async function getSupabase() {
     );
     return supabaseInstance;
   } catch (err) {
-    console.error('Không thể tải Supabase JS SDK:', err);
-    throw new Error('Chưa kết nối được tới Supabase SDK. Vui lòng kiểm tra internet hoặc script tag.');
+    console.error('Không thể tải Cloud SDK:', err);
+    throw new Error('Chưa kết nối được tới dịch vụ đám mây. Vui lòng kiểm tra kết nối mạng.');
   }
 }
 
