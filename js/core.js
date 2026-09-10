@@ -2536,10 +2536,26 @@ async function openNotificationSettings() {
   const pref = window.NotificationService ? await window.NotificationService.getPreferences() : null;
   const perm = window.PushDeviceService ? window.PushDeviceService.getPermissionState() : 'unsupported';
   const isPushOn = perm === 'granted';
+  const badgeStyle = localStorage.getItem('wtx_notif_badge_style') || 'number';
+  const isDotOnly = badgeStyle === 'dot';
 
   $('infoContent').innerHTML = `
    <section class="settings-section" style="margin-bottom:16px">
-    <h3>${icon('bell')}Thông báo đẩy & Chuông báo</h3>
+    <h3>${icon('bell')}Thông báo & Hiển thị quả chuông</h3>
+    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);gap:12px;flex-wrap:wrap">
+     <div>
+      <strong>Kiểu hiển thị trên quả chuông</strong>
+      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Chọn hiển thị số lượng chưa đọc hoặc chỉ hiện chấm đỏ tối giản (không để số).</p>
+     </div>
+     <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn small ${isDotOnly ? '' : 'primary'}" data-action="set-badge-style" data-style="number" title="Hiển thị số lượng chưa đọc">
+       ${icon('bell')}Huy hiệu số
+      </button>
+      <button class="btn small ${isDotOnly ? 'primary' : ''}" data-action="set-badge-style" data-style="dot" title="Chỉ hiện chấm đỏ tinh gọn, không số">
+       Chấm đỏ (không số)
+      </button>
+     </div>
+    </div>
     <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
      <div>
       <strong>Nhận thông báo trên thiết bị này</strong>
@@ -2596,26 +2612,59 @@ async function openNotificationSettings() {
 }
 
 window.refreshNotificationBadge = async function() {
+ const badgeStyle = localStorage.getItem('wtx_notif_badge_style') || 'number';
+ const dot = $('notificationDot');
+ const bell = document.querySelector('.notification-btn');
+
  if (window.__worktree_is_cloud_workspace && window.NotificationService) {
   try {
    const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
    const unreadCount = await window.NotificationService.getUnreadCount(orgId);
    const all = readableTasks();
    const attentionCount = all.filter(attention).length;
-   const totalDot = unreadCount > 0 || attentionCount > 0;
+   const hasNotification = unreadCount > 0 || attentionCount > 0;
    
-   const dot = $('notificationDot');
    if (dot) {
-    dot.hidden = !totalDot;
-    dot.textContent = unreadCount > 0 ? (unreadCount > 99 ? '99+' : String(unreadCount)) : '';
-    dot.className = unreadCount > 0 ? 'notification-badge-count' : '';
+    dot.hidden = !hasNotification;
+    if (hasNotification) {
+     if (badgeStyle !== 'dot' && unreadCount > 0) {
+      dot.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+      dot.className = 'notification-badge-count';
+     } else {
+      dot.textContent = '';
+      dot.className = 'notification-badge-dot';
+     }
+    } else {
+     dot.textContent = '';
+     dot.className = '';
+    }
    }
-   const bell = document.querySelector('.notification-btn');
    if (bell) {
     bell.setAttribute('aria-label', `Thông báo: ${unreadCount} chưa đọc, ${attentionCount} việc cần chú ý`);
    }
   } catch (e) {
    console.warn('Lỗi refreshNotificationBadge:', e);
+  }
+ } else {
+  const all = readableTasks();
+  const attentionCount = all.filter(attention).length;
+  if (dot) {
+   dot.hidden = !attentionCount;
+   if (attentionCount > 0) {
+    if (badgeStyle !== 'dot') {
+     dot.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+     dot.className = 'notification-badge-count';
+    } else {
+     dot.textContent = '';
+     dot.className = 'notification-badge-dot';
+    }
+   } else {
+    dot.textContent = '';
+    dot.className = '';
+   }
+  }
+  if (bell) {
+   bell.setAttribute('aria-label', `Nhắc việc: ${attentionCount} công việc cần chú ý`);
   }
  }
 };
@@ -2828,6 +2877,16 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     break;
    }
    case 'notif-settings':await openNotificationSettings();break;
+   case 'set-badge-style':{
+    const style = el.dataset.style || 'number';
+    localStorage.setItem('wtx_notif_badge_style', style);
+    if (typeof window.refreshNotificationBadge === 'function') {
+     window.refreshNotificationBadge();
+    }
+    toast(style === 'dot' ? 'Đã đổi sang: Chấm đỏ tối giản (không số)' : 'Đã đổi sang: Huy hiệu số cao cấp');
+    await openNotificationSettings();
+    break;
+   }
    case 'test-sound':{
     if (typeof window.playNotificationSound === 'function') {
      window.playNotificationSound();

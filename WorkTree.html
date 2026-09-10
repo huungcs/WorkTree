@@ -162,7 +162,18 @@ html[data-theme="dark"] .avatar.av-0{background:#554032;color:#edc5a3}html[data-
 .command-trigger svg{width:15px;height:15px}
 .top-separator{height:23px;border-left:1px solid var(--line);margin:0 7px}
 .notification-btn{position:relative}
-.notification-btn i{position:absolute;top:6px;right:7px;width:5px;height:5px;background:var(--red);border-radius:50%;box-shadow:0 0 0 2px var(--surface)}
+.notification-btn i{position:absolute;pointer-events:none;font-style:normal;box-sizing:border-box;transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .15s ease}
+.notification-btn i:not(.notification-badge-count),
+.notification-btn i.notification-badge-dot{top:6px;right:6px;width:8px;height:8px;background:var(--red);border-radius:50%;box-shadow:0 0 0 2px var(--surface)}
+.notification-btn i.notification-badge-count{top:1px;right:1px;min-width:16px;height:16px;padding:0 4.5px;border-radius:999px;background:var(--red);color:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:9.5px;font-weight:700;line-height:16px;text-align:center;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--surface),0 2px 5px rgba(174,58,74,.35);letter-spacing:-.2px;animation:notifBadgePop .2s cubic-bezier(.34,1.56,.64,1)}
+html[data-theme="dark"] .notification-btn i.notification-badge-count{color:#111622;box-shadow:0 0 0 2px var(--surface),0 2px 6px rgba(0,0,0,.4)}
+@media (max-width:900px){
+.notification-btn i:not(.notification-badge-count),
+.notification-btn i.notification-badge-dot{top:9px;right:9px}
+.notification-btn i.notification-badge-count{top:5px;right:5px}
+}
+@media (prefers-reduced-motion:reduce){.notification-btn i.notification-badge-count{animation:none}}
+@keyframes notifBadgePop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
 .top-avatar{margin-left:8px}
 .menu-toggle{display:none}
 .content{padding:28px 32px 16px;max-width:1780px;margin:0 auto;min-width:0}
@@ -5106,10 +5117,26 @@ async function openNotificationSettings() {
   const pref = window.NotificationService ? await window.NotificationService.getPreferences() : null;
   const perm = window.PushDeviceService ? window.PushDeviceService.getPermissionState() : 'unsupported';
   const isPushOn = perm === 'granted';
+  const badgeStyle = localStorage.getItem('wtx_notif_badge_style') || 'number';
+  const isDotOnly = badgeStyle === 'dot';
 
   $('infoContent').innerHTML = `
    <section class="settings-section" style="margin-bottom:16px">
-    <h3>${icon('bell')}Thông báo đẩy & Chuông báo</h3>
+    <h3>${icon('bell')}Thông báo & Hiển thị quả chuông</h3>
+    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);gap:12px;flex-wrap:wrap">
+     <div>
+      <strong>Kiểu hiển thị trên quả chuông</strong>
+      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Chọn hiển thị số lượng chưa đọc hoặc chỉ hiện chấm đỏ tối giản (không để số).</p>
+     </div>
+     <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn small ${isDotOnly ? '' : 'primary'}" data-action="set-badge-style" data-style="number" title="Hiển thị số lượng chưa đọc">
+       ${icon('bell')}Huy hiệu số
+      </button>
+      <button class="btn small ${isDotOnly ? 'primary' : ''}" data-action="set-badge-style" data-style="dot" title="Chỉ hiện chấm đỏ tinh gọn, không số">
+       Chấm đỏ (không số)
+      </button>
+     </div>
+    </div>
     <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
      <div>
       <strong>Nhận thông báo trên thiết bị này</strong>
@@ -5166,26 +5193,59 @@ async function openNotificationSettings() {
 }
 
 window.refreshNotificationBadge = async function() {
+ const badgeStyle = localStorage.getItem('wtx_notif_badge_style') || 'number';
+ const dot = $('notificationDot');
+ const bell = document.querySelector('.notification-btn');
+
  if (window.__worktree_is_cloud_workspace && window.NotificationService) {
   try {
    const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
    const unreadCount = await window.NotificationService.getUnreadCount(orgId);
    const all = readableTasks();
    const attentionCount = all.filter(attention).length;
-   const totalDot = unreadCount > 0 || attentionCount > 0;
+   const hasNotification = unreadCount > 0 || attentionCount > 0;
    
-   const dot = $('notificationDot');
    if (dot) {
-    dot.hidden = !totalDot;
-    dot.textContent = unreadCount > 0 ? (unreadCount > 99 ? '99+' : String(unreadCount)) : '';
-    dot.className = unreadCount > 0 ? 'notification-badge-count' : '';
+    dot.hidden = !hasNotification;
+    if (hasNotification) {
+     if (badgeStyle !== 'dot' && unreadCount > 0) {
+      dot.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+      dot.className = 'notification-badge-count';
+     } else {
+      dot.textContent = '';
+      dot.className = 'notification-badge-dot';
+     }
+    } else {
+     dot.textContent = '';
+     dot.className = '';
+    }
    }
-   const bell = document.querySelector('.notification-btn');
    if (bell) {
     bell.setAttribute('aria-label', `Thông báo: ${unreadCount} chưa đọc, ${attentionCount} việc cần chú ý`);
    }
   } catch (e) {
    console.warn('Lỗi refreshNotificationBadge:', e);
+  }
+ } else {
+  const all = readableTasks();
+  const attentionCount = all.filter(attention).length;
+  if (dot) {
+   dot.hidden = !attentionCount;
+   if (attentionCount > 0) {
+    if (badgeStyle !== 'dot') {
+     dot.textContent = attentionCount > 99 ? '99+' : String(attentionCount);
+     dot.className = 'notification-badge-count';
+    } else {
+     dot.textContent = '';
+     dot.className = 'notification-badge-dot';
+    }
+   } else {
+    dot.textContent = '';
+    dot.className = '';
+   }
+  }
+  if (bell) {
+   bell.setAttribute('aria-label', `Nhắc việc: ${attentionCount} công việc cần chú ý`);
   }
  }
 };
@@ -5398,6 +5458,16 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     break;
    }
    case 'notif-settings':await openNotificationSettings();break;
+   case 'set-badge-style':{
+    const style = el.dataset.style || 'number';
+    localStorage.setItem('wtx_notif_badge_style', style);
+    if (typeof window.refreshNotificationBadge === 'function') {
+     window.refreshNotificationBadge();
+    }
+    toast(style === 'dot' ? 'Đã đổi sang: Chấm đỏ tối giản (không số)' : 'Đã đổi sang: Huy hiệu số cao cấp');
+    await openNotificationSettings();
+    break;
+   }
    case 'test-sound':{
     if (typeof window.playNotificationSound === 'function') {
      window.playNotificationSound();
