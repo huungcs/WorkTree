@@ -13,8 +13,8 @@ let supabaseInstance = null;
 export async function getSupabase() {
   if (supabaseInstance) return supabaseInstance;
 
-  // Use pre-loaded script tag if available
-  if (window.supabase?.createClient) {
+  // Use pre-loaded script tag if available in browser
+  if (typeof window !== 'undefined' && window.supabase?.createClient) {
     supabaseInstance = window.supabase.createClient(
       SUPABASE_CONFIG.url,
       SUPABASE_CONFIG.publishableKey,
@@ -29,17 +29,24 @@ export async function getSupabase() {
     return supabaseInstance;
   }
 
-  // Dynamic import fallback
+  // Dynamic import fallback (ESM CDN in browser, package in Node.js)
   try {
-    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    let createClient;
+    if (typeof window !== 'undefined') {
+      const mod = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+      createClient = mod.createClient;
+    } else {
+      const mod = await import('@supabase/supabase-js');
+      createClient = mod.createClient;
+    }
     supabaseInstance = createClient(
       SUPABASE_CONFIG.url,
       SUPABASE_CONFIG.publishableKey,
       {
         auth: {
-          persistSession: true,
+          persistSession: typeof window !== 'undefined',
           autoRefreshToken: true,
-          detectSessionInUrl: true
+          detectSessionInUrl: typeof window !== 'undefined'
         }
       }
     );

@@ -15,12 +15,13 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
   - **Invariant B (Employee ≠ Organization Node):** Đã tách rời 100%. Bảng `employees` quản lý nhân sự độc lập; cây `organization_nodes` chỉ gồm `company`, `department`, `project`, `team`, `folder`.
   - **Unified Employee Onboarding & Account Invitation:** [HOTFIX PASS - 30/30] Luồng thêm người mới đã hợp nhất chuẩn domain: Primary CTA là `+ Thêm nhân viên` tạo `public.employees` trước; tùy chọn `[ ] Mời nhân viên sử dụng WorkTree` để dispatch lời mời tự động gắn `employee_id`. Loại bỏ hoàn toàn luồng ngược bắt buộc "Liên kết nhân sự" và bảo vệ tuyệt đối Owner Employee khỏi việc liên kết nhầm.
   - **Personal Data Cloud Migration:** [STEP 08 PASS - 39/39] Ghim ưu tiên (`public.user_pins`), đánh dấu sao công việc (`public.task_stars`), và góc nhìn đã lưu (`public.saved_views`) đã chuyển đổi 100% sang Supabase Cloud. Quyền uy tín tuyệt đối thuộc về `auth.uid()` theo `activeOrganizationId`. Vô hiệu hóa hoàn toàn thẩm quyền LocalStorage và trường cũ `task.favorite`. Bảo toàn đầy đủ cách ly người dùng (cross-user isolation) và đa thiết bị (multi-device persistence).
-  - **Task Attachments & Supabase Storage:** [STEP 09 PASS - 47/47] Triển khai tệp đính kèm cloud-native hoàn chỉnh trong Task Detail Drawer. Lưu trữ binary vào bucket canonical private `worktree-files` (giới hạn 50MB/object, mã hóa đường dẫn canonical an toàn `<org_uuid>/<task_uuid>/<random-id>-<safe-filename>`), quản lý metadata tại `public.task_attachments`. Hỗ trợ xem danh sách, upload với `upsert: false`, compensating transaction tự động dọn storage object mồ côi nếu metadata insert thất bại, authenticated direct blob download, xóa tệp nhất quán và bảo vệ cách ly đa khách thuê tuyệt đối (100% cross-tenant storage & metadata attacks blocked).
+  - **Task Attachments & Supabase Storage:** [STEP 09 PASS - 52/52] Triển khai tệp đính kèm cloud-native hoàn chỉnh trong Task Detail Drawer. Lưu trữ binary vào bucket canonical private `worktree-files` (giới hạn 50MB/object, mã hóa đường dẫn canonical an toàn `<org_uuid>/<task_uuid>/<random-id>-<safe-filename>`), quản lý metadata tại `public.task_attachments`. Hỗ trợ xem danh sách, upload với `upsert: false`, compensating transaction tự động dọn storage object mồ côi nếu metadata insert thất bại, authenticated direct blob download, xóa tệp có bảo vệ delete partial-failure safety, dọn dẹp đối tượng mồ côi (orphan recovery helper) và bảo vệ cách ly đa khách thuê tuyệt đối (100% cross-tenant storage & metadata attacks blocked).
+  - **Secure Supabase Realtime Synchronization:** [STEP 10 PASS - 47/47] Triển khai hạ tầng đồng bộ hóa thời gian thực đa người dùng, đa thiết bị và đa tab an toàn tuyệt đối. Kích hoạt `postgres_changes` trên 8 bảng cốt lõi (`tasks`, `task_checklist_items`, `task_dependencies`, `task_comments`, `task_time_entries`, `task_attachments`, `organization_nodes`, `employees`) với `REPLICA IDENTITY FULL`. Tuân thủ nguyên tắc Invalidation Events + Canonical Refetch (không bao giờ apply raw websocket payload vào UI), bảo vệ đa tenant qua định danh kênh `org:<uuid>:workspace` và `task:<uuid>:details`, xác thực quyền sở hữu và scope qua RLS của Supabase Realtime, khử trùng lặp mutation của chính mình trong 2.500ms, dọn dẹp vòng đời kênh triệt để khi đổi workspace/đóng task/logout, và hiển thị chỉ báo trạng thái kết nối Realtime Indicator trực quan.
 - **Trạng thái thực tế:**
-  - **Giao diện (Frontend UI):** Đạt ~99%. Đã có 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px), Mobile Bottom Navigation (74px + safe area), Task Detail Drawer cloud-native cho 5 module con (Checklist, Dependencies, Comments, Time Tracking, Attachments), ghim ưu tiên & sao cá nhân hóa, và Form Thêm nhân viên / Mời tài khoản hợp nhất theo Design System.
-  - **Tích hợp Supabase (Integration):** Đạt ~99.5%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), Toàn bộ Read Model đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25), Pipeline ghi dữ liệu Cloud Mutation cho Tasks và Cây tổ chức (Step 06 PASS - 40/40), Task Child Tables (Step 07 PASS - 46/46), Hợp nhất Onboarding Nhân sự (Hotfix PASS - 30/30), Dữ liệu cá nhân hóa (Step 08 PASS - 39/39), và Tệp đính kèm & Supabase Storage (Step 09 PASS - 47/47).
-  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~99.5%. Schema 23 bảng, 57 active RLS policies trên public schema, 4 storage policies trên bucket `worktree-files`. Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS, 40/40 Cloud Mutation tests PASS, 46/46 Step 07 Child Tables tests PASS, 30/30 Employee Onboarding tests PASS, 39/39 Step 08 Personal Data tests PASS, 47/47 Step 09 Attachments tests PASS)**.
-  - **Độ sẵn sàng sản xuất (Production Readiness):** Đạt ~99%. Toàn bộ pipeline Auth, Workspace, Cloud Read, Cloud Mutation, Child Tables, Onboarding Nhân sự, Dữ liệu cá nhân hóa và Tệp đính kèm Cloud Storage đã hoàn thành và kiểm chứng an toàn. Bước tiếp theo là kích hoạt Supabase Realtime (Step 10 Realtime Synchronization).
+  - **Giao diện (Frontend UI):** Đạt ~99.5%. Đã có 7 góc nhìn công việc render trực tiếp từ Supabase Cloud Snapshot, hỗ trợ Dark Mode hoàn chỉnh, Desktop Sidebar (278px/76px), Mobile Bottom Navigation (74px + safe area), Task Detail Drawer cloud-native cho 5 module con (Checklist, Dependencies, Comments, Time Tracking, Attachments), ghim ưu tiên & sao cá nhân hóa, Form Thêm nhân viên / Mời tài khoản hợp nhất theo Design System, và Realtime Connection Indicator.
+  - **Tích hợp Supabase (Integration):** Đạt ~99.8%. Đã có client factory, repositories chuẩn hóa 100% khớp schema DB, Supabase GoTrue Auth tích hợp toàn diện (Step 03 PASS - 24/24), Hệ thống Onboarding đa tổ chức / Workspace Switcher / Owner Bootstrap (Step 04 PASS - 27/27), Toàn bộ Read Model đã chuyển dịch sang Supabase Cloud (Step 05 PASS - 25/25), Pipeline ghi dữ liệu Cloud Mutation cho Tasks và Cây tổ chức (Step 06 PASS - 40/40), Task Child Tables (Step 07 PASS - 46/46), Hợp nhất Onboarding Nhân sự (Hotfix PASS - 30/30), Dữ liệu cá nhân hóa (Step 08 PASS - 39/39), Tệp đính kèm & Supabase Storage (Step 09 PASS - 52/52), và Đồng bộ Realtime bảo mật (Step 10 PASS - 47/47).
+  - **Cơ sở dữ liệu & RLS (Backend/DB):** Đạt ~99.8%. Schema 23 bảng, 57 active RLS policies trên public schema, 4 storage policies trên bucket `worktree-files`, 8 bảng trong publication `supabase_realtime` với `REPLICA IDENTITY FULL`. Đã **KIỂM CHỨNG BẢO MẬT TOÀN DIỆN (55/55 RLS tests PASS, 24/24 Auth tests PASS, 27/27 Workspace tests PASS, 25/25 Cloud Read tests PASS, 40/40 Cloud Mutation tests PASS, 46/46 Step 07 Child Tables tests PASS, 30/30 Employee Onboarding tests PASS, 39/39 Step 08 Personal Data tests PASS, 52/52 Step 09 Attachments tests PASS, 47/47 Step 10 Realtime tests PASS)**.
+  - **Độ sẵn sàng sản xuất (Production Readiness):** Đạt ~99.8%. Toàn bộ pipeline Auth, Workspace, Cloud Read, Cloud Mutation, Child Tables, Onboarding Nhân sự, Dữ liệu cá nhân hóa, Tệp đính kèm Cloud Storage và Đồng bộ Realtime thời gian thực đã hoàn thành và kiểm chứng an toàn tuyệt đối. Bước tiếp theo là Đánh bóng UX, Tối ưu hóa hiệu năng và Thông báo hệ thống (Notification Center).
 
 ---
 
@@ -28,13 +29,13 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
 
 - **Repository Root:** `c:\Users\ASUS\Desktop\WorkTree`
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `79457013f475783ef299f6ba4c715c71cac897c3`
+- **Current HEAD Commit:** `d413c7f0690cc3a12a8f3d67ea966a1839eae8da`
 - **Commit gần nhất:** `docs: finalize step 09 project status`
 - **Working Tree:** Sạch hoàn toàn (Clean working tree, Step 09 finalized).
 - **Remote Repository:** `https://github.com/huungcs/WorkTree.git`
 - **Các Branch trong Repo:** Chỉ có nhánh `main` (`* main`).
 - **5 Commit gần nhất trong lịch sử:**
-  1. `7945701` - `docs: finalize step 09 project status`
+  1. `d413c7f` - `docs: finalize step 09 project status`
   2. `5b60d68` - `feat(storage): add secure cloud task attachments`
   3. `d902d66` - `docs: finalize step 08 personal data and employee onboarding alignment`
   4. `b428009` - `feat(data): migrate personal workspace data to Supabase cloud`
@@ -429,7 +430,7 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **DESKTOP:** ✅ Section Tệp đính kèm trong Task Detail Drawer: Danh sách tệp, icon định dạng, tải tệp lên (upsert = false, compensating cleanup), tải xuống dạng authenticated Blob, xóa tệp có phân quyền
 - **MOBILE:** ✅ Fullscreen Drawer, touch target >= 44px, ellipsis rút gọn tên tệp an toàn, không vỡ layout
 - **DARK MODE:** ✅ Tương thích 100% với bảng màu Design System
-- **TEST:** 47/47 automated tests PASS (`scratch/test_step09_attachments.js`)
+- **TEST:** 52/52 automated tests PASS (`scratch/test_step09_attachments.js`, bao gồm 5 bài kiểm tra delete partial-failure safety và orphan recovery)
 - **KNOWN ISSUE:** Đã chuyển đổi hoàn toàn sang Cloud Storage; vô hiệu hóa toàn bộ quyền ghi LocalStorage; loại bỏ hoàn toàn nguy cơ orphan storage objects nhờ giao dịch bù trừ.
 
 ### 23. Accounts & Permissions
@@ -731,8 +732,8 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 7. **Bước 7 (Child Tables Migration & Pin Bug Resolution):** [HOÀN THÀNH - Report `STEP_07_CHILD_TABLES_REPORT.md` / `STEP_07_FINALIZATION_REPORT.md`] Đồng bộ hóa toàn diện 4 bảng con: Checklist items (`task_checklist_items`), phụ thuộc công việc (`task_dependencies`), bình luận (`task_comments`), và thời gian làm việc (`task_time_entries`) trực tiếp trên Supabase Cloud. Khắc phục lỗi hiển thị lặp nút ghim (duplicate pin buttons). Đạt 46/46 assertions PASS (100%).
 8. **Hotfix (Unified Employee Onboarding UX):** [HOÀN THÀNH - Report `EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md`] Chuyển đổi primary CTA thành `+ Thêm nhân viên`, tùy chọn mời tự động liên kết `employee_id`, loại bỏ hoàn toàn yêu cầu "Liên kết nhân sự" và mật khẩu tạm cục bộ. Đạt 30/30 assertions PASS (100%).
 9. **Bước 8 (Personal Data Migration):** [HOÀN THÀNH - Report `STEP_08_PERSONAL_DATA_REPORT.md`] Chuyển tính năng ghim ưu tiên (`user_pins`), đánh dấu sao (`task_stars`), và góc nhìn đã lưu (`saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud với thẩm quyền `auth.uid()`, cách ly người dùng và multi-device persistence. Đạt 39/39 assertions PASS (100%).
-10. **Bước 9 (Attachments & Storage):** [HOÀN THÀNH - Report `STEP_09_ATTACHMENTS_STORAGE_REPORT.md` / `STEP_09_FINALIZATION_REPORT.md`] Triển khai quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `worktree-files` (Private, 50MB, compensating cleanup, partial-failure safety, orphan recovery helper, 100% cross-tenant isolation). Đạt 52/52 assertions PASS (100%).
-11. **Bước 10 (Realtime Synchronization):** [NEXT] Tích hợp Supabase Realtime Channels đồng bộ hóa thay đổi trạng thái công việc và danh sách tệp thời gian thực giữa các thành viên.
+11. **Bước 10 (Realtime Synchronization):** [HOÀN THÀNH - Report `STEP_10_REALTIME_REPORT.md`] Tích hợp Supabase Realtime Channels (`org:<uuid>:workspace` và `task:<uuid>:details`) đồng bộ hóa thời gian thực đa người dùng, đa thiết bị và đa tab. 8 bảng cốt lõi kích hoạt REPLICA IDENTITY FULL, invalidation refetch, deduplication, và RLS isolation. Đạt 47/47 assertions PASS (100%).
+12. **Bước 11 (Notification Center & System Polish):** [NEXT] Triển khai trung tâm thông báo người dùng (`public.notifications`) và tối ưu hóa trải nghiệm sản xuất cuối cùng.
 
 ---
 
@@ -770,7 +771,7 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 - **Step 7 Status:** `PASS 100% (46/46 PASS — Report STEP_07_CHILD_TABLES_REPORT.md)`
 - **Hotfix Employee Onboarding:** `PASS 100% (30/30 PASS — Report EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md)`
 - **Step 8 Status:** `PASS 100% (39/39 PASS — Report STEP_08_PERSONAL_DATA_REPORT.md)`
-- **Step 9 Status:** `PASS 100% (47/47 PASS — Report STEP_09_ATTACHMENTS_STORAGE_REPORT.md)`
+- **Step 9 Status:** `PASS 100% (52/52 PASS — Reports STEP_09_ATTACHMENTS_STORAGE_REPORT.md & STEP_09_FINALIZATION_REPORT.md)`
 - **Canonical Storage Bucket:** `worktree-files` (Private, 50MB limit)
 - **Tenant Isolation Verified:** `YES (All suites pass with cross-tenant storage & database isolation enforcement)`
 - **Authentication Authority:** Supabase GoTrue Auth (Production authority, local PBKDF2 disabled by default)
@@ -778,7 +779,7 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 - **RLS Policy Count:** 57 remote active public schema policies, 4 storage schema policies, 61 declarations in migration
 - **Audit & Verification Performed By:** Antigravity (Principal Software Architect + Staff Full-stack Engineer + Design System Guardian)
 - **Commands Actually Executed in Step 09:**
-  - `node scratch/test_step09_attachments.js` (47/47 PASS against remote Supabase Storage & Database)
+  - `node scratch/test_step09_attachments.js` (52/52 PASS against remote Supabase Storage & Database, bao gồm delete partial-failure safety)
   - `node scratch/test_step08_personal_data.js` (39/39 PASS regression suite)
   - `node scratch/test_step07_child_tables.js` (46/46 PASS regression suite)
   - `node scratch/test_step06_cloud_mutations.js` (40/40 PASS regression suite)

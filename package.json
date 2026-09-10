@@ -18,5 +18,8 @@
     "productivity"
   ],
   "author": "Four Group",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.116.0"
+  }
 }

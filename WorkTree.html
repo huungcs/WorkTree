@@ -1769,7 +1769,7 @@ function closeDialog(id,force=false){
  if(!force&&((id==='taskDialog'&&dirtyTask)||(id==='nodeDialog'&&dirtyNode))){
   ask('Bỏ thay đổi chưa lưu?','Nội dung đang nhập sẽ không được lưu. Công việc và dữ liệu đã lưu trước đó vẫn giữ nguyên.','Bỏ thay đổi',true).then(ok=>{if(ok)closeDialog(id,true);});return;
  }
- const el=$(id);if(!el?.open)return;el.close();if(id==='drawer')drawerId=null;
+ const el=$(id);if(!el?.open)return;el.close();if(id==='drawer'){drawerId=null;if(window.RealtimeService)window.RealtimeService.unsubscribeTaskDetail();}
  if(id==='taskDialog')dirtyTask=false;if(id==='nodeDialog')dirtyNode=false;
  const prev=returnFocus.get(id);if(prev?.isConnected&&!prev.closest('[inert]'))prev.focus({preventScroll:true});
 }
@@ -2425,6 +2425,21 @@ function openDrawer(id){
   renderDrawer();
   showDialog('drawer');
   requestAnimationFrame(()=>$('drawerTitle')?.focus({preventScroll:true}));
+
+  if(window.RealtimeService && window.__worktree_is_cloud_workspace){
+   window.RealtimeService.subscribeTaskDetail(id, currentOrgId, {
+    onChecklistChange: () => window.refreshDrawerChildQuietly('checklist'),
+    onDependencyChange: () => window.refreshDrawerChildQuietly('dependencies'),
+    onCommentChange: () => window.refreshDrawerChildQuietly('comments'),
+    onTimeEntryChange: () => window.refreshDrawerChildQuietly('time_entries'),
+    onAttachmentChange: () => window.refreshDrawerChildQuietly('attachments'),
+    onTaskMetaChange: () => {
+     if(drawerId === id && window.syncCloudTasksQuietly) {
+      window.syncCloudTasksQuietly(currentOrgId);
+     }
+    }
+   });
+  }
 
   Promise.allSettled([
    window.ChecklistService?window.ChecklistService.getItems(id,currentOrgId):Promise.resolve([]),
@@ -3622,7 +3637,7 @@ async function deleteView(id){
   const orgId = window.appState?.activeOrganizationId;
   if(!orgId) return toast('Không tìm thấy không gian làm việc.', 'error');
   try{
-   await window.SavedViewService.deleteSavedView({ organizationId: orgId, viewId: id });
+   await window.SavedViewService.deleteSavedView(id);
    const freshViews = await window.SavedViewRepository.getSavedViews(orgId);
    if(orgId === window.appState?.activeOrganizationId){
     window.__worktree_saved_views = (freshViews||[]).map(sv => ({
@@ -3916,7 +3931,7 @@ $('viewTabs').addEventListener('keydown',e=>{
 function isEditing(el){return !!el?.closest('input,textarea,select,[contenteditable="true"]');}
 document.addEventListener('keydown',e=>{
  if(!currentAccount())return;
- if(e.isComposing||e.altKey)return;const key=e.key.toLowerCase(),editing=isEditing(e.target),modal=!!document.querySelector('dialog[open]');
+ if(e.isComposing||e.altKey||!e.key)return;const key=e.key.toLowerCase(),editing=isEditing(e.target),modal=!!document.querySelector('dialog[open]');
  if((e.ctrlKey||e.metaKey)&&key==='k'){
   e.preventDefault();if($('commandDialog').open)closeDialog('commandDialog',true);else openCommand();return;
  }
@@ -4078,6 +4093,144 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds
  }
  if($('saveDot')){
   $('saveDot').classList.remove('error');
+ }
+};
+
+window.updateCloudTasksQuietly = function(mappedTasks) {
+ if (!window.__worktree_is_cloud_workspace) return;
+ const starredIds = window.__worktree_starred_task_ids || new Set();
+ const taskList = (mappedTasks || []).map(t => ({
+  ...t,
+  favorite: starredIds.has(t.id)
+ }));
+ data.tasks = taskList;
+ rebuild();
+ renderAll(false);
+ if (drawerId && byTask.has(drawerId) && $('drawer')?.open) {
+  renderDrawer();
+ }
+};
+
+window.updateCloudNodesQuietly = function(mappedNodes) {
+ if (!window.__worktree_is_cloud_workspace) return;
+ data.nodes = mappedNodes || [];
+ rebuild();
+ renderAll(true);
+};
+
+window.updateCloudEmployeesQuietly = function(mappedEmployees) {
+ if (!window.__worktree_is_cloud_workspace) return;
+ window.cloudEmployees = mappedEmployees || [];
+ window.employeesById = new Map((mappedEmployees || []).map(e => [e.id, e]));
+ renderAll(false);
+};
+
+window.refreshDrawerChildQuietly = async function(childType) {
+ if (!drawerId || !$('drawer')?.open || !window.__worktree_is_cloud_workspace) return;
+ const currentTaskId = drawerId;
+ const currentOrgId = window.__active_org_id || (window.__worktree_supabase_user?.organization?.id);
+ const thisGen = window.__taskDetailLoadGen;
+
+ try {
+  if (childType === 'checklist' && window.ChecklistService) {
+   const items = await window.ChecklistService.getItems(currentTaskId, currentOrgId);
+   if (thisGen !== window.__taskDetailLoadGen || drawerId !== currentTaskId) return;
+   window.__taskDetailData.checklist = (items || []).map(c => ({
+    id: c.id,
+    text: c.content,
+    done: c.is_done,
+    sort_order: c.sort_order
+   }));
+   const t = byTask.get(currentTaskId);
+   if (t) {
+    t.checklist = window.__taskDetailData.checklist.map(c => [c.text, c.done]);
+    t.checklist_total = window.__taskDetailData.checklist.length;
+    t.checklist_done = window.__taskDetailData.checklist.filter(c => c.done).length;
+   }
+   renderDrawer();
+   renderAll(false);
+  } else if (childType === 'dependencies' && window.DependencyService) {
+   const items = await window.DependencyService.getDependencies(currentTaskId, currentOrgId);
+   if (thisGen !== window.__taskDetailLoadGen || drawerId !== currentTaskId) return;
+   window.__taskDetailData.dependencies = items || [];
+   const t = byTask.get(currentTaskId);
+   if (t) {
+    t.is_blocked = (items || []).some(d => {
+     const dep = byTask.get(d.depends_on_task_id);
+     return dep && dep.status !== 'Hoàn thành';
+    });
+   }
+   renderDrawer();
+   renderAll(false);
+  } else if (childType === 'comments' && window.CommentService) {
+   const items = await window.CommentService.getComments(currentTaskId, currentOrgId);
+   if (thisGen !== window.__taskDetailLoadGen || drawerId !== currentTaskId) return;
+   window.__taskDetailData.comments = (items || []).map(c => ({
+    id: c.id,
+    text: c.body,
+    author: resolveCommentAuthor(c.author_user_id),
+    authorId: c.author_user_id,
+    at: c.created_at
+   }));
+   renderDrawer();
+  } else if (childType === 'time_entries' && window.TimeEntryService) {
+   const items = await window.TimeEntryService.getTimeEntries(currentTaskId, currentOrgId);
+   if (thisGen !== window.__taskDetailLoadGen || drawerId !== currentTaskId) return;
+   window.__taskDetailData.logs = (items || []).map(l => ({
+    id: l.id,
+    hours: (l.minutes || 0) / 60,
+    note: l.note,
+    at: l.created_at,
+    author: resolveCommentAuthor(l.user_id)
+   }));
+   const t = byTask.get(currentTaskId);
+   if (t) {
+    const totalMinutes = (items || []).reduce((sum, e) => sum + (e.minutes || 0), 0);
+    t.actual = totalMinutes / 60;
+    t.actual_minutes = totalMinutes;
+   }
+   renderDrawer();
+   renderAll(false);
+  } else if (childType === 'attachments' && window.AttachmentService) {
+   const items = await window.AttachmentService.getAttachments(currentTaskId, currentOrgId);
+   if (thisGen !== window.__taskDetailLoadGen || drawerId !== currentTaskId) return;
+   window.__taskDetailData.attachments = items || [];
+   renderDrawer();
+  }
+ } catch (err) {
+  console.warn(`[Realtime] Lỗi tải dữ liệu ${childType} của task:`, err);
+ }
+};
+
+window.updateRealtimeIndicator = function(status) {
+ const saveStatus = $('saveStatus');
+ const saveDot = $('saveDot');
+ if (!saveStatus) return;
+
+ if (status === 'connected') {
+  saveStatus.textContent = 'Đồng bộ trực tiếp (Realtime)';
+  if (saveDot) {
+   saveDot.classList.remove('error');
+   saveDot.style.background = 'var(--green, #107353)';
+  }
+ } else if (status === 'reconnecting') {
+  saveStatus.textContent = 'Đang kết nối lại...';
+  if (saveDot) {
+   saveDot.classList.remove('error');
+   saveDot.style.background = 'var(--amber, #93540c)';
+  }
+ } else if (status === 'error') {
+  saveStatus.textContent = 'Lỗi kết nối Realtime';
+  if (saveDot) {
+   saveDot.classList.add('error');
+   saveDot.style.background = 'var(--red, #ae3a4a)';
+  }
+ } else if (status === 'offline') {
+  saveStatus.textContent = 'Đồng bộ đám mây Supabase';
+  if (saveDot) {
+   saveDot.classList.remove('error');
+   saveDot.style.background = '';
+  }
  }
 };
 

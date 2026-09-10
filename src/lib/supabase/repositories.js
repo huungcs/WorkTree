@@ -1133,7 +1133,10 @@ export const SavedViewRepository = {
     return mapCloudSavedView(data);
   },
 
-  async deleteSavedView(viewId) {
+  async deleteSavedView(viewIdOrPayload) {
+    const viewId = typeof viewIdOrPayload === 'object' && viewIdOrPayload !== null
+      ? (viewIdOrPayload.viewId || viewIdOrPayload.id)
+      : viewIdOrPayload;
     if (!viewId) throw new Error('Missing viewId for deleteSavedView');
     const sb = await getSupabase();
     const { data: userRes } = await sb.auth.getUser();

@@ -19,6 +19,11 @@ import { TimeEntryService } from '../features/time-tracking/index.js';
 import { PinService } from '../features/pins/index.js';
 import { SavedViewService } from '../features/saved-views/index.js';
 import { AttachmentService } from '../features/attachments/index.js';
+import { RealtimeService } from '../features/realtime/index.js';
+
+if (typeof window !== 'undefined') {
+  window.RealtimeService = RealtimeService;
+}
 
 let authViewInstance = null;
 let workspaceDialogInstance = null;
@@ -292,6 +297,35 @@ export async function loadWorkspaceData(orgId) {
       });
     }
 
+    // 12. STEP 10: Thiết lập Secure Realtime Synchronization cho Workspace
+    try {
+      await RealtimeService.subscribeWorkspace(orgId, {
+        onTaskChange: async (payload, { isLocal }) => {
+          console.info('[Realtime] Task event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
+          await syncCloudTasksQuietly(orgId);
+        },
+        onNodeChange: async (payload, { isLocal }) => {
+          console.info('[Realtime] Node event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
+          await syncCloudNodesQuietly(orgId);
+        },
+        onEmployeeChange: async (payload, { isLocal }) => {
+          console.info('[Realtime] Employee event nhận được:', payload.eventType, payload.new?.id || payload.old?.id);
+          await syncCloudEmployeesQuietly(orgId);
+        },
+        onReconnect: async () => {
+          console.info('[Realtime] Đã kết nối lại. Đang đồng bộ lại snapshot mới nhất...');
+          await syncCloudTasksQuietly(orgId);
+          await syncCloudNodesQuietly(orgId);
+          await syncCloudEmployeesQuietly(orgId);
+        },
+        onSubscribed: (topic) => {
+          console.info('[Realtime] Đã kết nối kênh workspace:', topic);
+        }
+      });
+    } catch (realtimeErr) {
+      console.warn('[Realtime] Không thể kết nối Realtime workspace:', realtimeErr);
+    }
+
   } catch (err) {
     console.error('Lỗi khi tải dữ liệu workspace từ Supabase Cloud:', err);
     if (currentGeneration === workspaceLoadGeneration) {
@@ -304,6 +338,79 @@ export async function loadWorkspaceData(orgId) {
       showWorkspaceLoading(false);
     }
   }
+}
+
+/**
+ * Đồng bộ Tasks âm thầm không gây flash giao diện (Quiet Sync)
+ */
+export async function syncCloudTasksQuietly(orgId) {
+  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  try {
+    const rawTasks = await TaskRepository.getTasks(orgId);
+    if (orgId !== appState.activeOrganizationId) return;
+    const leakedTask = rawTasks.find(t => t.organization_id !== orgId);
+    if (leakedTask) return;
+
+    const mappedTasks = mapCloudTasks(rawTasks);
+    appState.tasks = mappedTasks;
+
+    if (typeof window.updateCloudTasksQuietly === 'function') {
+      window.updateCloudTasksQuietly(mappedTasks);
+    }
+  } catch (err) {
+    console.warn('[Realtime] Lỗi sync tasks âm thầm:', err);
+  }
+}
+
+/**
+ * Đồng bộ Organization Nodes âm thầm
+ */
+export async function syncCloudNodesQuietly(orgId) {
+  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  try {
+    const rawNodes = await NodeRepository.getNodes(orgId);
+    if (orgId !== appState.activeOrganizationId) return;
+    const leakedNode = rawNodes.find(n => n.organization_id !== orgId);
+    if (leakedNode) return;
+
+    const membership = (appState.organizations || []).find(m => m.organizationId === orgId);
+    const mappedNodes = mapCloudNodes(rawNodes, membership?.name);
+    appState.nodes = mappedNodes;
+
+    if (typeof window.updateCloudNodesQuietly === 'function') {
+      window.updateCloudNodesQuietly(mappedNodes);
+    }
+  } catch (err) {
+    console.warn('[Realtime] Lỗi sync nodes âm thầm:', err);
+  }
+}
+
+/**
+ * Đồng bộ Employees âm thầm
+ */
+export async function syncCloudEmployeesQuietly(orgId) {
+  if (!orgId || orgId !== appState.activeOrganizationId) return;
+  try {
+    const rawEmployees = await EmployeeRepository.getEmployees(orgId);
+    if (orgId !== appState.activeOrganizationId) return;
+    const leakedEmp = rawEmployees.find(e => e.organization_id !== orgId);
+    if (leakedEmp) return;
+
+    const mappedEmployees = mapCloudEmployees(rawEmployees);
+    appState.employees = mappedEmployees;
+
+    if (typeof window.updateCloudEmployeesQuietly === 'function') {
+      window.updateCloudEmployeesQuietly(mappedEmployees);
+    }
+  } catch (err) {
+    console.warn('[Realtime] Lỗi sync employees âm thầm:', err);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.syncCloudTasksQuietly = syncCloudTasksQuietly;
+  window.syncCloudNodesQuietly = syncCloudNodesQuietly;
+  window.syncCloudEmployeesQuietly = syncCloudEmployeesQuietly;
 }
 
 /**
@@ -332,7 +439,8 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
     return;
   }
 
-  // 2. Xóa sạch dữ liệu tenant cũ trong bộ nhớ (Tenant State Purge)
+  // 2. Xóa sạch dữ liệu tenant cũ trong bộ nhớ và hủy Realtime subscriptions cũ
+  await RealtimeService.cleanupAll();
   appState.purgeTenantData();
 
   // Đóng các dialog/drawer đang mở
@@ -574,8 +682,17 @@ export async function bootstrapApp() {
     authViewInstance.render('login', msg ? { error: msg } : {});
   };
 
+  RealtimeService.onConnectionStatusChange((status) => {
+    appState.realtimeStatus = status;
+    if (typeof window.updateRealtimeIndicator === 'function') {
+      window.updateRealtimeIndicator(status);
+    }
+    appState.notify();
+  });
+
   window.supabaseSignOut = async () => {
     try {
+      await RealtimeService.cleanupAll();
       await AuthService.signOut();
     } catch (err) {
       console.warn('Lỗi khi signOut:', err.message);
@@ -623,6 +740,7 @@ export async function bootstrapApp() {
           break;
 
         case 'SIGNED_OUT':
+          await RealtimeService.cleanupAll();
           window.__worktree_supabase_user = null;
           appState.user = null;
           appState.activeOrganizationId = null;

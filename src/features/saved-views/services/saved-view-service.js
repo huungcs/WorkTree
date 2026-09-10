@@ -14,11 +14,20 @@ export const SavedViewService = {
     return await SavedViewRepository.createSavedView(payload);
   },
 
-  async updateSavedView(viewId, patch) {
-    return await SavedViewRepository.updateSavedView(viewId, patch);
+  async updateSavedView(viewIdOrPayload, patch) {
+    const viewId = typeof viewIdOrPayload === 'object' && viewIdOrPayload !== null
+      ? (viewIdOrPayload.viewId || viewIdOrPayload.id)
+      : viewIdOrPayload;
+    const updatePatch = typeof viewIdOrPayload === 'object' && viewIdOrPayload !== null && viewIdOrPayload.patch
+      ? viewIdOrPayload.patch
+      : patch;
+    return await SavedViewRepository.updateSavedView(viewId, updatePatch);
   },
 
-  async deleteSavedView(viewId) {
+  async deleteSavedView(viewIdOrPayload) {
+    const viewId = typeof viewIdOrPayload === 'object' && viewIdOrPayload !== null
+      ? (viewIdOrPayload.viewId || viewIdOrPayload.id)
+      : viewIdOrPayload;
     return await SavedViewRepository.deleteSavedView(viewId);
   }
 };

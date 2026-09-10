@@ -43,6 +43,7 @@ export const appState = {
   currentView: 'overview',
   theme: (typeof localStorage !== 'undefined' ? localStorage.getItem('worktree_theme') : null) || 'light',
   isSidebarCollapsed: typeof localStorage !== 'undefined' ? localStorage.getItem('worktree_sidebar_collapsed') === 'true' : false,
+  realtimeStatus: 'offline',
 
   listeners: new Set(),
 
