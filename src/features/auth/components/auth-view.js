@@ -414,6 +414,25 @@ export class AuthView {
         </button>
       </div>
 
+      <div class="auth-demo-divider">
+        <span></span>
+        <span class="auth-demo-divider-text">Hoặc trải nghiệm nhanh</span>
+        <span></span>
+      </div>
+
+      <div class="auth-demo-box">
+        <p class="auth-demo-box-hint">
+          Khám phá không gian làm việc với đầy đủ dự án, phòng ban, phân công và tiến độ thực tế:
+        </p>
+        <button type="button" id="demoLoginBtn" class="btn auth-demo-btn" ${this.isSubmitting ? 'disabled' : ''}>
+          <span style="font-size:16px;">🚀</span>
+          <span>Xem tài khoản dữ liệu mẫu (Demo)</span>
+        </button>
+        <div class="auth-demo-account-tag">
+          Tài khoản mẫu: <code>nguyentronghuu1905@gmail.com</code>
+        </div>
+      </div>
+
       <div class="auth-local-note">
         ${SVG_ICONS.shield}
         <p>Phiên làm việc được bảo mật và tự động gia hạn an toàn qua mã hóa token bảo mật cao.</p>
@@ -481,6 +500,12 @@ export class AuthView {
           ${this.isSubmitting ? SVG_ICONS.spinner : SVG_ICONS.arrowRight}
         </button>
       </form>
+
+      <div style="text-align:center;margin-top:16px;">
+        <button type="button" id="signupDemoBtn" class="link-btn" style="background:none;border:none;padding:0;color:var(--primary-text);font-size:12.5px;cursor:pointer;text-decoration:underline;">
+          🚀 Hoặc xem thử hệ thống với tài khoản dữ liệu mẫu
+        </button>
+      </div>
 
       <div class="auth-local-note">
         ${SVG_ICONS.shield}
@@ -714,6 +739,23 @@ export class AuthView {
       const passInput = document.getElementById('inviteLoginPassword');
       if (passInput && !this.errorMessage) passInput.focus();
     }
+
+    // 10. Xử lý nút Đăng nhập tài khoản Demo
+    const demoLoginBtn = this.container.querySelector('#demoLoginBtn');
+    if (demoLoginBtn) {
+      demoLoginBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.handleDemoLogin();
+      });
+    }
+
+    const signupDemoBtn = this.container.querySelector('#signupDemoBtn');
+    if (signupDemoBtn) {
+      signupDemoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.handleDemoLogin();
+      });
+    }
   }
 
   /**
@@ -816,6 +858,42 @@ export class AuthView {
     } catch (err) {
       console.warn('Đăng nhập thất bại:', err.message);
       this.showError(AuthService.formatAuthError(err));
+    } finally {
+      this.setSubmitting(false);
+    }
+  }
+
+  /**
+   * Xử lý Đăng nhập tài khoản Demo có sẵn dữ liệu (nguyentronghuu1905@gmail.com)
+   */
+  async handleDemoLogin() {
+    if (this.isSubmitting) return;
+
+    const demoEmail = 'nguyentronghuu1905@gmail.com';
+    const demoPassword = 'WorkTreeDemo2026@!';
+
+    const emailInput = document.getElementById('loginEmail');
+    const passInput = document.getElementById('loginPassword');
+    if (emailInput) emailInput.value = demoEmail;
+    if (passInput) passInput.value = '••••••••';
+
+    const demoBtn = this.container.querySelector('#demoLoginBtn');
+    let originalHtml = '';
+    if (demoBtn) {
+      originalHtml = demoBtn.innerHTML;
+      demoBtn.innerHTML = `${SVG_ICONS.spinner} <span>Đang nạp dữ liệu mẫu...</span>`;
+    }
+
+    this.setSubmitting(true);
+    try {
+      const data = await AuthService.signIn(demoEmail, demoPassword);
+      if (data?.session) {
+        this.onAuthenticated(data.session);
+      }
+    } catch (err) {
+      console.warn('Đăng nhập tài khoản demo thất bại:', err.message);
+      this.showError('Không thể đăng nhập tài khoản demo: ' + AuthService.formatAuthError(err));
+      if (demoBtn && originalHtml) demoBtn.innerHTML = originalHtml;
     } finally {
       this.setSubmitting(false);
     }
