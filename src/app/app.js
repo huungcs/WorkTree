@@ -8,7 +8,7 @@ import { appState } from './state.js';
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
-import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository, AttachmentRepository } from '../lib/supabase/repositories.js';
+import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository, AttachmentRepository, OrganizationRepository } from '../lib/supabase/repositories.js';
 import { EmployeeService } from '../features/employees/index.js';
 import { TaskService, StarService } from '../features/tasks/index.js';
 import { TreeService } from '../features/organization-tree/index.js';
@@ -519,12 +519,40 @@ export async function bootstrapAuthenticatedUser(user, session) {
     // 1. Tải Profile người dùng từ public.profiles
     const profile = await AuthService.getProfile(user.id);
 
+    // STEP INVITE: Tự động kích hoạt lời mời nếu có token trong sessionStorage
+    let autoJoinedOrgId = null;
+    try {
+      const pendingInvite = sessionStorage.getItem('worktree_pending_invite');
+      if (pendingInvite) {
+        console.info('[Bootstrap] Phát hiện lời mời chờ xử lý, đang kích hoạt:', pendingInvite);
+        autoJoinedOrgId = await InvitationRepository.acceptInvitation(pendingInvite);
+        sessionStorage.removeItem('worktree_pending_invite');
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        if (typeof window.toast === 'function') {
+          window.toast('Bạn đã tham gia tổ chức thành công!');
+        }
+      }
+    } catch (invErr) {
+      console.warn('[Bootstrap] Lỗi kích hoạt lời mời:', invErr.message);
+      sessionStorage.removeItem('worktree_pending_invite');
+      if (typeof window.toast === 'function') {
+        window.toast('Không thể chấp nhận lời mời: ' + (invErr.message || 'Hết hạn hoặc không hợp lệ'), 'warning');
+      }
+    }
+
     // 2. Tải danh sách Organization memberships của người dùng từ Supabase
-    const memberships = await OrgService.listUserOrganizations();
+    let memberships = await OrgService.listUserOrganizations();
     appState.user = user;
     appState.organizations = memberships;
 
-    const initialAdapter = createAccountAdapter(user, profile, memberships);
+    // Nếu vừa tự động chấp nhận lời mời, ưu tiên chọn org đó
+    let preferredOrg = null;
+    if (autoJoinedOrgId) {
+      preferredOrg = memberships.find(m => m.organizationId === autoJoinedOrgId);
+    }
+
+    const initialAdapter = createAccountAdapter(user, profile, memberships, preferredOrg);
     window.__worktree_supabase_user = initialAdapter;
     if (initialAdapter.organization?.id) {
       window.__active_org_id = initialAdapter.organization.id;
@@ -574,6 +602,12 @@ export async function bootstrapAuthenticatedUser(user, session) {
     }
 
     // 3. Xử lý các trường hợp Onboarding / Auto-select / Multi-org
+    if (autoJoinedOrgId && memberships.some(m => m.organizationId === autoJoinedOrgId)) {
+      console.info('Ưu tiên chuyển thẳng vào workspace vừa tham gia:', autoJoinedOrgId);
+      await switchWorkspace(autoJoinedOrgId, false);
+      return;
+    }
+
     if (memberships.length === 0) {
       // CASE A: 0 organizations -> Onboarding state
       console.info('Case A: 0 organizations -> Kích hoạt Onboarding modal');
@@ -695,6 +729,18 @@ function updateUserProfileUI(account) {
  */
 export async function bootstrapApp() {
   console.info('WorkTree X initializing with authoritative Supabase Auth & Multi-Tenant Onboarding...');
+
+  // 0. Kiểm tra tham số mời ?invite=<token> trên URL
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteToken = urlParams.get('invite');
+    if (inviteToken) {
+      sessionStorage.setItem('worktree_pending_invite', inviteToken);
+      console.info('[Bootstrap] Đã lưu mã mời từ URL vào sessionStorage:', inviteToken);
+    }
+  } catch (e) {
+    console.warn('[Bootstrap] Không thể đọc URL params:', e);
+  }
 
   // 1. Áp dụng Theme
   document.documentElement.setAttribute('data-theme', appState.theme);
@@ -882,6 +928,7 @@ if (typeof window !== 'undefined') {
   window.PinService = PinService;
   window.StarService = StarService;
   window.SavedViewService = SavedViewService;
+  window.OrganizationRepository = OrganizationRepository;
   window.AttachmentRepository = AttachmentRepository;
   window.AttachmentService = AttachmentService;
   window.NotificationService = NotificationService;

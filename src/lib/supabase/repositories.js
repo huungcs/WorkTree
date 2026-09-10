@@ -185,6 +185,18 @@ export const OrganizationRepository = {
       .maybeSingle();
     if (error) throw error;
     return data;
+  },
+
+  async setMemberStatus(membershipId, status) {
+    if (!membershipId) throw new Error('Missing membershipId for setMemberStatus');
+    if (!['active', 'suspended'].includes(status)) throw new Error('Invalid status for setMemberStatus');
+    const sb = await getSupabase();
+    const { data, error } = await sb.rpc('set_member_status', {
+      p_membership_id: membershipId,
+      p_status: status
+    });
+    if (error) throw error;
+    return data;
   }
 };
 
@@ -352,17 +364,17 @@ export const EmployeeRepository = {
     // 1. Fetch employees
     const employeesPromise = this.getEmployees(organizationId);
 
-    // 2. Fetch active members
+    // 2. Fetch active and suspended members
     const membersPromise = sb
       .from('organization_members')
-      .select('id, user_id, employee_id, role, status')
+      .select('id, user_id, employee_id, role, status, created_at')
       .eq('organization_id', organizationId)
-      .eq('status', 'active');
+      .in('status', ['active', 'suspended']);
 
     // 3. Fetch pending invitations
     const invitationsPromise = sb
       .from('invitations')
-      .select('id, email, employee_id, role, status, expires_at')
+      .select('id, email, employee_id, role, status, expires_at, created_at')
       .eq('organization_id', organizationId)
       .eq('status', 'pending');
 
@@ -396,10 +408,10 @@ export const EmployeeRepository = {
       let accountEmail = emp.email || null;
 
       if (member) {
-        accountStatus = 'linked';
+        accountStatus = member.status === 'suspended' ? 'suspended' : 'linked';
         role = member.role;
       } else if (invitation) {
-        accountStatus = 'pending';
+        accountStatus = invitation.status === 'pending' ? 'pending' : (invitation.status === 'revoked' ? 'revoked' : 'uninvited');
         role = invitation.role;
         accountEmail = invitation.email || accountEmail;
       }
@@ -410,7 +422,10 @@ export const EmployeeRepository = {
         role: role || 'member',
         accountEmail,
         membership: member || null,
-        invitation: invitation || null
+        membershipId: member?.id || null,
+        invitation: invitation || null,
+        invitationId: invitation?.id || null,
+        employmentStatus: emp.employment_status || 'active'
       };
     });
   },
@@ -534,6 +549,27 @@ export const InvitationRepository = {
     });
     if (error) throw error;
     return data; // returns organization_id
+  },
+
+  async revokeInvitation(invitationId) {
+    if (!invitationId) throw new Error('Missing invitationId');
+    const sb = await getSupabase();
+    const { data, error } = await sb.rpc('revoke_invitation', {
+      p_invitation_id: invitationId
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async revokeEmployeeInvitation(organizationId, employeeId) {
+    if (!organizationId || !employeeId) throw new Error('Missing params for revokeEmployeeInvitation');
+    const sb = await getSupabase();
+    const { data, error } = await sb.rpc('revoke_employee_invitation', {
+      p_organization_id: organizationId,
+      p_employee_id: employeeId
+    });
+    if (error) throw error;
+    return data;
   }
 };
 

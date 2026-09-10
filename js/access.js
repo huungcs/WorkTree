@@ -322,20 +322,36 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
 
   if(emp.accountStatus === 'linked'){
    statusBadge = `<span class="badge" style="background:var(--green-soft);color:var(--green);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('check')} Tài khoản: Đã liên kết</span> <small class="muted" style="margin-left:6px">${esc(emp.accountEmail || emp.email || '')}</small>`;
-   opsHTML = `<span class="access-status active">Hoạt động</span>`;
+   opsHTML = `
+      <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết tài khoản">${icon('eye')} Chi tiết</button>
+      ${(!isYou && emp.role !== 'owner') ? `<button class="btn btn-sm" data-v8="employee-suspend" data-employee-id="${emp.id}" title="Tạm ngừng tài khoản" style="color:var(--red);border-color:var(--line);">${icon('lock')} Tạm ngừng</button>` : `<span class="access-status active">Hoạt động</span>`}
+    `;
+  } else if(emp.accountStatus === 'suspended'){
+   statusBadge = `<span class="badge" style="background:var(--red-soft);color:var(--red);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('lock')} Tài khoản: Đã tạm ngừng</span> <small class="muted" style="margin-left:6px">${esc(emp.accountEmail || emp.email || '')}</small>`;
+   opsHTML = `
+      <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết tài khoản">${icon('eye')} Chi tiết</button>
+      <button class="btn btn-sm primary" data-v8="employee-reactivate" data-employee-id="${emp.id}" title="Kích hoạt lại tài khoản">${icon('check-circle')} Kích hoạt lại</button>
+    `;
   } else if(emp.accountStatus === 'pending'){
    statusBadge = `<span class="badge" style="background:var(--amber-soft);color:var(--amber);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('clock')} Tài khoản: Đang chờ chấp nhận</span> <small class="muted" style="margin-left:6px">${esc(emp.accountEmail || emp.email || '')}</small>`;
-   opsHTML = `<button class="btn btn-sm" data-v8="employee-resend" data-employee-id="${emp.id}" title="Gửi lại lời mời">${icon('refresh')} Gửi lại lời mời</button>`;
+   opsHTML = `
+      <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết">${icon('eye')} Chi tiết</button>
+      <button class="btn btn-sm" data-v8="employee-resend" data-employee-id="${emp.id}" title="Lấy lại liên kết mời">${icon('link')} Lấy link</button>
+      <button class="btn btn-sm" data-v8="employee-revoke-invite" data-employee-id="${emp.id}" title="Thu hồi lời mời" style="color:var(--red);border-color:var(--line);">${icon('trash')} Thu hồi</button>
+    `;
   } else {
    statusBadge = `<span class="badge" style="background:var(--surface-3);color:var(--muted);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('user')} Tài khoản: Chưa mời</span>`;
-   opsHTML = `<button class="btn btn-sm secondary" data-v8="employee-invite" data-employee-id="${emp.id}">${icon('mail')} Mời sử dụng WorkTree</button>`;
+   opsHTML = `
+      <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết">${icon('eye')} Chi tiết</button>
+      <button class="btn btn-sm secondary" data-v8="employee-invite" data-employee-id="${emp.id}">${icon('mail')} Mời WorkTree</button>
+    `;
   }
 
   const roleBadge = emp.role ? `<span class="role-badge role-${emp.role}">${T[emp.role] || emp.role}</span>` : '';
 
-  return `<article class="account-row">
-   <span class="avatar av-1">${esc(initials(emp.full_name))}</span>
-   <div class="account-main">
+  return `<article class="account-row ${emp.accountStatus === 'suspended' ? 'is-suspended' : ''}">
+   <span class="avatar av-1" style="cursor:pointer;" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem thông tin chi tiết">${esc(initials(emp.full_name))}</span>
+   <div class="account-main" style="cursor:pointer;" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem thông tin chi tiết">
     <div>
      <strong>${esc(emp.full_name)}</strong>
      ${isYou ? '<span class="you-badge">Bạn</span>' : ''}
@@ -344,7 +360,7 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
     <p>${emp.employee_code ? `<span class="muted">[${esc(emp.employee_code)}]</span> ` : ''}${esc(jobText || 'Chưa phân phòng ban')}</p>
     <div style="margin-top:4px">${statusBadge}</div>
    </div>
-   <div class="account-ops">
+   <div class="account-ops" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
     ${opsHTML}
    </div>
   </article>`;
@@ -580,7 +596,15 @@ async function submitNewEmployee(e){
 
   await renderCloudEmployeeDirectory(true);
 
-  if(res.invitationError){
+  if(res.token){
+   openInviteLinkDialog({
+    token: res.token,
+    email: inviteEmail,
+    fullName,
+    role,
+    homeNodeName: nodeName(homeNodeId)
+   });
+  } else if(res.invitationError){
    toast(`Đã thêm nhân viên ${fullName}, nhưng chưa gửi được lời mời: ${res.invitationError}. Bạn có thể gửi lại lời mời sau.`, 'warning');
   } else {
    toast(`Đã thêm nhân viên ${fullName}${invite ? ' và gửi lời mời thành công.' : '.'}`);
@@ -706,7 +730,7 @@ function openInviteExistingEmployeeDialog(employeeId){
 
    const scopes = r === 'admin' ? [] : $$('#inviteExistingForm [name="inviteExistScope"]:checked').map(el => el.value);
 
-   await window.EmployeeService.inviteExistingEmployee({
+   const token = await window.EmployeeService.inviteExistingEmployee({
     organizationId: orgId,
     employeeId: emp.id,
     email,
@@ -719,7 +743,18 @@ function openInviteExistingEmployeeDialog(employeeId){
    closeDialog('accountDialog', true);
    $('accountContent').innerHTML = '';
    await renderCloudEmployeeDirectory(true);
-   toast(`Đã gửi lời mời thành công cho ${emp.full_name}.`);
+
+   if(token){
+    openInviteLinkDialog({
+     token,
+     email,
+     fullName: emp.full_name,
+     role: r,
+     homeNodeName: nodeName(emp.home_node_id)
+    });
+   } else {
+    toast(`Đã gửi lời mời thành công cho ${emp.full_name}.`);
+   }
 
   }catch(err){
    console.error('Lỗi mời nhân sự:', err);
@@ -744,8 +779,8 @@ async function resendEmployeeInvitation(employeeId){
  }
 
  try{
-  toast(`Đang gửi lại lời mời cho ${emp.full_name}...`);
-  await window.EmployeeService.inviteExistingEmployee({
+  toast(`Đang tạo liên kết mời cho ${emp.full_name}...`);
+  const token = await window.EmployeeService.inviteExistingEmployee({
    organizationId: orgId,
    employeeId: emp.id,
    email: targetEmail,
@@ -755,10 +790,330 @@ async function resendEmployeeInvitation(employeeId){
    scopeNodeIds: emp.home_node_id ? [emp.home_node_id] : []
   });
   await renderCloudEmployeeDirectory(true);
-  toast(`Đã gửi lại lời mời thành công cho ${emp.full_name}.`);
+  if(token){
+   openInviteLinkDialog({
+    token,
+    email: targetEmail,
+    fullName: emp.full_name,
+    role: emp.role || 'member',
+    homeNodeName: nodeName(emp.home_node_id)
+   });
+  } else {
+   toast(`Đã gửi lại lời mời thành công cho ${emp.full_name}.`);
+  }
  }catch(err){
   console.error('Lỗi gửi lại lời mời:', err);
   toast('Không thể gửi lại lời mời: ' + (err.message || 'Lỗi không xác định'), 'error');
+ }
+}
+
+function openInviteLinkDialog({ token, email, fullName, role = 'member', homeNodeName = '' }){
+ const inviteUrl = `${window.location.origin}/?invite=${token}`;
+ $('accountContent').innerHTML = `
+  <div class="dialog-head">
+   <div>
+    <h3 id="accountTitle">Liên kết mời tham gia</h3>
+    <p class="dialog-sub">Chia sẻ liên kết này cho nhân sự để tham gia tổ chức</p>
+   </div>
+   <button type="button" class="icon-btn" data-action="close" data-dialog="accountDialog" aria-label="Đóng">${icon('close')}</button>
+  </div>
+  <div class="dialog-scroll">
+   <div style="background:var(--primary-soft);border:1px solid var(--primary);border-radius:10px;padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;">
+    <span class="avatar av-1" style="width:44px;height:44px;font-size:16px;">${esc(initials(fullName))}</span>
+    <div style="flex:1;">
+     <strong style="color:var(--text);font-size:15px;">${esc(fullName)}</strong>
+     <div class="muted" style="font-size:13px;margin-top:2px;">
+      ${esc(email)} · <span class="role-badge role-${role}">${T[role] || role}</span>
+     </div>
+     <div class="muted" style="font-size:12px;margin-top:2px;">
+      Phòng ban: <strong>${esc(homeNodeName || 'Không gian chung')}</strong>
+     </div>
+    </div>
+   </div>
+
+   <div class="field full">
+    <label for="inviteLinkInput" style="font-weight:600;font-size:13px;margin-bottom:6px;display:block;">
+     Đường dẫn tham gia (Hiệu lực 7 ngày)
+    </label>
+    <div style="display:flex;gap:8px;">
+     <input id="inviteLinkInput" type="text" readonly value="${esc(inviteUrl)}" style="flex:1;font-family:monospace;font-size:13px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;" />
+     <button type="button" id="copyInviteLinkBtn" class="btn primary" style="white-space:nowrap;padding:0 16px;">
+      ${icon('copy')} Sao chép
+     </button>
+    </div>
+   </div>
+
+   <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:14px;margin-top:16px;font-size:13px;color:var(--muted);line-height:1.6;">
+    <p style="margin:0 0 8px 0;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;">
+     ${icon('info')} Hướng dẫn gửi lời mời
+    </p>
+    <ul style="margin:0;padding-left:18px;">
+     <li>Sao chép liên kết trên và gửi qua <strong>Zalo</strong>, <strong>Telegram</strong>, <strong>Messenger</strong> hoặc <strong>Email cá nhân</strong> cho nhân sự.</li>
+     <li>Khi nhân sự nhấn vào link, hệ thống sẽ mở màn hình Đăng ký / Đăng nhập với email <strong>${esc(email)}</strong>.</li>
+     <li>Ngay sau khi đăng ký hoặc đăng nhập thành công, tài khoản sẽ được tự động kích hoạt vào tổ chức mà không cần nhập mã.</li>
+    </ul>
+   </div>
+  </div>
+  <div class="dialog-foot">
+   <button type="button" class="btn primary" data-action="close" data-dialog="accountDialog">Hoàn tất</button>
+  </div>
+ `;
+
+ const copyBtn = $('copyInviteLinkBtn');
+ const linkInput = $('inviteLinkInput');
+ copyBtn?.addEventListener('click', async () => {
+  try {
+   if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(inviteUrl);
+   } else {
+    linkInput.select();
+    document.execCommand('copy');
+   }
+   copyBtn.innerHTML = `${icon('check')} Đã sao chép!`;
+   copyBtn.style.background = 'var(--green)';
+   toast('Đã sao chép liên kết mời vào bộ nhớ tạm!');
+   setTimeout(() => {
+    if (copyBtn) {
+     copyBtn.innerHTML = `${icon('copy')} Sao chép`;
+     copyBtn.style.background = '';
+    }
+   }, 2500);
+  } catch (err) {
+   linkInput.select();
+   toast('Vui lòng chọn và sao chép thủ công.', 'warning');
+  }
+ });
+
+ linkInput?.addEventListener('click', () => linkInput.select());
+ showDialog('accountDialog', '#copyInviteLinkBtn');
+}
+
+async function openEmployeeDetailsDialog(employeeId){
+ const emp = cloudEmployeesWithStatus.find(e => e.id === employeeId);
+ if(!emp) return toast('Không tìm thấy nhân sự.', 'error');
+
+ const curMember = window.appState?.activeMembership;
+ const isYou = curMember?.employeeId && emp.id === curMember.employeeId;
+ const homeNodeTitle = nodeName(emp.home_node_id) || 'Chưa phân bổ';
+
+ let scopeNames = [];
+ if(emp.role === 'admin' || emp.role === 'owner'){
+  scopeNames = ['Toàn bộ tổ chức (Full Organization Access)'];
+ } else if(emp.membership?.id && window.NodeRepository?.getMemberScopedNodeIds){
+  try{
+   const scopeIds = await window.NodeRepository.getMemberScopedNodeIds(emp.membership.id);
+   scopeNames = (scopeIds || []).map(id => pathName(id) || nodeName(id)).filter(Boolean);
+  }catch(e){}
+ } else if(Array.isArray(emp.invitation?.scope_node_ids) && emp.invitation.scope_node_ids.length){
+  scopeNames = emp.invitation.scope_node_ids.map(id => pathName(id) || nodeName(id)).filter(Boolean);
+ }
+ if(!scopeNames.length && emp.home_node_id){
+  scopeNames = [pathName(emp.home_node_id) || homeNodeTitle];
+ }
+
+ const roleLabel = T[emp.role] || (emp.role === 'owner' ? 'Chủ sở hữu' : emp.role === 'admin' ? 'Quản trị viên' : emp.role === 'manager' ? 'Quản lý' : emp.role === 'viewer' ? 'Chỉ xem' : 'Nhân viên');
+
+ let accountBadge = '';
+ if(emp.accountStatus === 'linked'){
+  accountBadge = `<span class="badge" style="background:var(--green-soft);color:var(--green);font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">${icon('check')} Đang hoạt động</span>`;
+ } else if(emp.accountStatus === 'suspended'){
+  accountBadge = `<span class="badge" style="background:var(--red-soft);color:var(--red);font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">${icon('lock')} Đã tạm ngừng kích hoạt</span>`;
+ } else if(emp.accountStatus === 'pending'){
+  accountBadge = `<span class="badge" style="background:var(--amber-soft);color:var(--amber);font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">${icon('clock')} Đang chờ chấp nhận lời mời</span>`;
+ } else {
+  accountBadge = `<span class="badge" style="background:var(--surface-3);color:var(--muted);font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">${icon('user')} Chưa mời tham gia</span>`;
+ }
+
+ const employmentBadge = emp.employmentStatus === 'suspended'
+  ? `<span style="color:var(--red);font-weight:600;">Tạm ngừng công tác</span>`
+  : `<span style="color:var(--green);font-weight:600;">Đang làm việc</span>`;
+
+ let actionButtons = '';
+ if(emp.accountStatus === 'linked'){
+  if(!isYou && emp.role !== 'owner'){
+   actionButtons += `<button type="button" class="btn" data-v8="employee-suspend" data-employee-id="${emp.id}" style="color:var(--red);border-color:var(--line);">${icon('lock')} Tạm ngừng tài khoản</button>`;
+  }
+ } else if(emp.accountStatus === 'suspended'){
+  actionButtons += `<button type="button" class="btn primary" data-v8="employee-reactivate" data-employee-id="${emp.id}">${icon('check-circle')} Kích hoạt lại tài khoản</button>`;
+ } else if(emp.accountStatus === 'pending'){
+  actionButtons += `<button type="button" class="btn" data-v8="employee-resend" data-employee-id="${emp.id}">${icon('link')} Lấy link mời</button>`;
+  actionButtons += `<button type="button" class="btn" data-v8="employee-revoke-invite" data-employee-id="${emp.id}" style="color:var(--red);border-color:var(--line);">${icon('trash')} Thu hồi lời mời</button>`;
+ } else {
+  actionButtons += `<button type="button" class="btn primary" data-v8="employee-invite" data-employee-id="${emp.id}">${icon('mail')} Mời WorkTree</button>`;
+ }
+
+ $('accountContent').innerHTML = `
+  <div class="dialog-head">
+   <div>
+    <h3 id="accountTitle">Thông tin tài khoản nhân sự</h3>
+    <p class="dialog-sub">Chi tiết hồ sơ nhân sự và trạng thái tài khoản truy cập</p>
+   </div>
+   <button type="button" class="icon-btn" data-action="close" data-dialog="accountDialog" aria-label="Đóng">${icon('close')}</button>
+  </div>
+  <div class="dialog-scroll">
+   <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;display:flex;align-items:center;gap:16px;">
+    <span class="avatar av-1" style="width:52px;height:52px;font-size:20px;flex-shrink:0;">${esc(initials(emp.full_name))}</span>
+    <div style="flex:1;min-width:0;">
+     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <strong style="font-size:16px;color:var(--text);">${esc(emp.full_name)}</strong>
+      ${isYou ? '<span class="you-badge">Bạn</span>' : ''}
+      <span class="role-badge role-${emp.role}">${roleLabel}</span>
+     </div>
+     <div class="muted" style="font-size:13px;margin-top:4px;">
+      ${emp.employee_code ? `<span style="font-weight:600;">[${esc(emp.employee_code)}]</span> ` : ''}${esc(emp.job_title || 'Chưa có chức danh')} · <span>${esc(homeNodeTitle)}</span>
+     </div>
+     <div style="margin-top:8px;">${accountBadge}</div>
+    </div>
+   </div>
+
+   <div style="margin:16px 0 10px;font-weight:700;color:var(--text);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:6px;display:flex;align-items:center;gap:6px;">
+    ${icon('user')} <span>Hồ sơ nhân sự</span>
+   </div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;background:var(--surface);padding:14px;border-radius:8px;border:1px solid var(--line);font-size:13px;margin-bottom:16px;">
+    <div>
+     <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Mã nhân viên:</span>
+     <strong>${esc(emp.employee_code || 'Chưa gán')}</strong>
+    </div>
+    <div>
+     <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Chức danh:</span>
+     <strong>${esc(emp.job_title || 'Chưa gán')}</strong>
+    </div>
+    <div>
+     <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Phòng ban trực thuộc:</span>
+     <strong>${esc(homeNodeTitle)}</strong>
+    </div>
+    <div>
+     <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Tình trạng nhân sự:</span>
+     ${employmentBadge}
+    </div>
+    <div style="grid-column:1 / -1;">
+     <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Email liên hệ:</span>
+     <span>${esc(emp.email || 'Chưa cập nhật')}</span>
+    </div>
+   </div>
+
+   <div style="margin:16px 0 10px;font-weight:700;color:var(--text);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:6px;display:flex;align-items:center;gap:6px;">
+    ${icon('shield')} <span>Tài khoản truy cập WorkTree X</span>
+   </div>
+   <div style="background:var(--surface);padding:14px;border-radius:8px;border:1px solid var(--line);font-size:13px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+     <div>
+      <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Email đăng nhập:</span>
+      <strong style="color:var(--primary-text);">${esc(emp.accountEmail || emp.email || 'Chưa có tài khoản')}</strong>
+     </div>
+     <div>
+      <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Vai trò truy cập:</span>
+      <strong>${roleLabel}</strong>
+     </div>
+     <div style="grid-column:1 / -1;">
+      <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">User ID (Supabase Auth UID):</span>
+      <code style="font-size:11px;background:var(--surface-3);padding:2px 6px;border-radius:4px;word-break:break-all;">${esc(emp.membership?.user_id || 'Chưa liên kết auth.users')}</code>
+     </div>
+    </div>
+   </div>
+
+   <div style="margin:16px 0 10px;font-weight:700;color:var(--text);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:6px;display:flex;align-items:center;gap:6px;">
+    ${icon('network')} <span>Phạm vi dữ liệu được cấp (Scopes)</span>
+   </div>
+   <div style="background:var(--surface);padding:14px;border-radius:8px;border:1px solid var(--line);font-size:13px;">
+    ${scopeNames.length ? `
+      <ul style="margin:0;padding-left:18px;line-height:1.7;">
+       ${scopeNames.map(s => `<li><strong>${esc(s)}</strong></li>`).join('')}
+      </ul>
+    ` : '<p class="muted" style="margin:0;">Chưa phân bổ phạm vi cụ thể.</p>'}
+   </div>
+  </div>
+  <div class="dialog-foot" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    ${actionButtons}
+   </div>
+   <button type="button" class="btn" data-action="close" data-dialog="accountDialog">Đóng</button>
+  </div>
+ `;
+
+ showDialog('accountDialog');
+}
+
+async function confirmSuspendEmployee(employeeId){
+ if(!requireAdmin()) return;
+ const emp = cloudEmployeesWithStatus.find(e => e.id === employeeId);
+ if(!emp) return toast('Không tìm thấy nhân sự.', 'error');
+
+ const curMember = window.appState?.activeMembership;
+ if(curMember?.employeeId && emp.id === curMember.employeeId){
+  return toast('Bạn không thể tự tạm ngừng tài khoản của chính mình.', 'warning');
+ }
+ if(emp.role === 'owner'){
+  return toast('Không thể tạm ngừng tài khoản Chủ sở hữu tổ chức.', 'error');
+ }
+
+ const ok = confirm(`Bạn có chắc muốn TẠM NGỪNG tài khoản của nhân viên "${emp.full_name}"?\n\nSau khi tạm ngừng, nhân viên này sẽ không thể đăng nhập hoặc xem/chỉnh sửa dữ liệu của tổ chức.`);
+ if(!ok) return;
+
+ const orgId = window.appState?.activeOrganizationId;
+ try{
+  toast(`Đang tạm ngừng tài khoản của ${emp.full_name}...`);
+  await window.EmployeeService.suspendAccount({
+   organizationId: orgId,
+   employeeId: emp.id,
+   membershipId: emp.membershipId || emp.membership?.id
+  });
+  closeDialog('accountDialog', true);
+  await renderCloudEmployeeDirectory(true);
+  toast(`Đã tạm ngừng tài khoản của ${emp.full_name}.`);
+ }catch(err){
+  console.error('Lỗi tạm ngừng tài khoản:', err);
+  toast('Không thể tạm ngừng tài khoản: ' + (err.message || 'Lỗi hệ thống'), 'error');
+ }
+}
+
+async function confirmReactivateEmployee(employeeId){
+ if(!requireAdmin()) return;
+ const emp = cloudEmployeesWithStatus.find(e => e.id === employeeId);
+ if(!emp) return toast('Không tìm thấy nhân sự.', 'error');
+
+ const ok = confirm(`Kích hoạt lại quyền truy cập cho nhân viên "${emp.full_name}"?`);
+ if(!ok) return;
+
+ const orgId = window.appState?.activeOrganizationId;
+ try{
+  toast(`Đang kích hoạt lại tài khoản của ${emp.full_name}...`);
+  await window.EmployeeService.reactivateAccount({
+   organizationId: orgId,
+   employeeId: emp.id,
+   membershipId: emp.membershipId || emp.membership?.id
+  });
+  closeDialog('accountDialog', true);
+  await renderCloudEmployeeDirectory(true);
+  toast(`Đã kích hoạt lại tài khoản cho ${emp.full_name}.`);
+ }catch(err){
+  console.error('Lỗi kích hoạt lại tài khoản:', err);
+  toast('Không thể kích hoạt lại: ' + (err.message || 'Lỗi hệ thống'), 'error');
+ }
+}
+
+async function confirmRevokeInvitation(employeeId){
+ if(!requireAdmin()) return;
+ const emp = cloudEmployeesWithStatus.find(e => e.id === employeeId);
+ if(!emp) return toast('Không tìm thấy nhân sự.', 'error');
+
+ const ok = confirm(`Bạn có chắc muốn THU HỒI lời mời của nhân viên "${emp.full_name}"?\n\nĐường liên kết mời đã gửi sẽ bị hủy hiệu lực ngay lập tức.`);
+ if(!ok) return;
+
+ const orgId = window.appState?.activeOrganizationId;
+ try{
+  toast(`Đang thu hồi lời mời của ${emp.full_name}...`);
+  await window.EmployeeService.revokeInvitation({
+   organizationId: orgId,
+   employeeId: emp.id,
+   invitationId: emp.invitationId || emp.invitation?.id
+  });
+  closeDialog('accountDialog', true);
+  await renderCloudEmployeeDirectory(true);
+  toast(`Đã thu hồi lời mời của ${emp.full_name}.`);
+ }catch(err){
+  console.error('Lỗi thu hồi lời mời:', err);
+  toast('Không thể thu hồi lời mời: ' + (err.message || 'Lỗi hệ thống'), 'error');
  }
 }
 
@@ -1155,6 +1510,10 @@ function handleV8Click(e){
     case 'employee-new':openAddEmployeeDialog();break;
     case 'employee-invite':openInviteExistingEmployeeDialog(v.dataset.employeeId);break;
     case 'employee-resend':await resendEmployeeInvitation(v.dataset.employeeId);break;
+    case 'employee-detail':await openEmployeeDetailsDialog(v.dataset.employeeId);break;
+    case 'employee-suspend':await confirmSuspendEmployee(v.dataset.employeeId);break;
+    case 'employee-reactivate':await confirmReactivateEmployee(v.dataset.employeeId);break;
+    case 'employee-revoke-invite':await confirmRevokeInvitation(v.dataset.employeeId);break;
     case 'account-new':openAccount();break;
     case 'account-edit':openAccount(user);break;
     case 'account-reset':openPassword(user);break;
@@ -1217,6 +1576,11 @@ function bootV8(){
  let tick=0;setInterval(()=>{if(session||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
  window.openAddEmployeeDialog = openAddEmployeeDialog;
  window.openInviteExistingEmployeeDialog = openInviteExistingEmployeeDialog;
+ window.openInviteLinkDialog = openInviteLinkDialog;
+ window.openEmployeeDetailsDialog = openEmployeeDetailsDialog;
+ window.confirmSuspendEmployee = confirmSuspendEmployee;
+ window.confirmReactivateEmployee = confirmReactivateEmployee;
+ window.confirmRevokeInvitation = confirmRevokeInvitation;
  window.renderCloudEmployeeDirectory = renderCloudEmployeeDirectory;
  window.openAccess = openAccess;
 }

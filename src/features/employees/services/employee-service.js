@@ -3,7 +3,7 @@
  * Handles employee directory queries, creation, and invitation orchestration.
  */
 
-import { EmployeeRepository, InvitationRepository } from '../../../lib/supabase/repositories.js';
+import { EmployeeRepository, InvitationRepository, OrganizationRepository } from '../../../lib/supabase/repositories.js';
 
 export const EmployeeService = {
   async loadEmployees(organizationId) {
@@ -119,5 +119,46 @@ export const EmployeeService = {
     });
 
     return token;
+  },
+
+  /**
+   * Suspend an employee account and personnel status.
+   */
+  async suspendAccount({ organizationId, employeeId, membershipId }) {
+    if (!organizationId) throw new Error('Missing organizationId');
+    if (membershipId) {
+      await OrganizationRepository.setMemberStatus(membershipId, 'suspended');
+    }
+    if (employeeId) {
+      await EmployeeRepository.updateEmployee(employeeId, { employment_status: 'suspended' });
+    }
+    return true;
+  },
+
+  /**
+   * Reactivate a suspended employee account.
+   */
+  async reactivateAccount({ organizationId, employeeId, membershipId }) {
+    if (!organizationId) throw new Error('Missing organizationId');
+    if (membershipId) {
+      await OrganizationRepository.setMemberStatus(membershipId, 'active');
+    }
+    if (employeeId) {
+      await EmployeeRepository.updateEmployee(employeeId, { employment_status: 'active' });
+    }
+    return true;
+  },
+
+  /**
+   * Revoke a pending invitation.
+   */
+  async revokeInvitation({ organizationId, employeeId, invitationId }) {
+    if (!organizationId) throw new Error('Missing organizationId');
+    if (invitationId) {
+      await InvitationRepository.revokeInvitation(invitationId);
+    } else if (employeeId) {
+      await InvitationRepository.revokeEmployeeInvitation(organizationId, employeeId);
+    }
+    return true;
   }
 };

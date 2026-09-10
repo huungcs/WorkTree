@@ -121,6 +121,26 @@ export class AuthView {
   }
 
   /**
+   * Hiển thị banner thông báo nếu có lời mời đang chờ
+   */
+  renderInviteBanner() {
+    let hasInvite = false;
+    try {
+      hasInvite = !!sessionStorage.getItem('worktree_pending_invite');
+    } catch(e) {}
+    if (!hasInvite) return '';
+    return `
+      <div style="background:var(--primary-soft);border:1px solid var(--primary);color:var(--primary-text);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:18px;">✉️</span>
+        <div style="line-height:1.4;">
+          <strong>Bạn nhận được lời mời tham gia tổ chức!</strong>
+          <div style="font-size:12px;opacity:0.9;">Đăng nhập hoặc đăng ký tài khoản để tự động kết nối vào không gian làm việc.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
    * Tab switcher giữa Đăng nhập và Đăng ký
    */
   renderTabs() {
@@ -148,6 +168,7 @@ export class AuthView {
       </div>
 
       ${this.renderTabs()}
+      ${this.renderInviteBanner()}
 
       <div class="form-error" id="authError" role="alert" ${this.errorMessage ? '' : 'hidden'}>
         ${this.errorMessage}
@@ -203,6 +224,7 @@ export class AuthView {
       </div>
 
       ${this.renderTabs()}
+      ${this.renderInviteBanner()}
 
       <div class="form-error" id="authError" role="alert" ${this.errorMessage ? '' : 'hidden'}>
         ${this.errorMessage}

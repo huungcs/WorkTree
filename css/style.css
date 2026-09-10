@@ -1436,3 +1436,17 @@ div[class*="onesignal-slidedown"] {
   }
 }
 
+/* Employee Directory & Account Management Enhancements */
+.account-row.is-suspended {
+  opacity: 0.72;
+  background: var(--red-soft);
+  border-radius: 8px;
+}
+
+.account-row .avatar[data-v8="employee-detail"]:hover,
+.account-row .account-main[data-v8="employee-detail"]:hover strong {
+  color: var(--primary-text);
+  transition: color 0.15s ease;
+}
+
+
