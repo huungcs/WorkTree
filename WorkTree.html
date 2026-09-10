@@ -7562,7 +7562,18 @@ async function togglePin(kind,id){
 }
 function taskPinButton(id){const on=isPinned('task',id);return `<button class="icon-btn task-pin-btn ${on?'is-pinned':''}" data-v8="pin-toggle" data-kind="task" data-id="${id}" aria-pressed="${on}" title="${on?T.unpin:T.pin}" aria-label="${on?T.unpin:T.pin}">${icon('pin')}</button>`;}
 function pinTitle(p){return p.kind==='task'?byTask.get(p.id)?.title:byNode.get(p.id)?.name;}
-function pinMeta(p){const t=p.kind==='task'?byTask.get(p.id):null;return t?`${byNode.get(t.node)?.name||''} · ${t.status}`:shortPath(p.id);}
+function pinMeta(p){
+ const t=p.kind==='task'?byTask.get(p.id):null;
+ if(t)return `${byNode.get(t.node)?.name||''} · ${t.status}`;
+ const n=byNode.get(p.id);
+ if(!n)return '';
+ const typeStr=TYPES[n.type]||'Thư mục';
+ const parentNode=n.parent?byNode.get(n.parent):null;
+ if(parentNode && parentNode.id !== rootNode()?.id){
+  return `${typeStr} · thuộc ${parentNode.name}`;
+ }
+ return typeStr;
+}
 function renderPins(){
  if(!currentAccount())return;const pins=visiblePins(),show=pinsExpanded?pins:pins.slice(0,4);
  $('pinSection').innerHTML=`<div class="side-heading pin-heading"><span>${icon('pin')}${T.pins}</span><div><button class="tiny-btn" data-v8="pins-manage" title="${T.managePins}" aria-label="${T.managePins}">${icon('sliders')}</button><button class="tiny-btn" data-v8="pins-manage" title="${T.addPin}" aria-label="${T.addPin}">${icon('plus')}</button></div></div><div class="pin-personal">${T.personal}${pins.length?` <span>${pins.length}</span>`:''}</div>${show.length?show.map((p,i)=>`<div class="pin-shortcut ${p.urgent?'is-urgent':''}"><button class="pin-open" data-v8="pin-open" data-kind="${p.kind}" data-id="${p.id}" title="${esc(pinTitle(p)+' / '+pinMeta(p))}"><span class="pin-type-icon">${icon(p.kind==='task'?'check-circle':'folder')}</span><span><strong>${esc(pinTitle(p))}</strong><small>${p.urgent?T.urgent:p.kind==='task'?T.task:T.project}</small></span>${p.urgent?'<i class="pin-urgent-dot"></i>':''}</button><button class="tiny-btn pin-remove" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}" aria-label="${T.unpin}: ${esc(pinTitle(p))}" title="${T.unpin}">${icon('x')}</button></div>`).join(''):`<button class="pin-empty" data-v8="pins-manage">${T.pinEmpty}</button>`}${pins.length>4?`<button class="pin-more" data-v8="pins-expand">${pinsExpanded?'Thu gọn':T.allPins+' ('+pins.length+')'}</button>`:''}`;
@@ -7635,9 +7646,133 @@ function openPins(){
  $('pinSearch').addEventListener('input',renderPinSearch);renderPinSearch();showDialog('pinDialog');
 }
 function renderPinSearch(){
- const q=fold($('pinSearch').value),nodes=data.nodes.filter(n=>canPin('node',n.id)&&!isPinned('node',n.id)&&(!q||fold(pathName(n.id)).includes(q))).sort((a,b)=>(a.type!=='project')-(b.type!=='project')).slice(0,8).map(n=>({kind:'node',id:n.id,title:n.name,meta:TYPES[n.type]}));
- const tasks=readableTasks().filter(t=>!isPinned('task',t.id)&&(!q||fold(t.title+' '+nodeName(t.node)).includes(q))).sort((a,b)=>Number(attention(b))-Number(attention(a))).slice(0,8).map(t=>({kind:'task',id:t.id,title:t.title,meta:t.status}));
- $('pinSearchResults').innerHTML=[...nodes,...tasks].map(p=>`<button class="pin-search-result" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}">${icon(p.kind==='task'?'check-circle':'folder')}<span><strong>${esc(p.title)}</strong><small>${esc(p.meta)}</small></span>${icon('plus')}</button>`).join('')||`<p class="view-note">${T.noResults}</p>`;
+ const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width:900px)').matches;
+ const q = fold($('pinSearch')?.value || '');
+
+ if(isMobile && !q){
+  // Hiển thị dạng thư mục (Folder Tree) phân cấp trên giao diện điện thoại
+  const ids = visibleNodeIds();
+  const root = rootNode();
+  if(!root) return;
+  const topNodes = childrenOf(root.id).filter(n => ids.has(n.id));
+  const rootsToRender = topNodes.length ? topNodes : [root];
+
+  const renderNode = (n, depth = 0) => {
+   if (!ids.has(n.id)) return '';
+   const kids = childrenOf(n.id).filter(c => ids.has(c.id));
+   const pinned = isPinned('node', n.id);
+   const typeStr = TYPES[n.type] || 'Thư mục';
+   const ico = nodeIcon(n.type);
+   const parentNode = n.parent ? byNode.get(n.parent) : null;
+   const parentDesc = (parentNode && parentNode.id !== root.id)
+     ? `${typeStr} · thuộc ${parentNode.name}`
+     : typeStr;
+
+   const indent = Math.min(depth * 18, 54);
+   const isDept = n.type === 'department';
+   const isProj = n.type === 'project';
+   const isTeam = n.type === 'team';
+
+   const badgeBg = isDept ? 'var(--purple-soft)' : isProj ? 'var(--blue-soft)' : isTeam ? 'var(--green-soft)' : 'var(--surface-3)';
+   const badgeColor = isDept ? 'var(--purple)' : isProj ? 'var(--blue)' : isTeam ? 'var(--green)' : 'var(--muted)';
+
+   let html = `
+    <div class="m-pin-tree-item" style="display:flex;align-items:center;gap:10px;padding:11px 4px 11px ${indent + 6}px;border-bottom:1px solid var(--line);min-height:56px">
+     ${depth > 0 ? `<span style="color:var(--line-strong);font-size:12px;user-select:none;font-family:monospace;flex-shrink:0">└──</span>` : ''}
+     <span class="m-pin-tree-icon" style="flex-shrink:0;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:${badgeBg};color:${badgeColor}">
+      ${icon(ico)}
+     </span>
+     <button type="button" class="m-pin-tree-label" data-v8="pin-toggle" data-kind="node" data-id="${n.id}" style="flex:1;min-width:0;background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit" title="${pinned ? T.unpin : T.pin}">
+      <strong style="display:block;font-size:13px;font-weight:600;color:var(--text);line-height:1.4;overflow-wrap:anywhere">${esc(n.name)}</strong>
+      <small style="display:block;font-size:11px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere">${esc(parentDesc)}</small>
+     </button>
+     ${canPin('node', n.id) ? `
+      <button type="button" class="icon-btn tiny-btn m-pin-btn ${pinned ? 'is-pinned' : ''}" data-v8="pin-toggle" data-kind="node" data-id="${n.id}" aria-label="${pinned ? T.unpin : T.pin}: ${esc(n.name)}" title="${pinned ? T.unpin : T.pin}" style="width:44px;height:44px;flex-shrink:0;display:grid;place-items:center;border-radius:10px;border:1px solid ${pinned ? 'var(--primary)' : 'var(--line)'};background:${pinned ? 'var(--primary-soft)' : 'var(--surface-2)'};color:${pinned ? 'var(--primary-text)' : 'var(--subtle)'}">
+       ${icon(pinned ? 'check' : 'plus')}
+      </button>
+     ` : ''}
+    </div>
+   `;
+
+   if (kids.length) {
+    html += kids.map(k => renderNode(k, depth + 1)).join('');
+   }
+   return html;
+  };
+
+  const tasks = readableTasks().filter(t => !isPinned('task', t.id)).slice(0, 5);
+  let tasksHtml = '';
+  if (tasks.length) {
+   tasksHtml = `
+    <div style="margin-top:16px;padding:8px 0 6px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;display:flex;align-items:center;gap:6px">
+     ${icon('check-circle')} <span>Công việc gợi ý</span>
+    </div>
+    ${tasks.map(t => {
+      const isPinnedTask = isPinned('task', t.id);
+      return `
+       <div class="m-pin-tree-item" style="display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line);min-height:56px">
+        <span style="flex-shrink:0;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:var(--amber-soft);color:var(--amber)">
+         ${icon('check-circle')}
+        </span>
+        <button type="button" class="m-pin-tree-label" data-v8="pin-toggle" data-kind="task" data-id="${t.id}" style="flex:1;min-width:0;background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit" title="${isPinnedTask ? T.unpin : T.pin}">
+         <strong style="display:block;font-size:13px;font-weight:600;color:var(--text);line-height:1.4;overflow-wrap:anywhere">${esc(t.title)}</strong>
+         <small style="display:block;font-size:11px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere">${esc(nodeName(t.node))} &middot; ${esc(t.status)}</small>
+        </button>
+        <button type="button" class="icon-btn tiny-btn m-pin-btn ${isPinnedTask ? 'is-pinned' : ''}" data-v8="pin-toggle" data-kind="task" data-id="${t.id}" aria-label="${isPinnedTask ? T.unpin : T.pin}: ${esc(t.title)}" title="${isPinnedTask ? T.unpin : T.pin}" style="width:44px;height:44px;flex-shrink:0;display:grid;place-items:center;border-radius:10px;border:1px solid ${isPinnedTask ? 'var(--primary)' : 'var(--line)'};background:${isPinnedTask ? 'var(--primary-soft)' : 'var(--surface-2)'};color:${isPinnedTask ? 'var(--primary-text)' : 'var(--subtle)'}">
+         ${icon(isPinnedTask ? 'check' : 'plus')}
+        </button>
+       </div>
+      `;
+    }).join('')}
+   `;
+  }
+
+  $('pinSearchResults').innerHTML = `
+   <div class="m-pin-tree-container">
+    <div style="padding:10px 0 6px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;display:flex;align-items:center;gap:6px">
+     ${icon('folders')} <span>Cây thư mục tổ chức & phòng ban</span>
+    </div>
+    ${rootsToRender.map(n => renderNode(n, 0)).join('')}
+    ${tasksHtml}
+   </div>
+  `;
+  return;
+ }
+
+ const nodes = data.nodes
+   .filter(n => canPin('node', n.id) && (!isMobile ? !isPinned('node', n.id) : true) && (!q || fold(pathName(n.id)).includes(q)))
+   .sort((a, b) => (a.type !== 'project') - (b.type !== 'project'))
+   .slice(0, 12)
+   .map(n => {
+     const parentNode = n.parent ? byNode.get(n.parent) : null;
+     const metaDesc = (parentNode && parentNode.id !== rootNode()?.id)
+       ? `${TYPES[n.type]} · thuộc ${parentNode.name}`
+       : TYPES[n.type];
+     return { kind: 'node', id: n.id, title: n.name, meta: metaDesc, isPinned: isPinned('node', n.id) };
+   });
+
+ const tasks = readableTasks()
+   .filter(t => (!isMobile ? !isPinned('task', t.id) : true) && (!q || fold(t.title + ' ' + nodeName(t.node)).includes(q)))
+   .sort((a, b) => Number(attention(b)) - Number(attention(a)))
+   .slice(0, 8)
+   .map(t => ({ kind: 'task', id: t.id, title: t.title, meta: `${nodeName(t.node)} · ${t.status}`, isPinned: isPinned('task', t.id) }));
+
+ const allItems = [...nodes, ...tasks];
+ if (allItems.length === 0) {
+  $('pinSearchResults').innerHTML = `<p class="view-note">${T.noResults}</p>`;
+  return;
+ }
+
+ $('pinSearchResults').innerHTML = allItems.map(p => `
+  <button class="pin-search-result ${p.isPinned ? 'is-pinned-result' : ''}" data-v8="pin-toggle" data-kind="${p.kind}" data-id="${p.id}" style="${p.isPinned ? 'background:var(--surface-2);' : ''}">
+   ${icon(p.kind === 'task' ? 'check-circle' : 'folder')}
+   <span>
+    <strong>${esc(p.title)}</strong>
+    <small>${esc(p.meta)}</small>
+   </span>
+   ${icon(p.isPinned ? 'check' : 'plus')}
+  </button>
+ `).join('');
 }
 async function reorderPin(action,kind,id){
  if(!requireLogin())return;const list=ownPins(),visible=visiblePins(),idx=list.findIndex(p=>p.kind===kind&&String(p.id)===String(id)),vi=visible.findIndex(p=>p.kind===kind&&String(p.id)===String(id));if(idx<0||vi<0)return;
