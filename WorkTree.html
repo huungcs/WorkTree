@@ -4585,6 +4585,53 @@ async function deleteTasks(ids){
   state.selectedTasks.clear();if(state.timer&&set.has(state.timer.taskId))state.timer=null;savePrefs();renderAll(true);
  }
 }
+function getAllowedChildTypes(parentType) {
+ switch (parentType) {
+  case 'company':
+   return ['department', 'project', 'team', 'folder'];
+  case 'department':
+   return ['department', 'project', 'team', 'folder'];
+  case 'project':
+   return ['project', 'team', 'folder'];
+  case 'team':
+   return ['team', 'folder'];
+  case 'folder':
+   return ['folder'];
+  default:
+   return ['department', 'project', 'team', 'folder'];
+ }
+}
+
+function updateNodeTypeOptions(parentId, preferredType = null) {
+ const editingItem = editingNode ? byNode.get(editingNode) : null;
+ const isRoot = editingItem ? editingItem.parent === null : false;
+ if (isRoot) {
+  $('nType').innerHTML = `<option value="company">${esc(TYPES.company || 'Công ty')}</option>`;
+  $('nType').disabled = true;
+  return;
+ }
+ $('nType').disabled = false;
+
+ const parentNode = parentId ? (byNode.get(parentId) || byNode.get(Number(parentId))) : (rootNode() || null);
+ const parentType = parentNode ? parentNode.type : 'company';
+ const allowed = getAllowedChildTypes(parentType).filter(k => !window.__worktree_is_cloud_workspace || k !== 'person');
+
+ if (editingItem && editingItem.type && !allowed.includes(editingItem.type)) {
+  allowed.unshift(editingItem.type);
+ }
+
+ const currentVal = $('nType').value;
+ const targetVal = preferredType || (allowed.includes(currentVal) ? currentVal : (allowed.includes(editingItem?.type) ? editingItem.type : allowed[0]));
+
+ $('nType').innerHTML = allowed.map(key => `<option value="${key}" ${key === targetVal ? 'selected' : ''}>${esc(TYPES[key] || key)}</option>`).join('');
+ if (allowed.length <= 1) {
+  $('nType').value = allowed[0];
+ }
+ if ($('capacityField')) {
+  $('capacityField').hidden = $('nType').value !== 'person';
+ }
+}
+
 function openNodeForm(id=null,type=null){
  if(!requireAdmin())return;
  if($('nodeDialog').open&&dirtyNode){ask('Bỏ thay đổi đơn vị chưa lưu?','Biểu mẫu đang nhập sẽ bị bỏ để mở đơn vị khác.','Bỏ & tiếp tục',true).then(ok=>{if(ok){dirtyNode=false;closeDialog('nodeDialog',true);openNodeForm(id,type);}});return;}
@@ -4592,10 +4639,11 @@ function openNodeForm(id=null,type=null){
  editingNode=id;dirtyNode=false;$('nodeForm').reset();$('nodeFormError').hidden=true;
  $('nodeDialogTitle').textContent=n?'Chỉnh sửa đơn vị':'Thêm đơn vị con';$('nName').value=n?.name||'';$('nDesc').value=n?.desc||'';$('nCapacity').value=n?.capacity??40;
  const isRoot=n?.parent===null;
- $('nType').innerHTML=Object.entries(TYPES).filter(([key])=>isRoot||(key!=='company'&&(!window.__worktree_is_cloud_workspace||key!=='person'))).map(([key,label])=>`<option value="${key}" ${key===(n?.type||type||(state.view==='workload'?'department':'department'))?'selected':''}>${esc(label)}</option>`).join('');
- $('nType').disabled=isRoot;
- $('nParent').innerHTML=isRoot?'<option value="">Đơn vị gốc · Không có cấp cha</option>':optionNodes(n?.parent??state.selected,n?subtree(n.id):new Set());
- $('nParent').disabled=isRoot;$('capacityField').hidden=$('nType').value!=='person';
+ const defaultParent = isRoot ? null : (n?.parent ?? (byNode.has(state.selected) ? state.selected : (rootNode()?.id || null)));
+ $('nParent').innerHTML=isRoot?'<option value="">Đơn vị gốc · Không có cấp cha</option>':optionNodes(defaultParent,n?subtree(n.id):new Set());
+ $('nParent').disabled=isRoot;
+ updateNodeTypeOptions(isRoot ? null : $('nParent').value, n?.type || type);
+ $('capacityField').hidden=$('nType').value!=='person';
  $('deleteNodeBtn').hidden=!n||isRoot;closeSidebar();showDialog('nodeDialog','#nName');
 }
 function saveNode(event){
@@ -4608,6 +4656,16 @@ function saveNode(event){
   const parent=isRoot?null:($('nParent').value||null);
   const type=isRoot?'company':$('nType').value;
   const desc=$('nDesc').value.trim();
+
+  if(!isRoot && parent){
+   const pNode=byNode.get(parent)||byNode.get(Number(parent));
+   const pType=pNode?pNode.type:'company';
+   const allowed=getAllowedChildTypes(pType);
+   if(!allowed.includes(type)&&(!original||original.type!==type)){
+    showFormError('nodeFormError',`Không thể tạo đơn vị "${TYPES[type]||type}" bên trong "${TYPES[pType]||pType}". Vui lòng chọn loại đơn vị phù hợp.`);
+    return;
+   }
+  }
 
   if(data.nodes.some(n=>n.id!==id&&n.parent===parent&&fold(n.name)===fold(name))){
    showFormError('nodeFormError','Đã có một đơn vị cùng tên trong nhánh này. Hãy dùng tên phân biệt.');
@@ -4662,6 +4720,17 @@ function saveNode(event){
  event.preventDefault();if(!$('nodeForm').reportValidity())return;
  const name=$('nName').value.trim(),id=editingNode||uid(),isNew=!editingNode,original=byNode.get(id),isRoot=original?.parent===null;
  const parent=isRoot?null:Number($('nParent').value),type=isRoot?'company':$('nType').value;
+
+ if(!isRoot && parent){
+  const pNode=byNode.get(parent)||byNode.get(Number(parent));
+  const pType=pNode?pNode.type:'company';
+  const allowed=getAllowedChildTypes(pType);
+  if(!allowed.includes(type)&&(!original||original.type!==type)){
+   showFormError('nodeFormError',`Không thể tạo đơn vị "${TYPES[type]||type}" bên trong "${TYPES[pType]||pType}". Vui lòng chọn loại đơn vị phù hợp.`);
+   return;
+  }
+ }
+
  if(data.nodes.some(n=>n.id!==id&&n.parent===parent&&fold(n.name)===fold(name))){showFormError('nodeFormError','Đã có một đơn vị cùng tên trong nhánh này. Hãy dùng tên phân biệt.');return;}
  if(original?.type==='person'&&type!=='person'&&data.tasks.some(t=>t.owner===id)){showFormError('nodeFormError','Nhân sự này đang phụ trách công việc. Hãy chuyển người phụ trách trước khi đổi loại đơn vị.');return;}
  const ok=commit(isNew?'Đã tạo đơn vị mới':'Đã cập nhật đơn vị',d=>{
@@ -5422,6 +5491,7 @@ document.addEventListener('change',event=>{
   if($('tProgress').disabled)$('tProgress').value=Math.round(t.checklist.filter(c=>c[1]).length/t.checklist.length*100);
   $('progressHint').textContent=$('tProgress').disabled?'Được tính từ checklist.':'Chuyển Hoàn thành sẽ đặt 100%.';
  }
+ if(id==='nParent'){updateNodeTypeOptions(el.value);return;}
  if(id==='nType')$('capacityField').hidden=el.value!=='person';
 });
 let searchTimer,treeTimer;

@@ -48,6 +48,26 @@ export function formatNodeErrorMessage(error) {
 }
 
 /**
+ * Danh mục các loại đơn vị con hợp lệ theo cấp bậc của đơn vị cha
+ */
+export function getAllowedChildTypes(parentType) {
+  switch (parentType) {
+    case 'company':
+      return ['department', 'project', 'team', 'folder'];
+    case 'department':
+      return ['department', 'project', 'team', 'folder'];
+    case 'project':
+      return ['project', 'team', 'folder'];
+    case 'team':
+      return ['team', 'folder'];
+    case 'folder':
+      return ['folder'];
+    default:
+      return ['department', 'project', 'team', 'folder'];
+  }
+}
+
+/**
  * Ánh xạ raw organization_nodes sang UI projection model
  */
 export function mapCloudNodeToUI(n, fallbackOrgName = 'Không gian tổ chức') {
