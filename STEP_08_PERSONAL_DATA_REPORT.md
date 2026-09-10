@@ -316,7 +316,7 @@ Toàn bộ các bộ test hồi quy từ Step 03 đến Step 08 đều đạt **
 
 ## 28. Recommendation for Step 09
 - Tiếp tục bước tiếp theo: **Step 09 — Attachments & Storage (`task_attachments`)**.
-- Tích hợp Supabase Storage Bucket `organization-attachments` với quy tắc phân quyền đường dẫn `{organization_id}/{task_id}/{file_name}`.
+- Tích hợp Supabase Storage Bucket canonical: `worktree-files` với quy tắc phân quyền đường dẫn `{organization_id}/{task_id}/{file_name}` theo đúng định nghĩa trong migration và database thực tế.
 
 ---
 

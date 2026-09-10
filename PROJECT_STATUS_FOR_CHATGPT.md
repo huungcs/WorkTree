@@ -27,18 +27,17 @@ WorkTree X là một hệ sinh thái quản trị công việc và tổ chức �
 
 - **Repository Root:** `c:\Users\ASUS\Desktop\WorkTree`
 - **Current Branch:** `main`
-- **Current HEAD Commit:** `a3d1a769067cf56a4a4d16f71b4666c11bee5957`
-- **Commit gần nhất:** `fix(employees): unify employee creation and account invitation flow`
+- **Current HEAD Commit:** `2da2da7548137f8ddb7f709e8447533f18f47348`
+- **Commit gần nhất:** `docs: finalize step 08 personal data and employee onboarding alignment`
 - **Working Tree:** Sạch (Clean, working tree clean).
 - **Remote Repository:** `https://github.com/huungcs/WorkTree.git`
 - **Các Branch trong Repo:** Chỉ có nhánh `main` (`* main`).
 - **5 Commit gần nhất trong lịch sử:**
-  1. `a3d1a76` - `fix(employees): unify employee creation and account invitation flow`
-  2. `c15a886` - `docs: finalize step 07 project status`
-  3. `ed48d16` - `fix(ui): group pin and favorite actions on kanban card header`
-  4. `016566a` - `feat(data): migrate task child tables to Supabase cloud`
-  5. `ef48ada` - `docs: align final git HEAD in project status and finalization report`
-  5. `0041832` - `docs: finalize step 06 project status, node role verification, and final report`
+  1. `2da2da7` - `docs: finalize step 08 personal data and employee onboarding alignment`
+  2. `b428009` - `feat(data): migrate personal workspace data to Supabase cloud`
+  3. `a3d1a76` - `fix(employees): unify employee creation and account invitation flow`
+  4. `c15a886` - `docs: finalize step 07 project status`
+  5. `ed48d16` - `fix(ui): group pin and favorite actions on kanban card header`
 
 ---
 
@@ -365,26 +364,26 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **KNOWN ISSUE:** Đã chuyển đổi hoàn toàn sang Supabase Cloud; bảo vệ Timer không rò rỉ giữa các workspace.
 
 ### 17. Pins (Priority Pins)
-- **STATUS:** ✅ Hoạt động tốt
-- **DATA SOURCE:** LocalStorage (`worktree_x_v8_pins`)
+- **STATUS:** ✅ Hoạt động tốt trên Supabase Cloud [STEP 08 PASS]
+- **DATA SOURCE:** Supabase Cloud (`public.user_pins`)
 - **DATABASE TABLE:** `user_pins`
-- **RLS:** Có
-- **DESKTOP:** ✅ Ghim dự án/task lên đầu sidebar, gắn cờ khẩn cấp (`urgent`), hoàn tác
+- **RLS:** Có (chỉ user tạo mới đọc/sửa/xóa ghim của mình, composite FK chặn cross-tenant)
+- **DESKTOP:** ✅ Ghim dự án/task lên đầu sidebar, cờ khẩn cấp cá nhân (`is_urgent`), sắp xếp vị trí (`position`), đồng bộ đa thiết bị
 - **MOBILE:** ✅ Băng chuyền cuộn ngang (Pin strip) và Sheet quản lý ghim
 - **DARK MODE:** ✅ Tương thích
-- **TEST:** Chưa có
-- **KNOWN ISSUE:** Hàm `pinItem` đã viết trong `js/supabase-client.js` nhưng chưa thay thế `localStorage`.
+- **TEST:** 39/39 Personal Data tests PASS (`scratch/test_step08_personal_data.js`), 4/4 Targeted Pin Security tests PASS (`scratch/test_pin_update_security.js`)
+- **KNOWN ISSUE:** Đã chuyển đổi hoàn toàn sang Supabase Cloud; vô hiệu hóa quyền ghi LocalStorage trong Cloud Mode; giới hạn tối đa 100 pins per user.
 
 ### 18. Favorites (Stars)
-- **STATUS:** ✅ Hoạt động tốt
-- **DATA SOURCE:** LocalStorage
-- **DATABASE TABLE:** `task_stars`
-- **RLS:** Có
-- **DESKTOP:** ✅ Nút đánh dấu sao nhanh trên hàng task và trong chi tiết
-- **MOBILE:** ✅ Có trong thẻ mobile
+- **STATUS:** ✅ Hoạt động tốt trên Supabase Cloud [STEP 08 PASS]
+- **DATA SOURCE:** Supabase Cloud (`public.task_stars`) — `task.favorite` chỉ là compatibility projection trong bộ nhớ UI
+- **DATABASE TABLE:** `task_stars` (Primary key: `task_id, user_id`)
+- **RLS:** Có (chỉ user tạo mới đọc/xóa sao của mình, composite FK `(organization_id, task_id)` chặn cross-tenant)
+- **DESKTOP:** ✅ Nút đánh dấu sao cá nhân trên hàng task, thẻ Kanban và Task Detail Drawer
+- **MOBILE:** ✅ Có trong thẻ mobile và drawer
 - **DARK MODE:** ✅ Tương thích
-- **TEST:** Chưa có
-- **KNOWN ISSUE:** Chưa đồng bộ lên bảng `task_stars`.
+- **TEST:** 39/39 Personal Data tests PASS (`scratch/test_step08_personal_data.js`)
+- **KNOWN ISSUE:** Đã chuyển đổi hoàn toàn sang Supabase Cloud; độc lập 100% giữa các người dùng; duy trì bền vững qua hard reload.
 
 ### 19. Search
 - **STATUS:** ✅ Hoạt động tốt
@@ -398,15 +397,15 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **KNOWN ISSUE:** Tìm kiếm toàn văn tiếng Việt chưa dùng PostgreSQL `to_tsvector`.
 
 ### 20. Filters & Saved Views
-- **STATUS:** ✅ Hoạt động tốt
-- **DATA SOURCE:** LocalStorage
+- **STATUS:** ✅ Hoạt động tốt trên Supabase Cloud [STEP 08 PASS]
+- **DATA SOURCE:** Supabase Cloud (`public.saved_views`)
 - **DATABASE TABLE:** `saved_views`
-- **RLS:** Có
-- **DESKTOP:** ✅ Lọc đa tiêu chí, lưu góc nhìn tùy biến vào sidebar
+- **RLS:** Có (người dùng chỉ đọc/sửa view cá nhân hoặc view chia sẻ `is_shared = true`)
+- **DESKTOP:** ✅ Lọc đa tiêu chí, lưu/áp dụng/đổi tên/xóa góc nhìn tùy biến vào sidebar trực tiếp lên Cloud
 - **MOBILE:** ✅ Bottom sheet bộ lọc nâng cao
 - **DARK MODE:** ✅ Tương thích
-- **TEST:** Chưa có
-- **KNOWN ISSUE:** Chưa lưu góc nhìn lên bảng `saved_views`.
+- **TEST:** 39/39 Personal Data tests PASS (`scratch/test_step08_personal_data.js`)
+- **KNOWN ISSUE:** Đã chuyển đổi hoàn toàn sang Supabase Cloud; lưu trữ đầy đủ `name`, `view_type`, `filters`, `sort_key`, `node_id`; tự động fallback an toàn khi node liên kết bị xóa.
 
 ### 21. Notifications
 - **STATUS:** 🟡 Hoạt động cục bộ
@@ -420,7 +419,7 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **KNOWN ISSUE:** `src/features/notifications/index.js` mới là stub rỗng.
 
 ### 22. File Attachments
-- **STATUS:** ❌ Chưa triển khai UI
+- **STATUS:** ❌ Chưa triển khai UI (Step 09 Scope)
 - **DATA SOURCE:** Chưa có
 - **DATABASE TABLE:** `task_attachments` (Bucket: `worktree-files`)
 - **RLS:** Có (Storage RLS policies đã tạo trong migration)
@@ -431,15 +430,15 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **KNOWN ISSUE:** Mới chỉ có khai báo bảng và policies trong database migration.
 
 ### 23. Accounts & Permissions
-- **STATUS:** ✅ Đã chuyển sang Supabase GoTrue Auth & Cloud Membership [STEPS 03, 04, 05]
+- **STATUS:** ✅ Đã chuyển sang Supabase GoTrue Auth & Cloud Membership [STEPS 03, 04, 05, HOTFIX]
 - **DATA SOURCE:** Supabase GoTrue Auth (`auth.users`, `profiles`) và Cloud Membership (`organization_members`, `member_scopes`). Local PBKDF2 chỉ là legacy fallback đã tắt mặc định trên production path.
-- **DATABASE TABLE:** `profiles`, `organization_members`, `member_scopes`
+- **DATABASE TABLE:** `profiles`, `organization_members`, `member_scopes`, `invitations`
 - **RLS:** Có (đã kiểm chứng 55/55 RLS tests PASS và 24/24 Auth tests PASS)
-- **DESKTOP:** ✅ Quản lý tài khoản, hiển thị thông tin profile từ DB, vai trò Owner/Admin/Member/Viewer từ `organization_members`
+- **DESKTOP:** ✅ Quản lý tài khoản, hiển thị profile từ DB, vai trò Owner/Admin/Member/Viewer từ `organization_members`; Form Thêm nhân viên tích hợp tùy chọn mời tài khoản tự động liên kết `employee_id`
 - **MOBILE:** ✅ Dialog toàn màn hình
 - **DARK MODE:** ✅ Tương thích
-- **TEST:** 24/24 Auth tests PASS (`scratch/test_step03_auth.js`), 27/27 Workspace tests PASS (`scratch/test_step04_workspace.js`)
-- **KNOWN ISSUE:** Giao diện mời thêm thành viên mới qua email (Edge Function `invite-employee`) chưa dựng UI form.
+- **TEST:** 24/24 Auth tests PASS (`scratch/test_step03_auth.js`), 27/27 Workspace tests PASS (`scratch/test_step04_workspace.js`), 30/30 Employee Onboarding tests PASS (`scratch/test_employee_onboarding_flow.js`)
+- **KNOWN ISSUE:** Đã có giao diện mời trực tiếp liên kết `employee_id` qua RPC canonical `create_invitation`. Gửi email thực tế qua SMTP đang phụ thuộc cấu hình dịch vụ gửi thư (Real Email Delivery: SMTP Dependent).
 
 ### 24. Organization Settings
 - **STATUS:** 🟡 Hoạt động cục bộ
@@ -520,9 +519,9 @@ c:\Users\ASUS\Desktop\WorkTree\
 - **Các View SQL:**
   - `public.task_rollups`: View tổng hợp thông tin task kèm người phụ trách, số lượng checklist, cờ bị chặn (khai báo `WITH (security_invoker = true)` tuân thủ RLS).
 - **Các Function & RPC quan trọng:**
-  - `create_organization(p_name, p_slug, p_timezone)`: Tạo tổ chức, root node, employee và gắn quyền Owner.
-  - `create_invitation(p_organization_id, p_email, p_role, p_expires_days)`: Tạo mã mời gia nhập tổ chức.
-  - `accept_invitation(p_token)`: Người dùng nhận lời mời gia nhập tổ chức.
+  - `create_organization(p_name text, p_slug text, p_timezone text default 'UTC') returns uuid`: Tạo tổ chức, root node, employee và gắn quyền Owner.
+  - `create_invitation(p_organization_id uuid, p_email text, p_full_name text, p_home_node_id uuid, p_role org_role default 'member', p_scope_node_ids uuid[] default '{}', p_employee_id uuid default null) returns text`: Tạo mã mời gia nhập tổ chức với liên kết trực tiếp `employee_id`, hỗ trợ mời nhân viên đã tồn tại hoặc tạo mới.
+  - `accept_invitation(p_token text) returns uuid`: Người dùng nhận lời mời gia nhập tổ chức, tự động liên kết thành viên với đúng bản ghi `employee_id` gốc mà không tạo trùng lặp nhân sự.
   - `set_member_role_and_scopes(...)`: Phân quyền vai trò và phạm vi cây cho thành viên.
   - `refresh_node_closure(p_organization_id)`: Tái tạo bảng closure tree cho toàn bộ cây.
   - `can_read_task_row(...)`, `can_manage_task_row(...)`: Kiểm tra quyền đọc/ghi task theo role và closure scope.
@@ -675,7 +674,8 @@ Dựa trên lịch sử commit và tiến trình thực tế:
 
 - **Thư mục lưu trữ:** `supabase/migrations/`
 - **Danh sách file di trú hiện hữu:**
-  1. `20260909000000_worktree_multi_tenant_complete.sql` (90.377 bytes, 2.303 dòng) — Tạo toàn bộ schema PostgreSQL, enums, 23 tables, 61 RLS policies, closure tree triggers, RPC functions và storage bucket.
+  1. `20260909000000_worktree_multi_tenant_complete.sql` (90.377 bytes, 2.303 dòng) — Tạo toàn bộ schema PostgreSQL, enums, 23 tables, 61 RLS policies, closure tree triggers, RPC functions và storage bucket `worktree-files`.
+  2. `20260910000000_link_employee_invitation.sql` (7.678 bytes, 197 dòng) — Nâng cấp RPC `create_invitation` với tham số `p_employee_id`, bổ sung cột `employee_id` vào `public.invitations` và nâng cấp `accept_invitation` tự động liên kết đúng nhân sự gốc.
 - **Quy tắc di trú bắt buộc (theo AGENTS.md):**
   - Mọi thay đổi schema trong tương lai **bắt buộc tạo file migration mới** theo cú pháp: `YYYYMMDDHHMMSS_<verb>_<domain>_<purpose>.sql`.
   - Tuyệt đối không sửa đổi file migration đã chạy.
@@ -708,7 +708,7 @@ Các biến môi trường bắt buộc (được cấu hình trong tệp `.env`
 7. **[DONE - Step 7] Task Child Tables Cloud Migration:** [HOÀN THÀNH - Report STEP_07_CHILD_TABLES_REPORT.md / STEP_07_FINALIZATION_REPORT.md] Đồng bộ hóa toàn diện 4 bảng con của Task: Checklist items (`task_checklist_items`), phụ thuộc công việc (`task_dependencies`), bình luận (`task_comments`), và thời gian làm việc (`task_time_entries`) trực tiếp trên Supabase Cloud. Khắc phục lỗi hiển thị lặp nút ghim (duplicate pin buttons). Đạt 46/46 assertions PASS.
 8. **[DONE - Hotfix] Unified Employee Onboarding & Account Invitation UX:** [HOÀN THÀNH - Report EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md] Hợp nhất luồng tạo người mới: Primary CTA `+ Thêm nhân viên` tạo `public.employees` trước, tùy chọn mời tự động liên kết `employee_id`. Loại bỏ yêu cầu ngược "Liên kết nhân sự" và vô hiệu hóa mật khẩu tạm trong Cloud Mode. Đạt 30/30 assertions PASS.
 9. **[DONE - Step 8] Personal Data Migration:** [HOÀN THÀNH - Report STEP_08_PERSONAL_DATA_REPORT.md] Chuyển đổi dữ liệu cá nhân hóa (ghim ưu tiên `user_pins`, đánh dấu sao `task_stars`, góc nhìn đã lưu `saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud với thẩm quyền `auth.uid()`, cách ly người dùng và multi-device persistence. Đạt 39/39 assertions PASS (100%).
-10. **[NEXT - Step 9] Attachments & Storage:** Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `organization-attachments`.
+10. **[NEXT - Step 9] Attachments & Storage:** Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `worktree-files`.
 11. **[Medium - Step 10] Tích hợp Supabase Realtime:** Thiết lập subscription để tự động cập nhật UI khi có thay đổi từ người dùng khác.
 12. **[Low - Step 11] Dọn dẹp Hardcoded Colors & Test Runner:** Thay thế 108 vị trí màu hex trong `css/style.css` bằng biến token chuẩn; cấu hình runner Vitest / Playwright vào `package.json`.
 
@@ -727,7 +727,7 @@ Theo đúng thứ tự ưu tiên: **Security → Database/RLS → Auth/Multi-ten
 7. **Bước 7 (Child Tables Migration & Pin Bug Resolution):** [HOÀN THÀNH - Report `STEP_07_CHILD_TABLES_REPORT.md` / `STEP_07_FINALIZATION_REPORT.md`] Đồng bộ hóa toàn diện 4 bảng con: Checklist items (`task_checklist_items`), phụ thuộc công việc (`task_dependencies`), bình luận (`task_comments`), và thời gian làm việc (`task_time_entries`) trực tiếp trên Supabase Cloud. Khắc phục lỗi hiển thị lặp nút ghim (duplicate pin buttons). Đạt 46/46 assertions PASS (100%).
 8. **Hotfix (Unified Employee Onboarding UX):** [HOÀN THÀNH - Report `EMPLOYEE_ONBOARDING_UX_FIX_REPORT.md`] Chuyển đổi primary CTA thành `+ Thêm nhân viên`, tùy chọn mời tự động liên kết `employee_id`, loại bỏ hoàn toàn yêu cầu "Liên kết nhân sự" và mật khẩu tạm cục bộ. Đạt 30/30 assertions PASS (100%).
 9. **Bước 8 (Personal Data Migration):** [HOÀN THÀNH - Report `STEP_08_PERSONAL_DATA_REPORT.md`] Chuyển tính năng ghim ưu tiên (`user_pins`), đánh dấu sao (`task_stars`), và góc nhìn đã lưu (`saved_views`) từ `localStorage` sang gọi Repositories trên Supabase Cloud với thẩm quyền `auth.uid()`, cách ly người dùng và multi-device persistence. Đạt 39/39 assertions PASS (100%).
-10. **Bước 9 (Attachments & Storage):** [NEXT] Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `organization-attachments`.
+10. **Bước 9 (Attachments & Storage):** [NEXT] Tích hợp quản trị tệp đính kèm (`task_attachments`) trên Supabase Cloud và Supabase Storage Bucket `worktree-files`.
 
 ---
 
