@@ -44,6 +44,7 @@ function createAccountAdapter(user, profile, memberships = [], activeOrg = null)
   const currentOrg = activeOrg || (memberships.length > 0 ? memberships[0] : null);
   const role = currentOrg?.role || 'member';
   const displayName = profile?.display_name || user.user_metadata?.full_name || (user.email ? user.email.split('@')[0] : 'Người dùng');
+  const scopes = Array.isArray(currentOrg?.scopes) ? currentOrg.scopes : [];
 
   return {
     id: user.id,
@@ -51,7 +52,7 @@ function createAccountAdapter(user, profile, memberships = [], activeOrg = null)
     email: user.email || '',
     name: displayName,
     role: role,
-    scopes: [],
+    scopes: scopes,
     personId: currentOrg?.employeeId || null,
     active: true,
     version: 1,
@@ -289,15 +290,26 @@ export async function loadWorkspaceData(orgId) {
     const mappedEmployees = mapCloudEmployees(rawEmployees);
     const mappedTasks = mapCloudTasks(rawTasks);
 
-    if (!membership.employeeId && appState.user) {
+    if (appState.user) {
       const match = (rawEmployees || []).find(e => 
         (e.user_id && e.user_id === appState.user.id) || 
         (e.email && appState.user.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
       );
       if (match) {
-        membership.employeeId = match.id;
-        if (appState.activeMembership) appState.activeMembership.employeeId = match.id;
-        if (window.__worktree_supabase_user) window.__worktree_supabase_user.personId = match.id;
+        if (!membership.employeeId) {
+          membership.employeeId = match.id;
+          if (appState.activeMembership) appState.activeMembership.employeeId = match.id;
+        }
+        if (window.__worktree_supabase_user) {
+          window.__worktree_supabase_user.personId = match.id;
+        }
+        if ((!membership.scopes || membership.scopes.length === 0) && match.home_node_id) {
+          membership.scopes = [match.home_node_id];
+          if (appState.activeMembership) appState.activeMembership.scopes = [match.home_node_id];
+          if (window.__worktree_supabase_user && (!window.__worktree_supabase_user.scopes || window.__worktree_supabase_user.scopes.length === 0)) {
+            window.__worktree_supabase_user.scopes = [match.home_node_id];
+          }
+        }
       }
     }
 
@@ -321,6 +333,8 @@ export async function loadWorkspaceData(orgId) {
       activities: rawActivities || [],
       orgName: membership.name
     }]);
+
+    callLegacyGlobal('refreshNotificationBadge');
 
     // 12. STEP 10: Thiết lập Secure Realtime Synchronization cho Workspace
     try {
@@ -545,7 +559,8 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
     role: targetOrg.role,
     status: targetOrg.status,
     employeeId: targetOrg.employeeId,
-    rootNodeId: targetOrg.rootNodeId
+    rootNodeId: targetOrg.rootNodeId,
+    scopes: targetOrg.scopes || []
   });
   window.__active_org_id = targetOrg.organizationId;
 

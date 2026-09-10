@@ -156,6 +156,9 @@ export const OrganizationRepository = {
           timezone,
           status,
           root_node_id
+        ),
+        member_scopes (
+          node_id
         )
       `)
       .eq('user_id', user.id)
@@ -167,7 +170,8 @@ export const OrganizationRepository = {
       status: m.status,
       employeeId: m.employee_id,
       organizationId: m.organization_id,
-      organization: m.organizations
+      organization: m.organizations,
+      scopes: (m.member_scopes || []).map(s => s.node_id).filter(Boolean)
     }));
   },
 
@@ -178,13 +182,30 @@ export const OrganizationRepository = {
     if (!user) return null;
     const { data, error } = await sb
       .from('organization_members')
-      .select('id, role, status, employee_id, organization_id')
+      .select(`
+        id,
+        role,
+        status,
+        employee_id,
+        organization_id,
+        member_scopes (
+          node_id
+        )
+      `)
       .eq('organization_id', organizationId)
       .eq('user_id', user.id)
       .eq('status', 'active')
       .maybeSingle();
     if (error) throw error;
-    return data;
+    if (!data) return null;
+    return {
+      id: data.id,
+      role: data.role,
+      status: data.status,
+      employee_id: data.employee_id,
+      organization_id: data.organization_id,
+      scopes: (data.member_scopes || []).map(s => s.node_id).filter(Boolean)
+    };
   },
 
   async setMemberStatus(membershipId, status) {

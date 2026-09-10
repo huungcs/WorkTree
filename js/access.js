@@ -57,9 +57,14 @@ function currentPerson(){
 function isAdmin(){const r=currentAccount()?.role;return r==='admin'||r==='owner';}
 function inScope(nodeId,a=currentAccount()){
  if(!a)return false;if(a.role==='admin'||a.role==='owner')return byNode.has(nodeId);
- return a.scopes.some(root=>byNode.has(root)&&subtree(root).has(nodeId));
+ if(window.__worktree_is_cloud_workspace && (!Array.isArray(a.scopes) || a.scopes.length === 0)) return byNode.has(nodeId);
+ return (a.scopes || []).some(root=>byNode.has(root)&&subtree(root).has(nodeId));
 }
-function canReadTask(t,a=currentAccount()){return !!(a&&t&&inScope(t.node,a)&&(a.role!=='member'||(a.personId&&t.owner===a.personId)));}
+function canReadTask(t,a=currentAccount()){
+ if(!a||!t)return false;
+ if(window.__worktree_is_cloud_workspace && a.personId && (t.owner === a.personId || String(t.owner) === String(a.personId))) return true;
+ return !!(inScope(t.node,a)&&(a.role!=='member'||(a.personId&&t.owner===a.personId)));
+}
 function canUpdateTask(t){const a=currentAccount();return !!(a&&a.role!=='viewer'&&canReadTask(t));}
 function canManageTask(t){const a=currentAccount();return !!(a&&['owner','admin','manager'].includes(a.role)&&canReadTask(t));}
 function canCreateTask(){const a=currentAccount();return !!(a&&['owner','admin','manager'].includes(a.role)&&data.nodes.some(n=>inScope(n.id)));}
@@ -234,6 +239,7 @@ async function enterWorkspace(a,first=false,restore=false){
  if(a.role==='member'&&!restore){state.view='list';state.filters.owner=String(a.personId);}
  $('authScreen').hidden=true;$('app').hidden=false;$('app').inert=false;
  $('authScreen').innerHTML='';applyTheme();applySidebar();renderAll(true);appReady=true;
+ if(typeof window.refreshNotificationBadge==='function'){window.refreshNotificationBadge();}
  if(first&&!lastRaw&&!storageProtected)persistData();
  if(!restore)toast(T.welcome+': '+a.name);
  if(migrationMessage&&first)toast(migrationMessage);

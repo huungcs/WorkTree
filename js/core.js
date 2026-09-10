@@ -743,7 +743,11 @@ function renderShell(arr){
  };
  const all=readableTasks(),mineCount=all.filter(t=>isMyTask(t)&&t.status!=='Hoàn thành').length,attentionCount=all.filter(attention).length;
  $('allCount').textContent=all.length;$('mineCount').textContent=mineCount;$('attentionCount').textContent=attentionCount;
- $('notificationDot').hidden=!attentionCount;document.querySelector('.notification-btn').setAttribute('aria-label',`Nhắc việc: ${attentionCount} công việc cần chú ý`);
+ if(!window.__worktree_is_cloud_workspace){
+  $('notificationDot').hidden=!attentionCount;document.querySelector('.notification-btn').setAttribute('aria-label',`Nhắc việc: ${attentionCount} công việc cần chú ý`);
+ }else if(typeof window.refreshNotificationBadge==='function'){
+  window.refreshNotificationBadge();
+ }
  $$('.primary-nav .nav-item').forEach(b=>{
   const kind=b.dataset.nav;
   const active=node.id===root.id&&(kind==='mine'?mine&&state.view==='list':kind==='attention'?attentionView&&state.view==='list':kind===state.view&&!(state.view==='list'&&(mine||attentionView)));

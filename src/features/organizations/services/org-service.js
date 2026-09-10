@@ -21,6 +21,7 @@ export const OrgService = {
   async listUserOrganizations() {
     const memberships = await OrganizationRepository.getUserMemberships();
     return memberships.map(m => ({
+      membershipId: m.membershipId,
       organizationId: m.organizationId,
       name: m.organization?.name || 'Không tên',
       slug: m.organization?.slug || '',
@@ -29,7 +30,8 @@ export const OrgService = {
       role: m.role,
       roleLabel: ROLE_LABELS[m.role] || m.role,
       employeeId: m.employeeId,
-      rootNodeId: m.organization?.root_node_id
+      rootNodeId: m.organization?.root_node_id,
+      scopes: m.scopes || []
     }));
   },
 
@@ -41,12 +43,13 @@ export const OrgService = {
     const m = await OrganizationRepository.getMembership(organizationId);
     if (!m) return null;
     return {
-      membershipId: m.id,
-      organizationId: m.organization_id,
+      membershipId: m.id || m.membershipId,
+      organizationId: m.organization_id || m.organizationId,
       role: m.role,
       roleLabel: ROLE_LABELS[m.role] || m.role,
       status: m.status,
-      employeeId: m.employee_id
+      employeeId: m.employee_id || m.employeeId,
+      scopes: m.scopes || []
     };
   },
 
