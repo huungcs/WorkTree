@@ -796,6 +796,7 @@ export const PinRepository = {
     nodeId = null,
     taskId = null,
     targetType = null,
+    kind = null,
     targetId = null,
     isUrgent = false
   }) {
@@ -805,10 +806,11 @@ export const PinRepository = {
     if (!userId) throw new Error('Yêu cầu đăng nhập để ghim.');
 
     // Normalize target
+    const effectiveType = targetType || kind;
     let resolvedNodeId = nodeId;
     let resolvedTaskId = taskId;
-    if (!resolvedNodeId && !resolvedTaskId && targetType && targetId) {
-      if (targetType === 'task') {
+    if (!resolvedNodeId && !resolvedTaskId && effectiveType && targetId) {
+      if (effectiveType === 'task') {
         resolvedTaskId = targetId;
       } else {
         resolvedNodeId = targetId;
@@ -848,7 +850,7 @@ export const PinRepository = {
         .eq('user_id', userId);
       if (countErr) throw countErr;
       if (count != null && count >= 100) {
-        throw new Error('Tối đa 100 mục ghim mỗi tài khoản.');
+        throw new Error('Đã đạt giới hạn tối đa 100 ghim cho mỗi tài khoản.');
       }
 
       const { data, error } = await sb
@@ -888,14 +890,28 @@ export const PinRepository = {
     }
   },
 
-  async setPinUrgent({ organizationId, targetType, targetId, isUrgent }) {
-    if (!organizationId || !targetType || !targetId) {
-      throw new Error('Thiếu tham số bắt buộc để đổi trạng thái khẩn cấp.');
-    }
+  async setPinUrgent({ organizationId, targetType, kind, targetId, pinId, isUrgent }) {
     const sb = await getSupabase();
     const { data: userRes } = await sb.auth.getUser();
     const userId = userRes?.user?.id;
     if (!userId) throw new Error('Yêu cầu đăng nhập.');
+
+    if (pinId) {
+      const { data, error } = await sb
+        .from('user_pins')
+        .update({ is_urgent: Boolean(isUrgent), updated_at: new Date().toISOString() })
+        .eq('id', pinId)
+        .eq('organization_id', organizationId)
+        .eq('user_id', userId)
+        .select();
+      if (error) throw error;
+      return data || [];
+    }
+
+    const effectiveType = targetType || kind;
+    if (!organizationId || !effectiveType || !targetId) {
+      throw new Error('Thiếu tham số bắt buộc để đổi trạng thái khẩn cấp.');
+    }
 
     let query = sb
       .from('user_pins')
@@ -903,7 +919,7 @@ export const PinRepository = {
       .eq('organization_id', organizationId)
       .eq('user_id', userId);
 
-    if (targetType === 'task') {
+    if (effectiveType === 'task') {
       query = query.eq('task_id', targetId);
     } else {
       query = query.eq('node_id', targetId);
@@ -914,14 +930,15 @@ export const PinRepository = {
     return data || [];
   },
 
-  async reorderPins({ organizationId, pinIdsInOrder }) {
-    if (!organizationId || !Array.isArray(pinIdsInOrder)) return;
+  async reorderPins({ organizationId, pinIdsInOrder, orderedPinIds }) {
+    const ids = pinIdsInOrder || orderedPinIds;
+    if (!organizationId || !Array.isArray(ids)) return;
     const sb = await getSupabase();
     const { data: userRes } = await sb.auth.getUser();
     const userId = userRes?.user?.id;
     if (!userId) throw new Error('Yêu cầu đăng nhập.');
 
-    const updates = pinIdsInOrder.map((pinId, index) =>
+    const updates = ids.map((pinId, index) =>
       sb
         .from('user_pins')
         .update({ position: index, updated_at: new Date().toISOString() })

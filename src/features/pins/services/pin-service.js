@@ -10,16 +10,19 @@ export const PinService = {
     return await PinRepository.getUserPins(organizationId);
   },
 
-  async togglePin({ organizationId, targetType, targetId, isUrgent = false }) {
-    return await PinRepository.togglePin({ organizationId, targetType, targetId, isUrgent });
+  async togglePin({ organizationId, targetType, kind, targetId, isUrgent = false }) {
+    const resolvedType = targetType || kind;
+    return await PinRepository.togglePin({ organizationId, targetType: resolvedType, kind: resolvedType, targetId, isUrgent });
   },
 
-  async setPinUrgent({ organizationId, targetType, targetId, isUrgent }) {
-    return await PinRepository.setPinUrgent({ organizationId, targetType, targetId, isUrgent });
+  async setPinUrgent({ organizationId, targetType, kind, targetId, pinId, isUrgent }) {
+    const resolvedType = targetType || kind;
+    return await PinRepository.setPinUrgent({ organizationId, targetType: resolvedType, kind: resolvedType, targetId, pinId, isUrgent });
   },
 
-  async reorderPins({ organizationId, pinIdsInOrder }) {
-    return await PinRepository.reorderPins({ organizationId, pinIdsInOrder });
+  async reorderPins({ organizationId, pinIdsInOrder, orderedPinIds }) {
+    const ids = pinIdsInOrder || orderedPinIds;
+    return await PinRepository.reorderPins({ organizationId, pinIdsInOrder: ids, orderedPinIds: ids });
   },
 
   async deletePin({ organizationId, pinId }) {

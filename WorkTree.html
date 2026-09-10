@@ -5403,7 +5403,7 @@ async function togglePin(kind,id){
   }
   try{
    if(window.PinService?.togglePin){
-    await window.PinService.togglePin({organizationId:orgId,kind,targetId:id});
+    await window.PinService.togglePin({organizationId:orgId,targetType:kind,kind,targetId:id});
     const freshPins=await window.PinRepository.getUserPins(orgId);
     if(orgId===window.appState?.activeOrganizationId){
      window.__worktree_cloud_pins=(freshPins||[]).map(p=>({
