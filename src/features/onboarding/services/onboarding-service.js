@@ -59,7 +59,7 @@ class OnboardingServiceImpl {
     let localData = null;
     try {
       const raw = localStorage.getItem(localKey);
-      if (raw) localData = JSON.parse(raw);
+      if (raw) localData = this._normalizeProgress(JSON.parse(raw));
     } catch (_) {}
 
     try {
@@ -74,15 +74,38 @@ class OnboardingServiceImpl {
         .maybeSingle();
 
       if (!error && data) {
+        const normalized = this._normalizeProgress(data);
         // Cache to local
-        try { localStorage.setItem(localKey, JSON.stringify(data)); } catch (_) {}
-        return data;
+        try { localStorage.setItem(localKey, JSON.stringify(normalized)); } catch (_) {}
+        return normalized;
       }
     } catch (err) {
       console.warn('[Onboarding] Không thể đọc tiến độ từ Cloud, sử dụng dữ liệu cục bộ:', err);
     }
 
     return localData;
+  }
+
+  /**
+   * Chuẩn hóa dữ liệu tiến độ cho giao diện người dùng
+   */
+  _normalizeProgress(raw) {
+    if (!raw) return null;
+    const meta = raw.metadata || {};
+    const stepIdx = typeof raw.step_index === 'number'
+      ? raw.step_index
+      : (raw.current_step !== null && raw.current_step !== undefined && !isNaN(Number(raw.current_step))
+          ? Number(raw.current_step)
+          : (typeof meta.step_index === 'number' ? meta.step_index : 0));
+    const milestones = Array.isArray(raw.completed_milestones)
+      ? raw.completed_milestones
+      : (Array.isArray(meta.completed_milestones) ? meta.completed_milestones : []);
+
+    return {
+      ...raw,
+      step_index: stepIdx,
+      completed_milestones: milestones
+    };
   }
 
   /**
@@ -102,25 +125,39 @@ class OnboardingServiceImpl {
 
     if (!userId || !orgId) return null;
 
+    const payloadMetadata = {
+      ...metadata,
+      step_index: typeof currentStep === 'number' ? currentStep : 0,
+      completed_milestones: completedMilestones
+    };
+
+    // Payload chỉ chứa các cột thực tế trong bảng database public.user_onboarding_progress
     const payload = {
       user_id: userId,
       organization_id: orgId,
       journey_id: journeyId,
       journey_version: version,
-      step_index: typeof currentStep === 'number' ? currentStep : 0,
+      current_step: currentStep !== null && currentStep !== undefined ? String(currentStep) : '0',
       completed_steps: completedSteps,
       is_completed: isCompleted,
       is_dismissed: isDismissed,
       dismissed_at: isDismissed ? new Date().toISOString() : null,
-      completed_milestones: completedMilestones,
-      metadata,
+      last_seen_at: new Date().toISOString(),
+      metadata: payloadMetadata,
       updated_at: new Date().toISOString()
+    };
+
+    // Dữ liệu chuẩn hóa hoàn chỉnh cho UI & LocalStorage
+    const normalizedData = {
+      ...payload,
+      step_index: typeof currentStep === 'number' ? currentStep : 0,
+      completed_milestones: completedMilestones
     };
 
     // 1. Luôn lưu LocalStorage trước để phản hồi tức thì
     const localKey = this.getLocalKey(userId, orgId, journeyId, version);
     try {
-      localStorage.setItem(localKey, JSON.stringify(payload));
+      localStorage.setItem(localKey, JSON.stringify(normalizedData));
     } catch (_) {}
 
     // 2. Lưu lên Supabase Cloud
@@ -136,11 +173,12 @@ class OnboardingServiceImpl {
 
       if (error) {
         console.warn('[Onboarding] Lỗi upsert tiến độ lên Cloud:', error.message);
+        return normalizedData;
       }
-      return data || payload;
+      return this._normalizeProgress(data) || normalizedData;
     } catch (err) {
       console.warn('[Onboarding] Không thể lưu tiến độ lên Cloud (mạng gián đoạn):', err);
-      return payload;
+      return normalizedData;
     }
   }
 
