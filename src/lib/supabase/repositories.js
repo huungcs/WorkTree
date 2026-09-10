@@ -25,6 +25,31 @@ export const STATUS_MAP = {
   }
 };
 
+export function normalizeDbStatus(status) {
+  if (!status) return 'todo';
+  const raw = String(status).trim();
+  if (['todo', 'in_progress', 'review', 'done'].includes(raw)) return raw;
+  const nfc = raw.toLowerCase().normalize('NFC');
+  const nfd = raw.toLowerCase().normalize('NFD');
+  const mapping = {
+    'chưa làm': 'todo',
+    'chua lam': 'todo',
+    'todo': 'todo',
+    'đang làm': 'in_progress',
+    'dang lam': 'in_progress',
+    'in_progress': 'in_progress',
+    'chờ duyệt': 'review',
+    'cho duyet': 'review',
+    'review': 'review',
+    'hoàn thành': 'done',
+    'hòan thành': 'done',
+    'hoan thanh': 'done',
+    'hoàn tất': 'done',
+    'done': 'done'
+  };
+  return mapping[nfc] || mapping[nfd] || STATUS_MAP.uiToDb[raw] || 'todo';
+}
+
 export const PRIORITY_MAP = {
   dbToUi: {
     urgent: 'Khẩn cấp',
@@ -647,7 +672,7 @@ export const TaskRepository = {
     if (updates.title !== undefined) payload.title = updates.title;
     if (updates.description !== undefined) payload.description = updates.description;
     if (updates.status !== undefined) {
-      const dbStatus = STATUS_MAP.uiToDb[updates.status] || updates.status;
+      const dbStatus = normalizeDbStatus(updates.status);
       payload.status = dbStatus;
       if (dbStatus === 'done') {
         payload.completed_at = new Date().toISOString();
@@ -704,7 +729,7 @@ export const TaskRepository = {
   async updateTaskStatus(taskId, status) {
     if (!taskId) throw new Error('Missing taskId for updateTaskStatus');
     const sb = await getSupabase();
-    const dbStatus = STATUS_MAP.uiToDb[status] || status;
+    const dbStatus = normalizeDbStatus(status);
     const completedAt = dbStatus === 'done' ? new Date().toISOString() : null;
 
     const { data, error } = await sb
