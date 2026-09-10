@@ -509,6 +509,7 @@ function changeStatus(id,status){
  const ok=commit(`Đổi trạng thái thành ${status}`,d=>{const map=new Map(d.tasks.map(t=>[t.id,t]));setTaskStatus(map.get(id),status,map);},{taskId:id});
  if(!ok){renderView();if($('drawer').open)refreshDrawer();}
 }
+function toggleComplete(id){const t=byTask.get(id);if(!t)return;changeStatus(id,t.status==='Hoàn thành'?(t.resumeStatus||'Đang làm'):'Hoàn thành');}
 async function toggleFavorite(id){
  if(window.__worktree_is_cloud_workspace){
   if(window.__starMutationBusy) return;
@@ -669,7 +670,7 @@ function renderShell(arr){
  $('viewContent').setAttribute('role','tabpanel');$('viewContent').setAttribute('aria-labelledby','tab-'+state.view);$('viewContent').setAttribute('aria-label',VIEWS[state.view][0]);$('undoBtn').disabled=!history.length;
  const dueLabels={late:'Quá hạn',today:'Đến hạn hôm nay',week:'7 ngày tới',unscheduled:'Chưa có hạn',attention:'Cần chú ý'},f=state.filters,chips=[];
  if(f.q)chips.push(['q','Tìm: '+f.q]);if(f.status)chips.push(['status',f.status]);if(f.priority)chips.push(['priority',f.priority]);
- if(f.owner)chips.push(['owner',f.owner==='unassigned'?'Chưa giao':nodeName(Number(f.owner))]);
+ if(f.owner)chips.push(['owner',f.owner==='unassigned'?'Chưa giao':nodeName((f.owner&&!isNaN(f.owner))?Number(f.owner):f.owner)]);
  if(f.due)chips.push(['due',dueLabels[f.due]]);if(f.favorite)chips.push(['favorite','Đã đánh dấu sao']);
  $('activeFilters').hidden=!chips.length;
  $('activeFilters').innerHTML=`<span>${arr.length} kết quả</span>`+chips.map(([key,label])=>`<button class="filter-chip" data-action="remove-filter" data-key="${key}" aria-label="${esc('Bỏ lọc '+label)}">${esc(label)}${icon('x')}</button>`).join('')+`<button class="link-btn" data-action="clear-filters">Xóa tất cả</button>`;
@@ -2348,7 +2349,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'workspace':if(typeof window.openWorkspaceSwitcher==='function'){window.openWorkspaceSwitcher();}else{openSettings();}break;
    case 'settings':openSettings();break;case 'profile':openProfile();break;
    case 'nav':navigate(el.dataset.nav);break;
-   case 'new-task':if($('infoDialog').open)closeDialog('infoDialog',true);openTaskForm(null,{status:el.dataset.status,due:el.dataset.due,node:el.dataset.node?Number(el.dataset.node):undefined});break;
+   case 'new-task':if($('infoDialog').open)closeDialog('infoDialog',true);openTaskForm(null,{status:el.dataset.status,due:el.dataset.due,node:(el.dataset.node&&!isNaN(el.dataset.node))?Number(el.dataset.node):el.dataset.node});break;
    case 'edit-task':openTaskForm(id);break;
    case 'open-task':if($('infoDialog').open)closeDialog('infoDialog',true);openDrawer(id);break;
    case 'duplicate-task':await duplicateTask(id);break;

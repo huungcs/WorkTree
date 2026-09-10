@@ -1156,7 +1156,8 @@ function handleV8Click(e){
   touchSession();
   if(action==='access'){e.preventDefault();e.stopImmediatePropagation();openAccess();return;}
   if(action==='pin-node-current'){e.preventDefault();e.stopImmediatePropagation();togglePin('node',state.selected);renderTree();return;}
-  if(!permissionForAction(action,Number(a.dataset.id))){e.preventDefault();e.stopImmediatePropagation();deny();}
+  const rawId=a.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
+  if(!permissionForAction(action,id)){e.preventDefault();e.stopImmediatePropagation();deny();}
  }
 }
 document.addEventListener('click',handleV8Click,true);
@@ -1167,7 +1168,8 @@ document.addEventListener('keydown',e=>{
 },true);
 document.addEventListener('change',e=>{
  if(!currentAccount())return;
- const el=e.target,id=Number(el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask);
+ const el=e.target,rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask;
+ const id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
  if(id&&(!(el.dataset.ownerTask||el.dataset.priorityTask)?!canUpdateTask(byTask.get(id)):!canManageTask(byTask.get(id)))){e.stopImmediatePropagation();deny();refreshDrawer();}
 },true);
 ['pointerdown','input','wheel'].forEach(name=>document.addEventListener(name,()=>{if(currentAccount())touchSession();},{capture:true,passive:true}));

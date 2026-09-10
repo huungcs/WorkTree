@@ -137,7 +137,7 @@
   if(!mobile())return;const originalFilter=e.target.closest('#filterBtn'),el=e.target.closest('[data-mobile]');if(!el&&!originalFilter)return;
   e.preventDefault();e.stopImmediatePropagation();if(!requireLogin()||el?.disabled)return;
   Promise.resolve().then(async()=>{
-   if(originalFilter){openFilter();return;}const action=el.dataset.mobile,id=Number(el.dataset.id);
+   if(originalFilter){openFilter();return;}const action=el.dataset.mobile,rawId=el.dataset.id,id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
    switch(action){
     case 'overview':case 'list':case 'calendar':choosing=false;setView(action);window.scrollTo({top:0,behavior:'instant'});break;
     case 'create':if(canCreateTask())openTaskForm();break;

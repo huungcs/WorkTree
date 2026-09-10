@@ -1870,6 +1870,7 @@ function changeStatus(id,status){
  const ok=commit(`Đổi trạng thái thành ${status}`,d=>{const map=new Map(d.tasks.map(t=>[t.id,t]));setTaskStatus(map.get(id),status,map);},{taskId:id});
  if(!ok){renderView();if($('drawer').open)refreshDrawer();}
 }
+function toggleComplete(id){const t=byTask.get(id);if(!t)return;changeStatus(id,t.status==='Hoàn thành'?(t.resumeStatus||'Đang làm'):'Hoàn thành');}
 async function toggleFavorite(id){
  if(window.__worktree_is_cloud_workspace){
   if(window.__starMutationBusy) return;
@@ -2030,7 +2031,7 @@ function renderShell(arr){
  $('viewContent').setAttribute('role','tabpanel');$('viewContent').setAttribute('aria-labelledby','tab-'+state.view);$('viewContent').setAttribute('aria-label',VIEWS[state.view][0]);$('undoBtn').disabled=!history.length;
  const dueLabels={late:'Quá hạn',today:'Đến hạn hôm nay',week:'7 ngày tới',unscheduled:'Chưa có hạn',attention:'Cần chú ý'},f=state.filters,chips=[];
  if(f.q)chips.push(['q','Tìm: '+f.q]);if(f.status)chips.push(['status',f.status]);if(f.priority)chips.push(['priority',f.priority]);
- if(f.owner)chips.push(['owner',f.owner==='unassigned'?'Chưa giao':nodeName(Number(f.owner))]);
+ if(f.owner)chips.push(['owner',f.owner==='unassigned'?'Chưa giao':nodeName((f.owner&&!isNaN(f.owner))?Number(f.owner):f.owner)]);
  if(f.due)chips.push(['due',dueLabels[f.due]]);if(f.favorite)chips.push(['favorite','Đã đánh dấu sao']);
  $('activeFilters').hidden=!chips.length;
  $('activeFilters').innerHTML=`<span>${arr.length} kết quả</span>`+chips.map(([key,label])=>`<button class="filter-chip" data-action="remove-filter" data-key="${key}" aria-label="${esc('Bỏ lọc '+label)}">${esc(label)}${icon('x')}</button>`).join('')+`<button class="link-btn" data-action="clear-filters">Xóa tất cả</button>`;
@@ -3709,7 +3710,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'workspace':if(typeof window.openWorkspaceSwitcher==='function'){window.openWorkspaceSwitcher();}else{openSettings();}break;
    case 'settings':openSettings();break;case 'profile':openProfile();break;
    case 'nav':navigate(el.dataset.nav);break;
-   case 'new-task':if($('infoDialog').open)closeDialog('infoDialog',true);openTaskForm(null,{status:el.dataset.status,due:el.dataset.due,node:el.dataset.node?Number(el.dataset.node):undefined});break;
+   case 'new-task':if($('infoDialog').open)closeDialog('infoDialog',true);openTaskForm(null,{status:el.dataset.status,due:el.dataset.due,node:(el.dataset.node&&!isNaN(el.dataset.node))?Number(el.dataset.node):el.dataset.node});break;
    case 'edit-task':openTaskForm(id);break;
    case 'open-task':if($('infoDialog').open)closeDialog('infoDialog',true);openDrawer(id);break;
    case 'duplicate-task':await duplicateTask(id);break;
@@ -5393,7 +5394,8 @@ function handleV8Click(e){
   touchSession();
   if(action==='access'){e.preventDefault();e.stopImmediatePropagation();openAccess();return;}
   if(action==='pin-node-current'){e.preventDefault();e.stopImmediatePropagation();togglePin('node',state.selected);renderTree();return;}
-  if(!permissionForAction(action,Number(a.dataset.id))){e.preventDefault();e.stopImmediatePropagation();deny();}
+  const rawId=a.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
+  if(!permissionForAction(action,id)){e.preventDefault();e.stopImmediatePropagation();deny();}
  }
 }
 document.addEventListener('click',handleV8Click,true);
@@ -5404,7 +5406,8 @@ document.addEventListener('keydown',e=>{
 },true);
 document.addEventListener('change',e=>{
  if(!currentAccount())return;
- const el=e.target,id=Number(el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask);
+ const el=e.target,rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask;
+ const id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
  if(id&&(!(el.dataset.ownerTask||el.dataset.priorityTask)?!canUpdateTask(byTask.get(id)):!canManageTask(byTask.get(id)))){e.stopImmediatePropagation();deny();refreshDrawer();}
 },true);
 ['pointerdown','input','wheel'].forEach(name=>document.addEventListener(name,()=>{if(currentAccount())touchSession();},{capture:true,passive:true}));
@@ -5574,7 +5577,7 @@ bootV8();
   if(!mobile())return;const originalFilter=e.target.closest('#filterBtn'),el=e.target.closest('[data-mobile]');if(!el&&!originalFilter)return;
   e.preventDefault();e.stopImmediatePropagation();if(!requireLogin()||el?.disabled)return;
   Promise.resolve().then(async()=>{
-   if(originalFilter){openFilter();return;}const action=el.dataset.mobile,id=Number(el.dataset.id);
+   if(originalFilter){openFilter();return;}const action=el.dataset.mobile,rawId=el.dataset.id,id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
    switch(action){
     case 'overview':case 'list':case 'calendar':choosing=false;setView(action);window.scrollTo({top:0,behavior:'instant'});break;
     case 'create':if(canCreateTask())openTaskForm();break;
