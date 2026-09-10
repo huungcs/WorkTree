@@ -1528,8 +1528,9 @@ div[class*="onesignal-slidedown"] {
 .tour-card {
   position: fixed;
   z-index: 10003;
-  width: 350px;
-  max-width: calc(100vw - 32px);
+  width: auto;
+  min-width: 380px;
+  max-width: min(460px, calc(100vw - 32px));
   background: var(--surface, #ffffff);
   border: 1px solid var(--line-strong, #d8deea);
   border-radius: var(--radius, 14px);
@@ -1617,7 +1618,7 @@ div[class*="onesignal-slidedown"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   border-top: 1px solid var(--line, #e8ebf2);
   padding-top: 14px;
 }
@@ -1625,15 +1626,28 @@ div[class*="onesignal-slidedown"] {
 .worktree-tour-footer-left {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .worktree-tour-footer-right {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 /* Button Primitives */
+.worktree-tour-footer button,
+.worktree-btn-subtle,
+.worktree-btn-ghost,
+.worktree-btn-primary,
+.worktree-btn-secondary,
+.worktree-btn-action {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  word-break: keep-all !important;
+}
+
 .worktree-btn-subtle {
   background: transparent;
   border: none;
@@ -1644,6 +1658,8 @@ div[class*="onesignal-slidedown"] {
   border-radius: 6px;
   text-decoration: none;
   transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .worktree-btn-subtle:hover {
@@ -1661,6 +1677,8 @@ div[class*="onesignal-slidedown"] {
   color: var(--text, #20283d);
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .worktree-btn-ghost:hover {
@@ -1677,6 +1695,8 @@ div[class*="onesignal-slidedown"] {
   padding: 7px 14px;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .worktree-btn-primary:hover {
@@ -1692,6 +1712,8 @@ div[class*="onesignal-slidedown"] {
   font-weight: 600;
   padding: 7px 14px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .worktree-btn-action {
@@ -1703,6 +1725,8 @@ div[class*="onesignal-slidedown"] {
   font-weight: 600;
   padding: 6px 12px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
