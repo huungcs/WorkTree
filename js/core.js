@@ -241,6 +241,9 @@ function getAvatarIndex(id) {
  }
  return 0;
 }
+function hashId(id) {
+ return getAvatarIndex(id);
+}
 function rebuild(){
  if(!data || !Array.isArray(data.nodes)) return;
  byNode=new Map(data.nodes.map(n=>[n.id,n]));byTask=new Map(data.tasks.map(t=>[t.id,t]));byParent=new Map();subtreeCache=new Map();
@@ -1321,7 +1324,7 @@ function renderDrawer(){
  }else if(currentComments.length){
   commentsHTML=currentComments.map(c=>`
    <div class="comment">
-    <span class="avatar av-${Math.abs(hashId(c.authorId||c.author||0))%6}">${esc(initials(c.author||'TV'))}</span>
+    <span class="avatar av-${getAvatarIndex(c.authorId||c.author||0)}">${esc(initials(c.author||'TV'))}</span>
     <div class="comment-body">
      <div class="comment-meta">
       <strong>${esc(c.author||'Thành viên')}</strong>
