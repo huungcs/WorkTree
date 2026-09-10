@@ -489,9 +489,10 @@ html[data-theme="dark"] .btn.primary{color:#111426}
 .content-footer svg{width:13px;height:13px}
 .footer-version{margin-left:auto;letter-spacing:.5px;font-size:8px}
 .dialog{padding:0;border:1px solid var(--line);border-radius:17px;background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);max-width:calc(100vw - 32px);max-height:calc(100dvh - 48px);width:660px;overflow:hidden}
-.dialog[open]{display:flex;flex-direction:column;animation:dialog-in .18s ease-out}
+dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
+.dialog[open]{animation:dialog-in .18s ease-out}
 @keyframes dialog-in{from{opacity:0;transform:translateY(7px) scale(.985)}to{opacity:1;transform:none}}
-.dialog form,.dialog>div{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:100%;width:100%;overflow:hidden}
+.dialog form{display:flex;flex-direction:column;max-height:calc(100dvh - 50px)}
 .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:21px 24px 19px;border-bottom:1px solid var(--line);flex-shrink:0}
 .overline{font-size:8px;letter-spacing:1.5px;font-weight:600;color:var(--muted);margin:0 0 5px}
 .dialog-head h2{font-size:19px;font-weight:650;letter-spacing:-.4px;margin:0}
