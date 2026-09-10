@@ -1086,7 +1086,7 @@ function openDrawer(id){
   window.__taskDetailLoadGen=(window.__taskDetailLoadGen||0)+1;
   const thisGen=window.__taskDetailLoadGen;
   const currentTaskId=id;
-  const currentOrgId=window.__active_org_id||(window.__worktree_supabase_user?.organization?.id);
+  const currentOrgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
 
   window.__taskDetailData={
    taskId:id,
@@ -1676,7 +1676,7 @@ async function deleteLog(id,logId){
 
 async function retryLoadChild(id,childType){
  if(!id||!window.__taskDetailData||window.__taskDetailData.taskId!==id)return;
- const orgId=window.__active_org_id||(window.__worktree_supabase_user?.organization?.id);
+ const orgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
  window.__taskDetailData.loading[childType]=true;
  window.__taskDetailData.errors[childType]=null;
  refreshDrawer();
@@ -1735,11 +1735,12 @@ async function uploadTaskAttachment(taskId, file){
  if(!window.AttachmentService) return;
 
  const gen=window.__taskDetailLoadGen;
- const orgId=window.__active_org_id||(window.__worktree_supabase_user?.organization?.id);
+ const orgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
+ const userId=window.__worktree_supabase_user?.id||window.__worktree_supabase_user?.rawUser?.id;
 
  toast('Đang tải tệp lên...','info',true);
  try{
-  await window.AttachmentService.uploadAttachment({ taskId, file, organizationId: orgId });
+  await window.AttachmentService.uploadAttachment({ taskId, file, organizationId: orgId, userId: userId });
   
   if(gen!==window.__taskDetailLoadGen||drawerId!==taskId) return;
   if(orgId&&window.__active_org_id&&orgId!==window.__active_org_id) return;
@@ -1775,7 +1776,7 @@ async function deleteTaskAttachment(taskId, attachmentId, storagePath, originalN
  if(!await ask('Xóa tệp đính kèm?','Tệp sẽ bị xóa khỏi đám mây và không thể khôi phục.','Xóa tệp',true)) return;
 
  const gen=window.__taskDetailLoadGen;
- const orgId=window.__active_org_id||(window.__worktree_supabase_user?.organization?.id);
+ const orgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
 
  try{
   const res=await window.AttachmentService.deleteAttachment({ attachmentId, storagePath, organizationId: orgId });
@@ -3018,7 +3019,7 @@ window.updateCloudEmployeesQuietly = function(mappedEmployees) {
 window.refreshDrawerChildQuietly = async function(childType) {
  if (!drawerId || !$('drawer')?.open || !window.__worktree_is_cloud_workspace) return;
  const currentTaskId = drawerId;
- const currentOrgId = window.__active_org_id || (window.__worktree_supabase_user?.organization?.id);
+ const currentOrgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || (window.__worktree_supabase_user?.organization?.id);
  const thisGen = window.__taskDetailLoadGen;
 
  try {

@@ -53,7 +53,7 @@ function createAccountAdapter(user, profile, memberships = [], activeOrg = null)
     version: 1,
     rawUser: user,
     profile: profile,
-    organization: currentOrg,
+    organization: currentOrg ? { ...currentOrg, id: currentOrg.organizationId || currentOrg.id } : null,
     memberships: memberships
   };
 }
@@ -470,6 +470,7 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
     employeeId: targetOrg.employeeId,
     rootNodeId: targetOrg.rootNodeId
   });
+  window.__active_org_id = targetOrg.organizationId;
 
   // 4. Cập nhật giao diện workspace & profile
   updateWorkspaceUI(targetOrg.name, targetOrg.slug || 'Không gian tổ chức');
@@ -525,6 +526,9 @@ export async function bootstrapAuthenticatedUser(user, session) {
 
     const initialAdapter = createAccountAdapter(user, profile, memberships);
     window.__worktree_supabase_user = initialAdapter;
+    if (initialAdapter.organization?.id) {
+      window.__active_org_id = initialAdapter.organization.id;
+    }
     updateUserProfileUI(initialAdapter);
 
     // STEP 11: Khởi tạo lắng nghe kênh riêng tư thông báo người dùng: user:<uuid>:notifications

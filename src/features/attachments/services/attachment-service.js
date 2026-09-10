@@ -85,7 +85,11 @@ export const AttachmentService = {
    */
   async getAttachments(taskId, organizationId = null) {
     if (!taskId) return [];
-    const orgId = organizationId || appState.activeOrganizationId;
+    const orgId = organizationId 
+      || appState.activeOrganizationId 
+      || (typeof window !== 'undefined' && window.__active_org_id)
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.organization?.organizationId)
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.organization?.id);
     return await AttachmentRepository.getAttachments(taskId, orgId);
   },
 
@@ -113,8 +117,17 @@ export const AttachmentService = {
       throw new Error('Tệp vượt quá giới hạn 50 MB.');
     }
 
-    const orgId = organizationId || appState.activeOrganizationId;
+    const orgId = organizationId 
+      || appState.activeOrganizationId 
+      || (typeof window !== 'undefined' && window.__active_org_id)
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.organization?.organizationId)
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.organization?.id);
     if (!orgId) throw new Error('Thiếu activeOrganizationId.');
+
+    const resolvedUserId = userId 
+      || appState.user?.id 
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.id)
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.rawUser?.id);
 
     // 3. Khóa chống trùng lặp upload
     const uploadKey = `${taskId}:${file.name}:${file.size}`;
@@ -144,7 +157,7 @@ export const AttachmentService = {
         originalName: safeName,
         mimeType: file.type || null,
         sizeBytes: file.size,
-        uploadedBy: userId || null
+        uploadedBy: resolvedUserId || null
       });
 
       return metadata;
@@ -223,7 +236,11 @@ export const AttachmentService = {
    */
   async deleteAttachment({ attachmentId, storagePath, organizationId = null }) {
     if (!attachmentId) throw new Error('Thiếu attachmentId.');
-    const orgId = organizationId || appState.activeOrganizationId;
+    const orgId = organizationId 
+      || appState.activeOrganizationId 
+      || (typeof window !== 'undefined' && window.__active_org_id)
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.organization?.organizationId)
+      || (typeof window !== 'undefined' && window.__worktree_supabase_user?.organization?.id);
 
     try {
       // 1. Xóa metadata trước (DB là source of truth)

@@ -1612,8 +1612,13 @@ export const AttachmentRepository = {
       mime_type: mimeType || null,
       size_bytes: sizeBytes != null ? Number(sizeBytes) : null
     };
-    if (uploadedBy) {
-      payload.uploaded_by = uploadedBy;
+    let resolvedUploadedBy = uploadedBy;
+    if (!resolvedUploadedBy) {
+      const { data: authData } = await sb.auth.getUser();
+      resolvedUploadedBy = authData?.user?.id || null;
+    }
+    if (resolvedUploadedBy) {
+      payload.uploaded_by = resolvedUploadedBy;
     }
     const { data, error } = await sb
       .from('task_attachments')
