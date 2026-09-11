@@ -15,6 +15,9 @@ const checks = [
   { path: '/src/app/app.js', status: 200, type: 'text/javascript', contains: 'bootstrapApp' },
   { path: '/manifest.webmanifest', status: 200, type: 'application/manifest+json' },
   { path: '/assets/icon-192.png', status: 200, type: 'image/png' },
+  { path: '/assets/og-image.png', status: 200, type: 'image/png' },
+  { path: '/robots.txt', status: 200, type: 'text/plain', contains: 'Sitemap:' },
+  { path: '/sitemap.xml', status: 200, type: 'application/xml', contains: '<urlset' },
   { path: '/does-not-exist', status: 404, type: 'text/plain' }
 ];
 
