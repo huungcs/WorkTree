@@ -10,6 +10,12 @@ import { appState } from '../../../app/state.js';
 // Per-task mutation version tracker to prevent out-of-order stale async writes
 const taskMutationVersions = new Map();
 
+function triggerPushDispatchQuietly() {
+  if (typeof fetch === 'function') {
+    fetch('/api/push-dispatch', { method: 'POST' }).catch(() => {});
+  }
+}
+
 export const DB_STATUS_TO_UI = {
   todo: 'Chưa làm',
   in_progress: 'Đang làm',
@@ -172,6 +178,7 @@ export const TaskService = {
 
       // Refetch canonical row from task_rollups view
       const canonical = await TaskRepository.getTaskById(created.id);
+      triggerPushDispatchQuietly();
       return mapCloudTaskToUI(canonical || created);
     } catch (err) {
       console.error('[TaskService.createTask error]', err);
@@ -196,6 +203,9 @@ export const TaskService = {
 
       // Refetch canonical rollup row
       const canonical = await TaskRepository.getTaskById(taskId);
+      if (updates.primary_assignee_id || updates.status) {
+        triggerPushDispatchQuietly();
+      }
       return mapCloudTaskToUI(canonical || updated);
     } catch (err) {
       console.error('[TaskService.updateTask error]', err);
@@ -231,6 +241,7 @@ export const TaskService = {
 
       const canonical = await TaskRepository.getTaskById(taskId);
       const mapped = mapCloudTaskToUI(canonical || updated);
+      triggerPushDispatchQuietly();
       return { isLatest: true, task: mapped };
     } catch (err) {
       console.error('[TaskService.updateStatus error]', err);
