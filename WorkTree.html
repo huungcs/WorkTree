@@ -5452,7 +5452,7 @@ window.renderNotificationCenter = function(targetTab) {
      <button class="btn small notif-tab-btn" type="button" data-action="notif-tab" data-tab="all" style="${activeTab === 'all' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
       <span>Tất cả</span><span class="notif-tab-count">(${notifications.length})</span>
      </button>
-     ${pendingReminders.length > 0 ? `<button class="tag notif-reminder-tag" type="button" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
+     ${pendingReminders.length > 0 ? `<button class="tag notif-reminder-tag" type="button" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn</button>` : ''}
     </div>
     <div class="notif-center-actions">
      ${unreadCount > 0 ? `<button class="btn small" type="button" data-action="mark-all-read" title="Đánh dấu tất cả thông báo là đã đọc">${icon('check')}Đã đọc tất cả</button>` : ''}
@@ -5467,7 +5467,7 @@ window.renderNotificationCenter = function(targetTab) {
    <div class="notif-reminders-card">
     <div class="notif-reminders-head">
      <strong class="notif-reminders-title">
-      ${icon('clock')}Lịch nhắc việc cá nhân đang chờ (${pendingReminders.length})
+      ${icon('clock')}Lịch nhắc việc cá nhân (${pendingReminders.length})
      </strong>
      <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings">+ Đặt thêm / Quản lý</button>
     </div>
