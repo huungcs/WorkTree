@@ -66,8 +66,7 @@ export const NotificationService = {
     const { data, error } = await sb
       .from('notifications')
       .update({
-        read_at: new Date().toISOString(),
-        status: 'read'
+        read_at: new Date().toISOString()
       })
       .eq('id', notificationId)
       .select()
@@ -88,8 +87,7 @@ export const NotificationService = {
     let query = sb
       .from('notifications')
       .update({
-        read_at: new Date().toISOString(),
-        status: 'read'
+        read_at: new Date().toISOString()
       })
       .eq('user_id', user.id)
       .is('read_at', null);

@@ -5247,7 +5247,7 @@ window.playNotificationSound = function() {
 };
 async function openNotifications(){
  if(window.__worktree_is_cloud_workspace && window.NotificationService){
-  const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+  const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
   $('infoTitle').textContent='Trung tâm thông báo';
   $('infoEyebrow').textContent='THÔNG BÁO & NHẮC VIỆC ĐÁM MÂY';
   $('infoContent').innerHTML='<div class="tree-empty" style="text-align:center;padding:24px 0">Đang tải thông báo...</div>';
@@ -5419,7 +5419,7 @@ async function openNotificationSettings() {
  showDialog('infoDialog');
 
  try {
-  const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+  const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
   const getPrefFn = window.NotificationService?.getPreferences || window.NotificationService?.getNotificationPreferences;
    const pref = (window.NotificationService && typeof getPrefFn === 'function') ? await getPrefFn.call(window.NotificationService).catch(() => ({})) : {};
   const reminders = (window.NotificationService && orgId) ? await window.NotificationService.getManualReminders(orgId).catch(() => []) : [];
@@ -5648,7 +5648,7 @@ window.refreshNotificationBadge = async function() {
 
  if (window.__worktree_is_cloud_workspace && window.NotificationService) {
   try {
-   const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+   const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
    const unreadCount = await window.NotificationService.getUnreadCount(orgId);
    const all = readableTasks();
    const attentionCount = all.filter(attention).length;
@@ -5896,7 +5896,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    }
    case 'mark-all-read':{
     if (window.NotificationService) {
-     const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+     const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
      await window.NotificationService.markAllAsRead(orgId);
      toast('Đã đánh dấu tất cả thông báo là đã đọc');
      if (typeof window.refreshNotificationBadge === 'function') {
@@ -5957,25 +5957,25 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
       if (reg && typeof reg.showNotification === 'function') {
        reg.showNotification(testTitle, {
         body: testBody,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
+        icon: '/assets/icon-192.png',
+        badge: '/assets/icon-192.png',
         vibrate: [200, 100, 200],
         tag: 'test-device-' + Date.now()
        });
       } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-       try { new Notification(testTitle, { body: testBody, icon: '/favicon.ico', tag: 'test-device-' + Date.now() }); } catch (_) {}
+       try { new Notification(testTitle, { body: testBody, icon: '/assets/icon-192.png', badge: '/assets/icon-192.png', tag: 'test-device-' + Date.now() }); } catch (_) {}
       }
      }).catch(() => {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-       try { new Notification(testTitle, { body: testBody, icon: '/favicon.ico', tag: 'test-device-' + Date.now() }); } catch (_) {}
+       try { new Notification(testTitle, { body: testBody, icon: '/assets/icon-192.png', badge: '/assets/icon-192.png', tag: 'test-device-' + Date.now() }); } catch (_) {}
       }
      });
     } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-     try { new Notification(testTitle, { body: testBody, icon: '/favicon.ico', tag: 'test-device-' + Date.now() }); } catch (_) {}
+     try { new Notification(testTitle, { body: testBody, icon: '/assets/icon-192.png', badge: '/assets/icon-192.png', tag: 'test-device-' + Date.now() }); } catch (_) {}
     }
     // Ghi nhận vào DB để cập nhật badge quả chuông
     try {
-     const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+     const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
      const user = window.__worktree_supabase_user?.rawUser || window.__worktree_supabase_user?.user || currentAccount();
      if (window.NotificationService && orgId && user?.id) {
       await window.NotificationService.createManualReminder(orgId, {
@@ -6022,8 +6022,8 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      toast('Thời gian nhắc việc không hợp lệ.', 'error');
      break;
     }
-    const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
-    const a = currentAccount();
+    const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+    const a = window.__worktree_supabase_user?.rawUser || window.__worktree_supabase_user?.user || currentAccount();
     if(window.NotificationService && orgId && a?.id){
      try {
       await window.NotificationService.createManualReminder(orgId, {
@@ -6407,7 +6407,7 @@ function boot(){
    checkDate();
    if(typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
    if(window.__worktree_is_cloud_workspace && window.NotificationService){
-    const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
+    const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
     if(orgId){
      window.NotificationService.processDueReminders(orgId).then(res=>{
       if(res && res.processed > 0){
@@ -6419,8 +6419,8 @@ function boot(){
          try {
           new Notification('⏰ Nhắc việc: ' + r.title, {
            body: 'Đã đến giờ nhắc việc bạn đã lên lịch: "' + r.title + '"',
-           icon: '/favicon.ico',
-           badge: '/favicon.ico',
+           icon: '/assets/icon-192.png',
+           badge: '/assets/icon-192.png',
            vibrate: [200, 100, 200],
            tag: 'reminder-' + r.id
           });

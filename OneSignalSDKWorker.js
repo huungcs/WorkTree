@@ -35,8 +35,8 @@ self.addEventListener('message', (event) => {
     const title = event.data.title || '🔔 WorkTree X - Thử nghiệm thông báo';
     const options = {
       body: event.data.body || 'Điện thoại của bạn đã kết nối thành công với hệ thống chuông & thông báo WorkTree X!',
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
+      icon: '/assets/icon-192.png',
+      badge: '/assets/icon-192.png',
       vibrate: [200, 100, 200],
       tag: 'test-push-' + Date.now(),
       data: { url: '/index.html' }

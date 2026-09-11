@@ -231,6 +231,7 @@ export async function loadWorkspaceData(orgId) {
     console.error('Không tìm thấy quyền truy cập hợp lệ cho tổ chức:', orgId);
     return;
   }
+  window.__active_org_id = orgId;
 
   // 2. Hiển thị loading state
   showWorkspaceLoading(true);
@@ -652,8 +653,8 @@ export async function bootstrapAuthenticatedUser(user, session) {
     const displayDeviceNotification = (title, options = {}) => {
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
       const merged = {
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
+        icon: '/assets/icon-192.png',
+        badge: '/assets/icon-192.png',
         vibrate: [200, 100, 200],
         ...options
       };
