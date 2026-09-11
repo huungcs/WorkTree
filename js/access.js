@@ -407,17 +407,77 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
 
 function buildScopeTreeOptions(selectedIds = [], inputName = 'empScope') {
  const selectedSet = new Set((selectedIds || []).map(String));
- const nodes = data?.nodes || [];
- if (!nodes.length) return '<div class="scope-empty muted" style="padding:12px;text-align:center;font-size:12px">Chưa có dữ liệu cơ cấu tổ chức.</div>';
+ const rawNodes = (typeof data !== 'undefined' && Array.isArray(data?.nodes)) ? data.nodes : (window.appState?.nodes || []);
+ if (!rawNodes.length) return '<div class="scope-empty muted" style="padding:12px;text-align:center;font-size:12px">Chưa có dữ liệu cơ cấu tổ chức.</div>';
 
- return nodes.map(n => `<label class="scope-option" data-scope-name="${esc(fold(pathName(n.id)))}">
-  <input type="checkbox" name="${esc(inputName)}" value="${esc(n.id)}" ${selectedSet.has(String(n.id)) ? 'checked' : ''}>
-  <span class="scope-option-main" style="--scope-indent:${Math.min(36, (pathNodes(n.id).length - 1) * 10)}px">
-   ${icon(nodeIcon(n.type))}
-   <span class="scope-option-name">${esc(n.name)}</span>
-  </span>
-  <small>${esc(TYPES[n.type] || n.type)}</small>
- </label>`).join('');
+ const nodeMap = new Map(rawNodes.map(n => [n.id, n]));
+ const childrenMap = new Map();
+ rawNodes.forEach(n => {
+  const p = n.parent;
+  if (!childrenMap.has(p)) childrenMap.set(p, []);
+  childrenMap.get(p).push(n);
+ });
+
+ const typePriority = { company: 0, department: 1, team: 2, project: 3, folder: 4 };
+ for (const list of childrenMap.values()) {
+  list.sort((a, b) => {
+   const pDiff = (typePriority[a.type] ?? 9) - (typePriority[b.type] ?? 9);
+   if (pDiff !== 0) return pDiff;
+   const orderDiff = (a.sort_order || 0) - (b.sort_order || 0);
+   if (orderDiff !== 0) return orderDiff;
+   return String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+  });
+ }
+
+ const roots = rawNodes.filter(n => n.parent === null || n.parent === undefined || !nodeMap.has(n.parent));
+ if (!roots.length && rawNodes.length) roots.push(rawNodes[0]);
+
+ roots.sort((a, b) => {
+  const pDiff = (typePriority[a.type] ?? 9) - (typePriority[b.type] ?? 9);
+  if (pDiff !== 0) return pDiff;
+  const orderDiff = (a.sort_order || 0) - (b.sort_order || 0);
+  if (orderDiff !== 0) return orderDiff;
+  return String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+ });
+
+ const orderedItems = [];
+ function traverse(n, depth = 0, isLastChild = false) {
+  orderedItems.push({ node: n, depth, isLastChild });
+  const kids = childrenMap.get(n.id) || [];
+  kids.forEach((child, idx) => {
+   traverse(child, depth + 1, idx === kids.length - 1);
+  });
+ }
+
+ roots.forEach((r, idx) => traverse(r, 0, idx === roots.length - 1));
+
+ const seenIds = new Set(orderedItems.map(item => item.node.id));
+ rawNodes.forEach(n => {
+  if (!seenIds.has(n.id)) {
+   orderedItems.push({ node: n, depth: 0, isLastChild: true });
+  }
+ });
+
+ return orderedItems.map(({ node: n, depth, isLastChild }) => {
+  const isChecked = selectedSet.has(String(n.id));
+  const fullPath = typeof pathName === 'function' ? (pathName(n.id) || n.name) : n.name;
+  const indentPx = Math.min(depth * 18, 72);
+  const branchPrefix = depth > 0 
+   ? `<span class="scope-branch-guide" aria-hidden="true">${isLastChild ? '└─' : '├─'}</span>` 
+   : '';
+  const typeLabel = (typeof TYPES !== 'undefined' && TYPES[n.type]) || n.type;
+  const nodeIconName = typeof nodeIcon === 'function' ? nodeIcon(n.type) : 'folder';
+
+  return `<label class="scope-option depth-${depth}" data-scope-name="${esc(fold(fullPath))}">
+   <input type="checkbox" name="${esc(inputName)}" value="${esc(n.id)}" ${isChecked ? 'checked' : ''}>
+   <span class="scope-option-main" style="--scope-indent:${indentPx}px">
+    ${branchPrefix}
+    ${icon(nodeIconName)}
+    <span class="scope-option-name">${esc(n.name)}</span>
+   </span>
+   <small class="scope-type-badge">${esc(typeLabel)}</small>
+  </label>`;
+ }).join('');
 }
 
 function openAddEmployeeDialog(){
