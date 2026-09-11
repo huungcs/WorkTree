@@ -14,19 +14,27 @@ const TARGET_SELECTORS = {
     '[data-tour~="workspace-brand"]',
     '[data-tour~="workspace-header"]',
     '.workspace-switch',
-    '.brand'
+    '.brand',
+    // Mobile responsive targets:
+    '.topbar-left',
+    '.menu-toggle'
   ],
   'org-tree': [
     '.tree-heading',
     '[data-tour~="org-tree"]',
     '#orgTree',
-    '.org-tree'
+    '.org-tree',
+    // Mobile responsive targets:
+    '.m-scope-open',
+    '#mobileScope'
   ],
   'access-nav': [
     '[data-tour~="access-nav"]',
     '[data-tour~="add-employee"]',
     '#accessNav',
-    'button[data-action="access"]'
+    'button[data-action="access"]',
+    // Mobile responsive targets:
+    '.menu-toggle'
   ],
   'new-task-btn': [
     '[data-tour~="new-task-btn"]',
@@ -37,19 +45,27 @@ const TARGET_SELECTORS = {
   'view-tabs': [
     '[data-tour~="view-tabs"]',
     '#viewTabs',
-    '.view-nav'
+    '.view-nav',
+    // Mobile responsive targets:
+    '.m-viewbutton',
+    '#mobileViewbar'
   ],
   'workload-tab': [
     '#tab-workload',
     'button[data-view="workload"]',
     '#viewTabs button[data-view="workload"]',
-    '#viewTabs'
+    '#viewTabs',
+    // Mobile:
+    '.m-viewbutton'
   ],
   'pin-section': [
     '[data-tour~="pin-section"]',
     '[data-tour~="pins"]',
     '#pinSection',
-    '.pin-section'
+    '.pin-section',
+    // Mobile:
+    '#mobileOverviewPins',
+    '.m-pin-strip'
   ],
   'my-tasks-nav': [
     '[data-tour~="my-tasks-nav"]',
@@ -60,12 +76,15 @@ const TARGET_SELECTORS = {
     '[data-tour~="help-nav"]',
     '[data-tour~="help-center"]',
     '#helpCenterBtn',
-    'button[data-action="help"]'
+    'button[data-action="help"]',
+    // Mobile:
+    '.content-footer button[data-action="help"]'
   ],
   'filter-toolbar': [
     '[data-tour~="filter-toolbar"]',
     '[data-tour~="filters-search"]',
-    '.filterbar'
+    '.filterbar',
+    '#filterBtn'
   ],
   'task-list': [
     '[data-tour~="task-list"]',
@@ -280,7 +299,27 @@ class TourControllerImpl {
       return false;
     }
     const rect = el.getBoundingClientRect();
-    return rect.width > 0 && (rect.height > 0 || el.children.length > 0 || el.textContent.trim().length > 0);
+    if (rect.width <= 0 || rect.height <= 0) return false;
+
+    // Viewport bounds check: reject off-canvas or clipped-out elements
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= vw || rect.top >= vh) {
+      return false;
+    }
+
+    // On mobile (<= 900px), reject elements covered under bottom sheet
+    if (window.innerWidth <= 900) {
+      const popover = document.getElementById('worktreeTourPopover');
+      const bottomSheetTop = popover && popover.getBoundingClientRect().height > 0
+        ? popover.getBoundingClientRect().top
+        : (vh - 240);
+      if (rect.top >= bottomSheetTop) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -334,6 +373,20 @@ class TourControllerImpl {
   ensureTargetVisible(target) {
     if (!target || !target.isConnected) return;
 
+    if (window.innerWidth <= 900) {
+      const rect = target.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const popover = document.getElementById('worktreeTourPopover');
+      const maxBottom = popover && popover.getBoundingClientRect().height > 0
+        ? popover.getBoundingClientRect().top
+        : (vh - 240);
+      if (rect.top >= 0 && rect.bottom <= maxBottom) {
+        return; // Already comfortably visible in viewable area above bottom sheet
+      }
+      target.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+      return;
+    }
+
     // Check if target is inside a scroll container like .side-scroll or .content
     const scrollContainer = target.closest('.side-scroll, .content, main');
     if (scrollContainer) {
@@ -372,7 +425,7 @@ class TourControllerImpl {
       this.highlightedTarget = null;
     }
 
-    if (!target) {
+    if (!target || !this.isElementVisible(target)) {
       this.spotlightEl.classList.remove('is-active');
       return;
     }
@@ -381,6 +434,12 @@ class TourControllerImpl {
 
     const rect = target.getBoundingClientRect();
     const padding = 6;
+
+    // Double check rect validity after ensureTargetVisible
+    if (rect.width <= 0 || rect.height <= 0 || rect.right <= 0 || rect.bottom <= 0) {
+      this.spotlightEl.classList.remove('is-active');
+      return;
+    }
 
     // Viewport coordinates for position: fixed
     this.spotlightEl.style.position = 'fixed';
@@ -443,25 +502,48 @@ class TourControllerImpl {
         <div class="worktree-tour-body">
           <h3 class="worktree-tour-title">${escapeHTML(step.title)}</h3>
           <p class="worktree-tour-desc">${escapeHTML(descText)}</p>
-          ${!target && (step.targetSelector || step.targetKey) ? `<div class="worktree-tour-target-note">Mẹo: Mục này đang ở màn hình khác hoặc thanh điều hướng. Bạn có thể bấm Tiếp tục để xem bước sau.</div>` : ''}
+          ${!target && (step.targetSelector || step.targetKey) && !actionText ? `<div class="worktree-tour-target-note">Mẹo: Mục này đang ở màn hình khác hoặc thanh điều hướng. Bạn có thể bấm Tiếp tục để xem bước sau.</div>` : ''}
         </div>
 
-        <div class="worktree-tour-footer">
-          <div class="worktree-tour-footer-left">
-            <button type="button" class="worktree-btn-subtle" id="tourSkipBtn">Bỏ qua</button>
-          </div>
-          <div class="worktree-tour-footer-right">
-            ${!isFirstStep ? `<button type="button" class="worktree-btn-ghost" id="tourPrevBtn">Quay lại</button>` : ''}
+        ${isMobile ? `
+          <div class="worktree-tour-footer worktree-tour-footer--mobile">
             ${actionText ? `
-              <button type="button" class="worktree-btn-action" id="tourActionBtn">
-                ${escapeHTML(actionText)}
-              </button>
+              <div class="worktree-tour-action-wrap">
+                <button type="button" class="worktree-btn-action" id="tourActionBtn">
+                  ${escapeHTML(actionText)}
+                </button>
+              </div>
             ` : ''}
-            <button type="button" class="worktree-btn-primary" id="tourNextBtn">
-              ${isLastStep ? 'Hoàn tất' : 'Tiếp tục'}
-            </button>
+            <div class="worktree-tour-nav-row">
+              <div class="worktree-tour-footer-left">
+                <button type="button" class="worktree-btn-subtle" id="tourSkipBtn">Bỏ qua</button>
+              </div>
+              <div class="worktree-tour-footer-right">
+                ${!isFirstStep ? `<button type="button" class="worktree-btn-ghost" id="tourPrevBtn">Quay lại</button>` : ''}
+                <button type="button" class="worktree-btn-primary" id="tourNextBtn">
+                  ${isLastStep ? 'Hoàn tất' : 'Tiếp tục'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        ` : `
+          <div class="worktree-tour-footer">
+            <div class="worktree-tour-footer-left">
+              <button type="button" class="worktree-btn-subtle" id="tourSkipBtn">Bỏ qua</button>
+            </div>
+            <div class="worktree-tour-footer-right">
+              ${!isFirstStep ? `<button type="button" class="worktree-btn-ghost" id="tourPrevBtn">Quay lại</button>` : ''}
+              ${actionText ? `
+                <button type="button" class="worktree-btn-action" id="tourActionBtn">
+                  ${escapeHTML(actionText)}
+                </button>
+              ` : ''}
+              <button type="button" class="worktree-btn-primary" id="tourNextBtn">
+                ${isLastStep ? 'Hoàn tất' : 'Tiếp tục'}
+              </button>
+            </div>
+          </div>
+        `}
       </div>
     `;
 

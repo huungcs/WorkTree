@@ -271,6 +271,13 @@
     padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 12px)) !important;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.22) !important;
     animation: mobileTourSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-sizing: border-box !important;
+  }
+
+  .worktree-tour-popover--mobile .worktree-tour-card,
+  .worktree-tour-popover .worktree-tour-card {
+    padding: 0 !important;
+    box-sizing: border-box !important;
   }
 
   @keyframes mobileTourSlideUp {
@@ -278,14 +285,72 @@
     to { transform: translateY(0); }
   }
 
+  .worktree-tour-footer--mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid var(--line, #e8ebf2) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .worktree-tour-action-wrap {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .worktree-tour-action-wrap .worktree-btn-action {
+    width: 100% !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    background: var(--primary-soft, #eeecfc) !important;
+    color: var(--primary-text, #6256ca) !important;
+    border: 1px dashed var(--primary, #6962db) !important;
+    box-sizing: border-box !important;
+    white-space: normal !important;
+    word-break: normal !important;
+  }
+
+  .worktree-tour-nav-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 10px !important;
+    box-sizing: border-box !important;
+  }
+
+  .worktree-tour-nav-row .worktree-tour-footer-left {
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .worktree-tour-nav-row .worktree-tour-footer-right {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
   .worktree-tour-footer button,
   .worktree-btn-primary,
   .worktree-btn-ghost,
   .worktree-btn-subtle {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
   }
 }
 
