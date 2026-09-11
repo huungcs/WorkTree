@@ -5158,6 +5158,39 @@ async function openNotifications(){
  showDialog('infoDialog');
 }
 
+window.updateManualReminderPreview = function(val) {
+ const preview = $('manualReminderPreview');
+ if (!preview) return;
+ if (!val) {
+  preview.innerHTML = `<span style="color:var(--muted)">${icon('clock')} Vui lòng chọn thời gian nhắc hẹn.</span>`;
+  return;
+ }
+ const targetDate = new Date(val);
+ if (isNaN(targetDate.getTime())) {
+  preview.innerHTML = `<span style="color:var(--red)">${icon('alert')} Thời gian không hợp lệ.</span>`;
+  return;
+ }
+ const diffMs = targetDate.getTime() - Date.now();
+ let timeRel = '';
+ let isPast = diffMs <= 0;
+ if (diffMs > 0) {
+  const diffMins = Math.round(diffMs / 60000);
+  if (diffMins < 60) timeRel = `sau ${diffMins} phút nữa`;
+  else if (diffMins < 1440) {
+   const h = Math.floor(diffMins / 60);
+   const m = diffMins % 60;
+   timeRel = `sau ~${h} giờ${m > 0 ? ` ${m}p` : ''} nữa`;
+  } else {
+   const d = Math.round(diffMins / 1440);
+   timeRel = `sau ~${d} ngày nữa`;
+  }
+ } else {
+  timeRel = 'đã qua thời điểm hiện tại!';
+ }
+  const dateFormatted = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ }).format(targetDate);
+  preview.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;width:14px;height:14px;flex-shrink:0"><svg style="width:14px;height:14px;display:block;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${ICONS.clock}</svg></span><span>Nhắc hẹn lúc: <strong>${dateFormatted}</strong> <span style="color:${isPast ? 'var(--red)' : 'var(--amber)'};font-weight:600">(${timeRel})</span></span></span>`;
+};
+
 async function openNotificationSettings() {
  $('infoTitle').textContent = 'Cài đặt thông báo & Nhắc việc';
  $('infoEyebrow').textContent = 'TÙY CHỌN CÁ NHÂN';
@@ -5180,17 +5213,26 @@ async function openNotificationSettings() {
   const pendingReminders = reminders.filter(r => r.status === 'pending');
   const completedReminders = reminders.filter(r => r.status === 'completed');
 
+  const now = new Date();
+  const defaultReminderDate = new Date(now.getTime() + 15 * 60000);
+  const pad = n => String(n).padStart(2, '0');
+  const defaultTimeIso = `${defaultReminderDate.getFullYear()}-${pad(defaultReminderDate.getMonth()+1)}-${pad(defaultReminderDate.getDate())}T${pad(defaultReminderDate.getHours())}:${pad(defaultReminderDate.getMinutes())}`;
+  const minTimeIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const defaultDateStr = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ }).format(defaultReminderDate);
+
   let reminderListHtml = '';
   if (reminders.length === 0) {
    reminderListHtml = `
-    <div style="text-align:center;padding:22px 14px;border-radius:10px;border:1px dashed var(--line);background:var(--surface-2);color:var(--muted);font-size:11px;line-height:1.6">
-     <div style="font-size:20px;margin-bottom:4px">📅</div>
-     <strong>Chưa có lịch nhắc việc nào được tạo</strong>
-     <p style="margin:2px 0 0">Hãy điền nội dung và thời gian ở trên để hệ thống tự động thông báo và đổ chuông.</p>
+    <div style="text-align:center;padding:28px 16px;border-radius:12px;border:1px dashed var(--line-strong);background:var(--surface-2);color:var(--muted)">
+     <div style="width:42px;height:42px;border-radius:50%;background:var(--surface-3);color:var(--muted);display:flex;align-items:center;justify-content:center;margin:0 auto 10px">
+      ${icon('calendar')}
+     </div>
+     <strong style="font-size:12.5px;color:var(--text);display:block;margin-bottom:4px">Chưa có lịch nhắc việc nào được tạo</strong>
+     <p style="font-size:11px;color:var(--muted);margin:0;line-height:1.5">Nhập nội dung và chọn thời gian hẹn ở trên để hệ thống tự động đổ chuông và gửi thông báo.</p>
     </div>
    `;
   } else {
-   reminderListHtml = `<div style="display:grid;gap:8px;max-height:280px;overflow:auto;padding-right:2px">`;
+   reminderListHtml = `<div style="display:grid;gap:8px;max-height:300px;overflow:auto;padding-right:2px">`;
    reminders.forEach(r => {
     const isPending = r.status === 'pending';
     const isCompleted = r.status === 'completed';
@@ -5218,31 +5260,40 @@ async function openNotificationSettings() {
     }
 
     const statusBadge = isPending
-     ? `<span class="tag" style="background:var(--amber-soft);color:var(--amber);font-size:9.5px;font-weight:600">Đang chờ</span>`
+     ? `<span class="tag" style="background:var(--amber-soft);color:var(--amber);font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:6px">Đang chờ</span>`
      : isCompleted
-     ? `<span class="tag" style="background:var(--green-soft);color:var(--green);font-size:9.5px;font-weight:600">Đã gửi</span>`
-     : `<span class="tag" style="background:var(--surface-3);color:var(--muted);font-size:9.5px">Đã hủy</span>`;
+     ? `<span class="tag" style="background:var(--green-soft);color:var(--green);font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:6px">Đã gửi</span>`
+     : `<span class="tag" style="background:var(--surface-3);color:var(--muted);font-size:9.5px;padding:2px 8px;border-radius:6px">Đã hủy</span>`;
 
     reminderListHtml += `
-     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;border:1px solid ${isPending ? 'var(--line-strong)' : 'var(--line)'};background:${isPending ? 'var(--surface-2)' : 'var(--surface)'};gap:10px">
-      <div style="min-width:0;flex:1">
-       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">
-        <strong style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</strong>
-        ${statusBadge}
+     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;border:1px solid ${isPending ? 'var(--line-strong)' : 'var(--line)'};background:${isPending ? 'var(--surface)' : 'var(--surface-2)'};gap:12px;box-shadow:0 1px 2px rgba(0,0,0,0.02)">
+      <div style="display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1">
+       <div style="width:32px;height:32px;border-radius:8px;background:${isPending ? 'var(--amber-soft)' : 'var(--surface-3)'};color:${isPending ? 'var(--amber)' : 'var(--muted)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">
+        ${icon(isPending ? 'clock' : isCompleted ? 'check' : 'x')}
        </div>
-       <div style="font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-        <span style="display:inline-flex;align-items:center">${icon('clock')}</span>
-        <span>${dateStr}</span>
-        ${timeRel ? `<span style="color:${isPending ? 'var(--amber)' : 'var(--muted)'};font-weight:${isPending ? '600' : '400'}">${timeRel}</span>` : ''}
+       <div style="min-width:0;flex:1">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+         <strong style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</strong>
+         ${statusBadge}
+        </div>
+        <div style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-top:2px;flex-wrap:wrap">
+         <span style="display:inline-flex;align-items:center;gap:5px">
+          <span style="display:inline-flex;align-items:center;width:13px;height:13px;flex-shrink:0;color:var(--muted)">
+           <svg style="width:13px;height:13px;display:block;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${ICONS.calendar}</svg>
+          </span>
+          <span style="white-space:nowrap">${dateStr}</span>
+         </span>
+         ${timeRel ? `<span style="color:${isPending ? 'var(--amber)' : 'var(--muted)'};font-weight:${isPending ? '600' : '400'};white-space:nowrap">· ${timeRel}</span>` : ''}
+        </div>
        </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
        ${isPending ? `
-        <button class="btn small" data-action="cancel-manual-reminder" data-id="${r.id}" title="Hủy lịch nhắc này">
+        <button class="btn small" data-action="cancel-manual-reminder" data-id="${r.id}" title="Hủy lịch nhắc này" style="font-size:11px">
          ${icon('x')}Hủy
         </button>
        ` : ''}
-       <button class="icon-btn small" data-action="delete-manual-reminder" data-id="${r.id}" title="Xóa lịch nhắc" style="color:var(--muted)">
+       <button class="icon-btn small" data-action="delete-manual-reminder" data-id="${r.id}" title="Xóa vĩnh viễn" style="color:var(--muted)">
         ${icon('trash')}
        </button>
       </div>
@@ -5312,30 +5363,59 @@ async function openNotificationSettings() {
     </div>
    </section>
 
-   <section class="settings-section" style="margin-bottom:16px">
-    <h3>${icon('clock')}Tạo nhắc việc cá nhân</h3>
-    <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Hệ thống sẽ gửi thông báo và đổ chuông theo đúng thời gian bạn đã chọn.</p>
-    <div style="display:grid;gap:8px">
-     <input id="manualReminderTitle" class="field" placeholder="Nội dung cần nhắc (ví dụ: Họp giao ban, nộp báo cáo...)" maxlength="240" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
-     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input id="manualReminderTime" type="datetime-local" class="field" style="flex:1;min-width:180px;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid var(--line-strong);font-size:11px;background:var(--surface);color:var(--text)">
-      <div style="display:flex;gap:4px;flex-wrap:wrap">
-       <button class="btn small" data-action="quick-reminder-time" data-minutes="15" title="Hẹn sau 15 phút">+15p</button>
-       <button class="btn small" data-action="quick-reminder-time" data-minutes="30" title="Hẹn sau 30 phút">+30p</button>
-       <button class="btn small" data-action="quick-reminder-time" data-minutes="60" title="Hẹn sau 1 giờ">+1h</button>
-       <button class="btn small" data-action="quick-reminder-time" data-preset="tomorrow_morning" title="Hẹn 08:30 sáng mai">Sáng mai</button>
+   <section class="settings-section" style="margin-bottom:20px;padding:16px;border-radius:12px;background:var(--surface);border:1px solid var(--line-strong);box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px">
+     <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:28px;height:28px;border-radius:7px;background:var(--primary-soft);color:var(--primary-text);display:flex;align-items:center;justify-content:center">
+       ${icon('clock')}
+      </div>
+      <h3 style="margin:0;font-size:13px;font-weight:600;color:var(--text)">Tạo nhắc việc cá nhân</h3>
+     </div>
+     <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-size:10px;font-weight:600">Thời gian thực</span>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 12px">Hệ thống sẽ gửi thông báo và đổ chuông theo đúng thời gian bạn đã chọn.</p>
+    
+    <div style="display:grid;gap:10px">
+     <div>
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Nội dung nhắc việc <span style="color:var(--red)">*</span></label>
+      <input id="manualReminderTitle" class="field" placeholder="Ví dụ: Họp giao ban, nộp báo cáo, gọi điện khách hàng..." maxlength="240" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:12px;background:var(--surface);color:var(--text)">
+     </div>
+     
+     <div>
+      <label style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Thời gian nhắc hẹn (Tự động cập nhật realtime) <span style="color:var(--red)">*</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+       <input id="manualReminderTime" type="datetime-local" class="field" value="${defaultTimeIso}" min="${minTimeIso}" oninput="window.updateManualReminderPreview(this.value)" style="flex:1;min-width:210px;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:12px;background:var(--surface);color:var(--text)">
+       <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="15" title="Hẹn sau 15 phút">+15p</button>
+        <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="30" title="Hẹn sau 30 phút">+30p</button>
+        <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="60" title="Hẹn sau 1 giờ">+1h</button>
+        <button type="button" class="btn small" data-action="quick-reminder-time" data-preset="tomorrow_morning" title="Hẹn 08:30 sáng mai">Sáng mai</button>
+       </div>
+      </div>
+      <div id="manualReminderPreview" style="font-size:11.5px;color:var(--primary-text);display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:500;padding:6px 10px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line)">
+       <span style="display:inline-flex;align-items:center;width:14px;height:14px;flex-shrink:0"><svg style="width:14px;height:14px;display:block;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${ICONS.clock}</svg></span><span>Nhắc hẹn lúc: <strong>${defaultDateStr}</strong> <span style="color:var(--amber);font-weight:600">(sau 15 phút nữa)</span></span>
       </div>
      </div>
-     <button class="btn primary small" data-action="submit-manual-reminder" style="justify-self:start">${icon('plus')}Lên lịch nhắc việc</button>
+
+     <div style="display:flex;justify-content:flex-start;margin-top:4px">
+      <button class="btn primary" data-action="submit-manual-reminder" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+       ${icon('plus')}Lên lịch nhắc việc
+      </button>
+     </div>
     </div>
    </section>
 
    <section class="settings-section" style="margin-bottom:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-     <h3 style="margin:0">${icon('calendar')}Lịch nhắc hẹn cá nhân (${reminders.length})</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+     <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:28px;height:28px;border-radius:7px;background:var(--amber-soft);color:var(--amber);display:flex;align-items:center;justify-content:center">
+       ${icon('calendar')}
+      </div>
+      <h3 style="margin:0;font-size:13px;font-weight:600;color:var(--text)">Lịch nhắc hẹn cá nhân (${reminders.length})</h3>
+     </div>
      <div style="display:flex;gap:6px">
-      <span class="tag" style="background:var(--amber-soft);color:var(--amber);font-size:10px">${pendingReminders.length} đang chờ</span>
-      <span class="tag" style="background:var(--green-soft);color:var(--green);font-size:10px">${completedReminders.length} đã nhắc</span>
+      <span class="tag" style="background:var(--amber-soft);color:var(--amber);font-size:10px;font-weight:600">${pendingReminders.length} đang chờ</span>
+      <span class="tag" style="background:var(--green-soft);color:var(--green);font-size:10px;font-weight:600">${completedReminders.length} đã nhắc</span>
      </div>
     </div>
     ${reminderListHtml}
@@ -5739,6 +5819,9 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     const pad = n => String(n).padStart(2, '0');
     const localIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     input.value = localIso;
+    if (typeof window.updateManualReminderPreview === 'function') {
+     window.updateManualReminderPreview(localIso);
+    }
     input.focus();
     break;
    }
