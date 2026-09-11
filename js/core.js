@@ -3130,6 +3130,20 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     break;
    }
    case 'test-device-notification':{
+    if (typeof Notification !== 'undefined') {
+     if (Notification.permission === 'default') {
+      try {
+       const perm = await Notification.requestPermission();
+       if (perm !== 'granted') {
+        toast('Bạn cần chọn "Cho phép" (Allow) trên thông báo của trình duyệt để nhận thông báo đẩy.', 'error');
+        return;
+       }
+      } catch (_) {}
+     } else if (Notification.permission === 'denied') {
+      toast('Trình duyệt đang chặn thông báo. Hãy bấm vào biểu tượng ổ khóa 🔒 bên trái thanh địa chỉ và chọn "Cho phép" thông báo.', 'error');
+      return;
+     }
+    }
     if (typeof window.playNotificationSound === 'function') {
      window.playNotificationSound();
     }
@@ -3137,7 +3151,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      try { navigator.vibrate([200, 100, 200]); } catch (_) {}
     }
     const testTitle = '🔔 WorkTree X - Kiểm tra thông báo';
-    const testBody = 'Tuyệt vời! Điện thoại của bạn đã nhận được chuông và thông báo thành công.';
+    const testBody = 'Tuyệt vời! Máy của bạn đã nhận được chuông và thông báo thành công.';
     if (typeof window.displayNativeNotification === 'function') {
      window.displayNativeNotification(testTitle, {
       body: testBody,
@@ -3153,8 +3167,16 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
         vibrate: [200, 100, 200],
         tag: 'test-device-' + Date.now()
        });
+      } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+       try { new Notification(testTitle, { body: testBody, icon: '/favicon.ico', tag: 'test-device-' + Date.now() }); } catch (_) {}
       }
-     }).catch(() => {});
+     }).catch(() => {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+       try { new Notification(testTitle, { body: testBody, icon: '/favicon.ico', tag: 'test-device-' + Date.now() }); } catch (_) {}
+      }
+     });
+    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+     try { new Notification(testTitle, { body: testBody, icon: '/favicon.ico', tag: 'test-device-' + Date.now() }); } catch (_) {}
     }
     // Ghi nhận vào DB để cập nhật badge quả chuông
     try {
@@ -3173,11 +3195,15 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     break;
    }
    case 'request-push-perm':{
+    let granted = false;
     if (window.PushDeviceService) {
-     const granted = await window.PushDeviceService.requestPermission();
-     toast(granted ? 'Đã bật thông báo đẩy Web Push' : 'Chưa cấp quyền thông báo');
-     await openNotificationSettings();
+     granted = await window.PushDeviceService.requestPermission();
+    } else if (typeof Notification !== 'undefined') {
+     const perm = await Notification.requestPermission();
+     granted = perm === 'granted';
     }
+    toast(granted ? 'Đã bật thông báo đẩy Web Push' : 'Chưa cấp quyền thông báo');
+    await openNotificationSettings();
     break;
    }
    case 'toggle-quiet-hours':{
