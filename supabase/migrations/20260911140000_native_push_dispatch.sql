@@ -54,8 +54,12 @@ BEGIN
       'include_subscription_ids', v_devices,
       'headings', jsonb_build_object('en', NEW.title),
       'contents', jsonb_build_object('en', COALESCE(NEW.body, 'Bạn có thông báo mới trên WorkTree X')),
+      'priority', 10,
+      'ttl', 259200,
+      'web_push_topic', 'worktree_task',
       'url', 'https://worktree.nguyentronghuu.com',
       'chrome_web_icon', 'https://worktree.nguyentronghuu.com/assets/icon-192.png',
+      'chrome_web_badge', 'https://worktree.nguyentronghuu.com/assets/icon-192.png',
       'data', jsonb_build_object(
         'url', 'https://worktree.nguyentronghuu.com',
         'taskId', NEW.task_id,
