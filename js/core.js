@@ -2470,17 +2470,18 @@ async function openNotifications(){
     const pendingReminders = (reminders || []).filter(r => r.status === 'pending');
 
     let html = `
-     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-       <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-weight:600">${notifications.length} thông báo</span>
-       ${unreadCount > 0 ? `<span class="tag" style="background:var(--red-soft);color:var(--red)">${unreadCount} chưa đọc</span>` : ''}
-       ${pendingReminders.length > 0 ? `<button class="tag" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
+     <div class="notif-center-view">
+      <div class="notif-center-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
+       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-weight:600">${notifications.length} thông báo</span>
+        ${unreadCount > 0 ? `<span class="tag" style="background:var(--red-soft);color:var(--red)">${unreadCount} chưa đọc</span>` : ''}
+        ${pendingReminders.length > 0 ? `<button class="tag" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
+       </div>
+       <div class="notif-center-actions" style="display:flex;gap:6px">
+        ${unreadCount > 0 ? `<button class="btn small" data-action="mark-all-read">${icon('check')}Đã đọc tất cả</button>` : ''}
+        <button class="btn small" data-action="notif-settings">${icon('clock')}Lịch nhắc & Cài đặt</button>
+       </div>
       </div>
-      <div style="display:flex;gap:6px">
-       ${unreadCount > 0 ? `<button class="btn small" data-action="mark-all-read">${icon('check')}Đã đọc tất cả</button>` : ''}
-       <button class="btn small" data-action="notif-settings">${icon('clock')}Lịch nhắc & Cài đặt</button>
-      </div>
-     </div>
     `;
 
     if(pendingReminders.length > 0){
@@ -2560,6 +2561,7 @@ async function openNotifications(){
     if(today.length) html += `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:12px;color:var(--amber);background:var(--amber-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(147,84,12,.15)"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('clock')}</span><span style="white-space:nowrap"><strong>${today.length}</strong> công việc đến hạn hôm nay.</span></div>`;
     html += `</div></div>`;
    }
+   html += `</div>`;
 
    $('infoContent').innerHTML = html;
   } catch (err) {
@@ -2584,125 +2586,119 @@ window.updateManualReminderPreview = function(val) {
   preview.innerHTML = `<span style="color:var(--muted)">${icon('clock')} Vui lòng chọn thời gian nhắc hẹn.</span>`;
   return;
  }
- const targetDate = new Date(val);
- if (isNaN(targetDate.getTime())) {
-  preview.innerHTML = `<span style="color:var(--red)">${icon('alert')} Thời gian không hợp lệ.</span>`;
-  return;
- }
- const diffMs = targetDate.getTime() - Date.now();
- let timeRel = '';
- let isPast = diffMs <= 0;
- if (diffMs > 0) {
-  const diffMins = Math.round(diffMs / 60000);
-  if (diffMins < 60) timeRel = `sau ${diffMins} phút nữa`;
-  else if (diffMins < 1440) {
-   const h = Math.floor(diffMins / 60);
-   const m = diffMins % 60;
-   timeRel = `sau ~${h} giờ${m > 0 ? ` ${m}p` : ''} nữa`;
-  } else {
-   const d = Math.round(diffMins / 1440);
-   timeRel = `sau ~${d} ngày nữa`;
+ try {
+  const chosenDate = new Date(val);
+  if (isNaN(chosenDate.getTime())) {
+   preview.innerHTML = `<span style="color:var(--red)">${icon('alert')} Định dạng thời gian chưa hợp lệ.</span>`;
+   return;
   }
- } else {
-  timeRel = 'đã qua thời điểm hiện tại!';
+  const dateStr = new Intl.DateTimeFormat('vi-VN', {
+   hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric',
+   timeZone: TZ
+  }).format(chosenDate);
+  const diffMs = chosenDate.getTime() - Date.now();
+  let timeRel = '';
+  if (diffMs > 0) {
+   const diffMins = Math.round(diffMs / 60000);
+   if (diffMins < 60) timeRel = `sau ${diffMins} phút nữa`;
+   else if (diffMins < 1440) timeRel = `sau ~${(diffMins / 60).toFixed(1)} giờ`;
+   else timeRel = `sau ~${Math.round(diffMins / 1440)} ngày`;
+  } else {
+   timeRel = 'thời gian trong quá khứ hoặc ngay lập tức';
+  }
+  preview.innerHTML = `
+   <span style="display:inline-flex;align-items:center;width:14px;height:14px;flex-shrink:0">
+    <svg style="width:14px;height:14px;display:block;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${ICONS.clock}</svg>
+   </span>
+   <span>Nhắc hẹn lúc: <strong>${dateStr}</strong> <span style="color:${diffMs > 0 ? 'var(--amber)' : 'var(--red)'};font-weight:600">(${timeRel})</span></span>
+  `;
+ } catch (_) {
+  preview.innerHTML = `<span style="color:var(--muted)">${icon('clock')} Đã chọn thời gian: ${val}</span>`;
  }
-  const dateFormatted = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ }).format(targetDate);
-  preview.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;width:14px;height:14px;flex-shrink:0"><svg style="width:14px;height:14px;display:block;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${ICONS.clock}</svg></span><span>Nhắc hẹn lúc: <strong>${dateFormatted}</strong> <span style="color:${isPast ? 'var(--red)' : 'var(--amber)'};font-weight:600">(${timeRel})</span></span></span>`;
 };
 
 async function openNotificationSettings() {
  $('infoTitle').textContent = 'Cài đặt thông báo & Nhắc việc';
- $('infoEyebrow').textContent = 'TÙY CHỌN CÁ NHÂN';
- 
+ $('infoEyebrow').textContent = 'Tùy chọn cá nhân';
+ $('infoContent').innerHTML = '<div class="tree-empty" style="text-align:center;padding:24px 0">Đang tải cài đặt...</div>';
+ showDialog('infoDialog');
+
  try {
   const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
-  if (window.NotificationService && orgId) {
-   await window.NotificationService.processDueReminders(orgId).catch(() => {});
-  }
-  const pref = window.NotificationService ? await window.NotificationService.getPreferences() : null;
-  const perm = window.PushDeviceService ? window.PushDeviceService.getPermissionState() : 'unsupported';
-  const isPushOn = perm === 'granted';
-  const badgeStyle = localStorage.getItem('wtx_notif_badge_style') || 'number';
-  const isDotOnly = badgeStyle === 'dot';
-
-  const reminders = (window.NotificationService && orgId) 
-   ? await window.NotificationService.getManualReminders(orgId).catch(() => [])
-   : [];
+  const pref = window.NotificationService ? await window.NotificationService.getNotificationPreferences().catch(() => ({})) : {};
+  const reminders = (window.NotificationService && orgId) ? await window.NotificationService.getManualReminders(orgId).catch(() => []) : [];
+  const isDotOnly = pref?.badge_style === 'dot';
+  const isPushOn = typeof Notification !== 'undefined' && Notification.permission === 'granted';
 
   const pendingReminders = reminders.filter(r => r.status === 'pending');
-  const completedReminders = reminders.filter(r => r.status === 'completed');
+  const completedReminders = reminders.filter(r => r.status === 'sent');
 
+  // Tính sẵn thời gian mặc định: thời điểm hiện tại + 15 phút, định dạng YYYY-MM-DDTHH:mm
   const now = new Date();
-  const defaultReminderDate = new Date(now.getTime() + 15 * 60000);
+  const defaultDate = new Date(now.getTime() + 15 * 60 * 1000);
   const pad = n => String(n).padStart(2, '0');
-  const defaultTimeIso = `${defaultReminderDate.getFullYear()}-${pad(defaultReminderDate.getMonth()+1)}-${pad(defaultReminderDate.getDate())}T${pad(defaultReminderDate.getHours())}:${pad(defaultReminderDate.getMinutes())}`;
-  const minTimeIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const defaultDateStr = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ }).format(defaultReminderDate);
+  const minTimeIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const defaultTimeIso = `${defaultDate.getFullYear()}-${pad(defaultDate.getMonth() + 1)}-${pad(defaultDate.getDate())}T${pad(defaultDate.getHours())}:${pad(defaultDate.getMinutes())}`;
+  const defaultDateStr = new Intl.DateTimeFormat('vi-VN', {
+   hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric',
+   timeZone: TZ
+  }).format(defaultDate);
 
   let reminderListHtml = '';
   if (reminders.length === 0) {
    reminderListHtml = `
-    <div style="text-align:center;padding:28px 16px;border-radius:12px;border:1px dashed var(--line-strong);background:var(--surface-2);color:var(--muted)">
-     <div style="width:42px;height:42px;border-radius:50%;background:var(--surface-3);color:var(--muted);display:flex;align-items:center;justify-content:center;margin:0 auto 10px">
-      ${icon('calendar')}
+    <div style="text-align:center;padding:28px 16px;background:var(--surface-2);border-radius:10px;border:1px dashed var(--line-strong);color:var(--muted)">
+     <div style="width:36px;height:36px;border-radius:9px;background:var(--surface-3);display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px;color:var(--muted)">
+      <svg style="width:18px;height:18px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${ICONS.bell}</svg>
      </div>
-     <strong style="font-size:12.5px;color:var(--text);display:block;margin-bottom:4px">Chưa có lịch nhắc việc nào được tạo</strong>
-     <p style="font-size:11px;color:var(--muted);margin:0;line-height:1.5">Nhập nội dung và chọn thời gian hẹn ở trên để hệ thống tự động đổ chuông và gửi thông báo.</p>
+     <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px">Chưa có lịch nhắc hẹn nào</div>
+     <p style="font-size:11px;color:var(--muted);margin:0;line-height:1.5">Đặt lịch nhắc việc ở form phía trên để nhận thông báo và chuông báo đúng giờ.</p>
     </div>
    `;
   } else {
-   reminderListHtml = `<div style="display:grid;gap:8px;max-height:300px;overflow:auto;padding-right:2px">`;
+   reminderListHtml = `<div class="reminder-list" style="display:grid;gap:8px">`;
    reminders.forEach(r => {
     const isPending = r.status === 'pending';
-    const isCompleted = r.status === 'completed';
     const scheduledDate = new Date(r.scheduled_for);
     const dateStr = !isNaN(scheduledDate.getTime())
-     ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ }).format(scheduledDate)
+     ? new Intl.DateTimeFormat('vi-VN', {
+        hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric',
+        timeZone: TZ
+       }).format(scheduledDate)
      : r.scheduled_for;
-
     let timeRel = '';
-    if (!isNaN(scheduledDate.getTime())) {
+    if (isPending && !isNaN(scheduledDate.getTime())) {
      const diffMs = scheduledDate.getTime() - Date.now();
      if (diffMs > 0) {
       const diffMins = Math.round(diffMs / 60000);
-      if (diffMins < 60) timeRel = `(còn ${diffMins} phút)`;
-      else if (diffMins < 1440) {
-       const diffHours = Math.round(diffMins / 60);
-       timeRel = `(còn ~${diffHours} giờ)`;
-      } else {
-       const diffDays = Math.round(diffMins / 1440);
-       timeRel = `(còn ~${diffDays} ngày)`;
-      }
+      if (diffMins < 60) timeRel = `còn ${diffMins} phút`;
+      else if (diffMins < 1440) timeRel = `còn ~${(diffMins / 60).toFixed(1)} giờ`;
+      else timeRel = `còn ~${Math.round(diffMins / 1440)} ngày`;
      } else {
-      timeRel = isCompleted ? '(đã nhắc)' : '(đã đến giờ)';
+      timeRel = 'sắp phát chuông';
      }
+    } else if (!isPending) {
+     timeRel = 'đã nhắc';
     }
 
-    const statusBadge = isPending
-     ? `<span class="tag" style="background:var(--amber-soft);color:var(--amber);font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:6px">Đang chờ</span>`
-     : isCompleted
-     ? `<span class="tag" style="background:var(--green-soft);color:var(--green);font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:6px">Đã gửi</span>`
-     : `<span class="tag" style="background:var(--surface-3);color:var(--muted);font-size:9.5px;padding:2px 8px;border-radius:6px">Đã hủy</span>`;
-
     reminderListHtml += `
-     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;border:1px solid ${isPending ? 'var(--line-strong)' : 'var(--line)'};background:${isPending ? 'var(--surface)' : 'var(--surface-2)'};gap:12px;box-shadow:0 1px 2px rgba(0,0,0,0.02)">
+     <div class="reminder-item" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:10px;background:var(--surface);border:1px solid ${isPending ? 'var(--line-strong)' : 'var(--line)'};box-shadow:0 1px 2px rgba(0,0,0,0.02)">
       <div style="display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1">
-       <div style="width:32px;height:32px;border-radius:8px;background:${isPending ? 'var(--amber-soft)' : 'var(--surface-3)'};color:${isPending ? 'var(--amber)' : 'var(--muted)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">
-        ${icon(isPending ? 'clock' : isCompleted ? 'check' : 'x')}
+       <div style="width:28px;height:28px;border-radius:7px;background:${isPending ? 'var(--primary-soft)' : 'var(--surface-3)'};color:${isPending ? 'var(--primary-text)' : 'var(--muted)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">
+        <svg style="width:15px;height:15px;display:block;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${isPending ? ICONS.bell : ICONS.check}</svg>
        </div>
        <div style="min-width:0;flex:1">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
-         <strong style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title)}</strong>
-         ${statusBadge}
+        <div style="font-size:12.5px;font-weight:600;color:var(--text);overflow-wrap:anywhere;text-decoration:${isPending ? 'none' : 'line-through'};opacity:${isPending ? '1' : '0.75'}">
+         ${esc(r.title)}
         </div>
-        <div style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-top:2px;flex-wrap:wrap">
-         <span style="display:inline-flex;align-items:center;gap:5px">
+        <div style="font-size:11px;margin-top:4px;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+         <span style="display:inline-flex;align-items:center;gap:4px;color:var(--muted)">
           <span style="display:inline-flex;align-items:center;width:13px;height:13px;flex-shrink:0;color:var(--muted)">
            <svg style="width:13px;height:13px;display:block;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24" aria-hidden="true">${ICONS.calendar}</svg>
           </span>
           <span style="white-space:nowrap">${dateStr}</span>
          </span>
-         ${timeRel ? `<span style="color:${isPending ? 'var(--amber)' : 'var(--muted)'};font-weight:${isPending ? '600' : '400'};white-space:nowrap">· ${timeRel}</span>` : ''}
+         ${timeRel ? `<span style="color:${isPending ? 'var(--primary-text)' : 'var(--muted)'};font-weight:${isPending ? '600' : '400'};white-space:nowrap">· ${timeRel}</span>` : ''}
         </div>
        </div>
       </div>
@@ -2723,54 +2719,55 @@ async function openNotificationSettings() {
   }
 
   $('infoContent').innerHTML = `
-   <section class="settings-section" style="margin-bottom:16px">
-    <h3>${icon('bell')}Thông báo & Hiển thị quả chuông</h3>
-    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);gap:12px;flex-wrap:wrap">
-     <div>
-      <strong>Kiểu hiển thị trên quả chuông</strong>
-      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Chọn hiển thị số lượng chưa đọc hoặc chỉ hiện chấm đỏ tối giản (không để số).</p>
+   <div class="notif-settings-view">
+    <section class="settings-section" style="margin-bottom:16px">
+     <h3>${icon('bell')}Thông báo & Hiển thị quả chuông</h3>
+     <div class="settings-row notif-setting-row">
+      <div class="notif-setting-text">
+       <strong>Kiểu hiển thị trên quả chuông</strong>
+       <p>Chọn hiển thị số lượng chưa đọc hoặc chỉ hiện chấm đỏ tối giản (không để số).</p>
+      </div>
+      <div class="notif-setting-actions">
+       <button class="btn small ${isDotOnly ? '' : 'primary'}" data-action="set-badge-style" data-style="number" title="Hiển thị số lượng chưa đọc">
+        ${icon('bell')}Huy hiệu số
+       </button>
+       <button class="btn small ${isDotOnly ? 'primary' : ''}" data-action="set-badge-style" data-style="dot" title="Chỉ hiện chấm đỏ tinh gọn, không số">
+        Chấm đỏ (không số)
+       </button>
+      </div>
      </div>
-     <div style="display:flex;gap:6px;flex-shrink:0">
-      <button class="btn small ${isDotOnly ? '' : 'primary'}" data-action="set-badge-style" data-style="number" title="Hiển thị số lượng chưa đọc">
-       ${icon('bell')}Huy hiệu số
-      </button>
-      <button class="btn small ${isDotOnly ? 'primary' : ''}" data-action="set-badge-style" data-style="dot" title="Chỉ hiện chấm đỏ tinh gọn, không số">
-       Chấm đỏ (không số)
-      </button>
-     </div>
-    </div>
-    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
-     <div>
-      <strong>Nhận thông báo trên thiết bị này</strong>
-      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Nhận thông báo khi được giao việc, có bình luận mới hoặc đến hạn.</p>
-     </div>
-     <button class="btn small ${isPushOn ? 'soft' : 'primary'}" data-action="request-push-perm">
-      ${icon(isPushOn ? 'check' : 'bell')}${isPushOn ? 'Đã bật thông báo' : 'Bật thông báo đẩy'}
-     </button>
-    </div>
-    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
-     <div>
-      <strong>Chuông báo & Rung thiết bị</strong>
-      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Đổ chuông êm dịu và rung haptic khi có việc được giao hoặc thông báo mới.</p>
-     </div>
-     <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-      <button class="btn small" data-action="test-sound" title="Bấm để nghe thử âm thanh chuông">
-       ${icon('bell')}Thử chuông
-      </button>
-      <button class="btn small primary" data-action="test-device-notification" title="Bấm để gửi thông báo thử nghiệm trực tiếp lên điện thoại">
-       ${icon('check')}Thử gửi thông báo
+     <div class="settings-row notif-setting-row">
+      <div class="notif-setting-text">
+       <strong>Nhận thông báo trên thiết bị này</strong>
+       <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Nhận thông báo khi được giao việc, có bình luận mới hoặc đến hạn.</p>
+      </div>
+      <button class="btn small notif-single-btn ${isPushOn ? 'soft' : 'primary'}" data-action="request-push-perm">
+       ${icon(isPushOn ? 'check' : 'bell')}${isPushOn ? 'Đã bật thông báo' : 'Bật thông báo đẩy'}
       </button>
      </div>
-    </div>
-    <div class="settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)">
-     <div>
-      <strong>Giờ yên tĩnh (22:00 – 07:00)</strong>
-      <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Tự động hoãn thông báo đẩy trong khoảng thời gian nghỉ ngơi.</p>
+     <div class="settings-row notif-setting-row">
+      <div class="notif-setting-text">
+       <strong>Chuông báo & Rung thiết bị</strong>
+       <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Đổ chuông êm dịu và rung haptic khi có việc được giao hoặc thông báo mới.</p>
+      </div>
+      <div class="notif-setting-actions">
+       <button class="btn small" data-action="test-sound" title="Bấm để nghe thử âm thanh chuông">
+        ${icon('bell')}Thử chuông
+       </button>
+       <button class="btn small primary" data-action="test-device-notification" title="Bấm để gửi thông báo thử nghiệm trực tiếp lên điện thoại">
+        ${icon('check')}Thử gửi thông báo
+       </button>
+      </div>
      </div>
-     <button class="btn small" data-action="toggle-quiet-hours" data-enabled="${pref?.quiet_hours_enabled === true}">
-      ${pref?.quiet_hours_enabled ? 'Đang bật' : 'Đang tắt'}
-     </button>
-    </div>
+     <div class="settings-row notif-setting-row">
+      <div class="notif-setting-text">
+       <strong>Giờ yên tĩnh (22:00 – 07:00)</strong>
+       <p style="margin:2px 0 0;font-size:11px;color:var(--muted)">Tự động hoãn thông báo đẩy trong khoảng thời gian nghỉ ngơi.</p>
+      </div>
+      <button class="btn small notif-single-btn" data-action="toggle-quiet-hours" data-enabled="${pref?.quiet_hours_enabled === true}">
+       ${pref?.quiet_hours_enabled ? 'Đang bật' : 'Đang tắt'}
+      </button>
+     </div>
     <div style="margin-top:12px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
      <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:6px">
       ${icon('info')}<span>Nhận thông báo & chuông trên điện thoại:</span>
@@ -2839,7 +2836,8 @@ async function openNotificationSettings() {
     </div>
     ${reminderListHtml}
    </section>
-   <div style="margin-top:16px"><button class="link-btn" data-action="notifications">${icon('arrow-left')} Quay lại trung tâm thông báo</button></div>
+   <div style="margin-top:16px"><button class="link-btn notif-back-btn" data-action="notifications">${icon('arrow-left')} Quay lại trung tâm thông báo</button></div>
+   </div>
   `;
  } catch (err) {
   $('infoContent').innerHTML = emptyState('Lỗi', err.message, null, '', false, 'alert');
