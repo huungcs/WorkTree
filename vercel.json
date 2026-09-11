@@ -1,5 +1,10 @@
 {
-  "outputDirectory": ".",
+  "functions": {
+    "api/*.js": {
+      "memory": 1024,
+      "maxDuration": 15
+    }
+  },
   "headers": [
     {
       "source": "/manifest.webmanifest",
@@ -35,12 +40,6 @@
           "value": "nosniff"
         }
       ]
-    }
-  ],
-  "crons": [
-    {
-      "path": "/api/push-dispatch",
-      "schedule": "* * * * *"
     }
   ]
 }
