@@ -431,9 +431,6 @@ export class AuthView {
           ${SVG_ICONS.sparkles}
           <span>Xem tài khoản dữ liệu mẫu (Demo)</span>
         </button>
-        <div class="auth-demo-account-tag">
-          Tài khoản mẫu: <code>nguyentronghuu1905@gmail.com</code>
-        </div>
       </div>
 
       <div class="auth-local-note">
