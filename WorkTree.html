@@ -5321,7 +5321,7 @@ window.playNotificationSound = function() {
   console.warn('[Audio] Không thể phát chuông:', err);
  }
 };
-async function openNotifications(){
+async function openNotifications(targetTab){
  if(window.__worktree_is_cloud_workspace && window.NotificationService){
   const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
   $('infoTitle').textContent='Trung tâm thông báo';
@@ -5334,23 +5334,35 @@ async function openNotifications(){
      await window.NotificationService.processDueReminders(orgId).catch(() => {});
     }
     const [notifications, unreadCount, reminders] = await Promise.all([
-     window.NotificationService.getNotifications(orgId, { limit: 30 }),
+     window.NotificationService.getNotifications(orgId, { limit: 50 }),
      window.NotificationService.getUnreadCount(orgId),
      window.NotificationService.getManualReminders(orgId).catch(() => [])
     ]);
     const pendingReminders = (reminders || []).filter(r => r.status === 'pending');
 
+    const activeTab = targetTab || window.__notifTab || (unreadCount > 0 ? 'unread' : 'all');
+    window.__notifTab = activeTab;
+
+    const unreadNotifications = notifications.filter(n => !n.read_at);
+    const displayedNotifications = (activeTab === 'unread') ? unreadNotifications : notifications;
+    const hasReadNotifications = notifications.some(n => n.read_at);
+
     let html = `
      <div class="notif-center-view">
       <div class="notif-center-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
-       <div class="notif-center-tags" style="display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:wrap">
-        <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-weight:600">${notifications.length} thông báo</span>
-        ${unreadCount > 0 ? `<span class="tag" style="background:var(--red-soft);color:var(--red)">${unreadCount} chưa đọc</span>` : ''}
+       <div class="notif-center-tabs" style="display:flex;align-items:center;gap:6px">
+        <button class="btn small" data-action="notif-tab" data-tab="unread" style="${activeTab === 'unread' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
+         Chưa đọc ${unreadCount > 0 ? `<span style="margin-left:4px;font-size:10px;padding:1px 6px;border-radius:10px;background:var(--red);color:#fff">${unreadCount}</span>` : ''}
+        </button>
+        <button class="btn small" data-action="notif-tab" data-tab="all" style="${activeTab === 'all' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
+         Tất cả (${notifications.length})
+        </button>
         ${pendingReminders.length > 0 ? `<button class="tag" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
        </div>
-       <div class="notif-center-actions" style="display:flex;gap:6px">
-        ${unreadCount > 0 ? `<button class="btn small" data-action="mark-all-read">${icon('check')}Đã đọc tất cả</button>` : ''}
-        <button class="btn small" data-action="notif-settings">${icon('clock')}Lịch nhắc & Cài đặt</button>
+       <div class="notif-center-actions" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        ${unreadCount > 0 ? `<button class="btn small" data-action="mark-all-read" title="Đánh dấu tất cả thông báo là đã đọc">${icon('check')}Đã đọc tất cả</button>` : ''}
+        ${hasReadNotifications ? `<button class="btn small" data-action="clear-read-notifs" title="Xóa toàn bộ các thông báo đã đọc">${icon('trash')}Dọn sạch đã đọc</button>` : ''}
+        <button class="btn small" data-action="notif-settings" title="Lịch nhắc & Cài đặt">${icon('clock')}Lịch nhắc</button>
        </div>
       </div>
     `;
@@ -5394,21 +5406,24 @@ async function openNotifications(){
      `;
     }
 
-   if(notifications.length === 0){
-    if(pendingReminders.length > 0){
-     html += emptyState('Chưa có thông báo mới', 'Bạn có ' + pendingReminders.length + ' lịch nhắc việc đang đếm ngược ở trên. Khi đến giờ hệ thống sẽ đổ chuông và gửi thông báo.', null, '', false, 'bell');
+   if(displayedNotifications.length === 0){
+    if(activeTab === 'unread'){
+     html += emptyState('Không có thông báo chưa đọc', 'Tuyệt vời! Bạn đã xem hết tất cả thông báo mới.', null, '', false, 'check-circle');
+     if(notifications.length > 0){
+      html += `<div style="text-align:center;margin-top:12px"><button class="btn small" data-action="notif-tab" data-tab="all">${icon('layers')}Xem lại ${notifications.length} thông báo trước đây</button></div>`;
+     }
     } else {
-     html += emptyState('Không có thông báo mới', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
+     html += emptyState('Không có thông báo nào', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
     }
    } else {
     html += `<div class="notification-list" style="display:grid;gap:6px">`;
-    notifications.forEach(n => {
+    displayedNotifications.forEach(n => {
      const isUnread = !n.read_at;
      const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
      const iconName = n.kind === 'task_assigned' ? 'user' : n.kind === 'task_comment' ? 'message-square' : n.kind === 'task_completed' ? 'check' : (n.kind === 'due_soon' || n.kind === 'overdue' || n.kind === 'task_status_changed') ? 'alert' : 'bell';
      html += `
-      <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" style="cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px">
-       <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px">${icon(iconName)}</span>
+      <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" style="position:relative;cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px;transition:all .15s ease">
+       <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px;flex-shrink:0">${icon(iconName)}</span>
        <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
          <strong style="font-size:12px;color:var(--text);font-weight:${isUnread ? '650' : '500'}">${esc(n.title)}</strong>
@@ -5416,7 +5431,10 @@ async function openNotifications(){
         </div>
         <p style="font-size:11px;color:var(--subtle);margin:3px 0 0;line-height:1.5">${esc(n.body)}</p>
        </div>
-       ${isUnread ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--primary);margin-top:6px;flex-shrink:0"></span>' : ''}
+       <div class="notif-item-actions" style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:6px" onclick="event.stopPropagation()">
+        ${isUnread ? `<button class="tiny-btn" data-action="mark-read-cloud-notif" data-id="${n.id}" title="Đánh dấu đã đọc" aria-label="Đánh dấu đã đọc" style="padding:2px 6px;font-size:11px;color:var(--primary)">${icon('check')}</button>` : ''}
+        <button class="tiny-btn" data-action="delete-cloud-notif" data-id="${n.id}" title="Xóa thông báo này" aria-label="Xóa thông báo" style="padding:2px 6px;font-size:11px;color:var(--muted)">${icon('trash')}</button>
+       </div>
       </div>
      `;
     });
@@ -5426,10 +5444,13 @@ async function openNotifications(){
    const active=readableTasks().filter(t=>t.status!=='Hoàn thành'),late=active.filter(isLate),today=active.filter(isToday);
    if(late.length || today.length){
     html += `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
-     <h4 style="font-size:11px;font-weight:600;color:var(--muted);margin:0 0 10px;text-transform:uppercase;letter-spacing:.8px">Hạn công việc cần chú ý (${late.length + today.length})</h4>
+     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <h4 style="font-size:11px;font-weight:600;color:var(--muted);margin:0;text-transform:uppercase;letter-spacing:.8px">Hạn công việc cần chú ý (${late.length + today.length})</h4>
+      <button class="btn small" data-action="nav-attention-from-notif" style="font-size:10.5px;padding:2px 8px">Xem trang Cần chú ý</button>
+     </div>
      <div style="display:grid;gap:6px">`;
-    if(late.length) html += `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:12px;color:var(--red);background:var(--red-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(174,58,74,.15)"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('alert')}</span><span style="white-space:nowrap"><strong>${late.length}</strong> công việc đã quá hạn.</span></div>`;
-    if(today.length) html += `<div style="display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:12px;color:var(--amber);background:var(--amber-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(147,84,12,.15)"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('clock')}</span><span style="white-space:nowrap"><strong>${today.length}</strong> công việc đến hạn hôm nay.</span></div>`;
+    if(late.length) html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--red);background:var(--red-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(174,58,74,.15)"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('alert')}</span><span><strong>${late.length}</strong> công việc đã quá hạn.</span></div><button class="btn small" data-action="insight-late" style="font-size:10px;padding:2px 6px">Lọc</button></div>`;
+    if(today.length) html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--amber);background:var(--amber-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(147,84,12,.15)"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('clock')}</span><span><strong>${today.length}</strong> công việc đến hạn hôm nay.</span></div><button class="btn small" data-action="insight-today" style="font-size:10px;padding:2px 6px">Lọc</button></div>`;
     html += `</div></div>`;
    }
    html += `</div>`;
@@ -5726,14 +5747,12 @@ window.refreshNotificationBadge = async function() {
   try {
    const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
    const unreadCount = await window.NotificationService.getUnreadCount(orgId);
-   const all = readableTasks();
-   const attentionCount = all.filter(attention).length;
-   const hasNotification = unreadCount > 0 || attentionCount > 0;
+   const hasNotification = unreadCount > 0;
    
    if (dot) {
     dot.hidden = !hasNotification;
     if (hasNotification) {
-     if (badgeStyle !== 'dot' && unreadCount > 0) {
+     if (badgeStyle !== 'dot') {
       dot.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
       dot.className = 'notification-badge-count';
      } else {
@@ -5746,7 +5765,7 @@ window.refreshNotificationBadge = async function() {
     }
    }
    if (bell) {
-    bell.setAttribute('aria-label', `Thông báo: ${unreadCount} chưa đọc, ${attentionCount} việc cần chú ý`);
+    bell.setAttribute('aria-label', `Thông báo: ${unreadCount} chưa đọc`);
    }
   } catch (e) {
    console.warn('Lỗi refreshNotificationBadge:', e);
@@ -5955,6 +5974,52 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'delete-view':await deleteView(id);break;
    case 'command':openCommand();break;
    case 'notifications':openNotifications();break;
+   case 'notif-tab':{
+    window.__notifTab = el.dataset.tab;
+    await openNotifications(el.dataset.tab);
+    break;
+   }
+   case 'mark-read-cloud-notif':{
+    const notifId = el.dataset.id;
+    if (notifId && window.NotificationService) {
+     await window.NotificationService.markAsRead(notifId);
+     if (typeof window.refreshNotificationBadge === 'function') {
+      window.refreshNotificationBadge();
+     }
+     toast('Đã đánh dấu đã đọc');
+     await openNotifications(window.__notifTab);
+    }
+    break;
+   }
+   case 'delete-cloud-notif':{
+    const notifId = el.dataset.id;
+    if (notifId && window.NotificationService) {
+     await window.NotificationService.deleteNotification(notifId);
+     if (typeof window.refreshNotificationBadge === 'function') {
+      window.refreshNotificationBadge();
+     }
+     toast('Đã xóa thông báo');
+     await openNotifications(window.__notifTab);
+    }
+    break;
+   }
+   case 'clear-read-notifs':{
+    if (window.NotificationService) {
+     const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+     await window.NotificationService.clearReadNotifications(orgId);
+     if (typeof window.refreshNotificationBadge === 'function') {
+      window.refreshNotificationBadge();
+     }
+     toast('Đã dọn dẹp các thông báo đã đọc');
+     await openNotifications(window.__notifTab);
+    }
+    break;
+   }
+   case 'nav-attention-from-notif':{
+    closeDialog('infoDialog', true);
+    navigate('attention');
+    break;
+   }
    case 'open-cloud-notif':{
     const notifId = el.dataset.id;
     const rawTaskId = el.dataset.taskId;
@@ -5965,21 +6030,26 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
       window.refreshNotificationBadge();
      }
     }
-    closeDialog('infoDialog');
-    let targetTaskId = (taskId && byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : null);
-    if (taskId && !targetTaskId && window.__worktree_is_cloud_workspace) {
-     try {
-      const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
-      if (typeof window.syncCloudTasksQuietly === 'function' && orgId) {
-       await window.syncCloudTasksQuietly(orgId);
-       targetTaskId = (byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : null);
-      }
-     } catch (_) {}
-    }
-    if (targetTaskId && byTask.has(targetTaskId)) {
-     openDrawer(targetTaskId);
-    } else if (taskId) {
-     toast('Không tìm thấy công việc hoặc bạn chưa được cấp quyền truy cập.', 'warning');
+    if (taskId) {
+     closeDialog('infoDialog');
+     let targetTaskId = (taskId && byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : null);
+     if (taskId && !targetTaskId && window.__worktree_is_cloud_workspace) {
+      try {
+       const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+       if (typeof window.syncCloudTasksQuietly === 'function' && orgId) {
+        await window.syncCloudTasksQuietly(orgId);
+        targetTaskId = (byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : null);
+       }
+      } catch (_) {}
+     }
+     if (targetTaskId && byTask.has(targetTaskId)) {
+      openDrawer(targetTaskId);
+     } else {
+      toast('Không tìm thấy công việc hoặc bạn chưa được cấp quyền truy cập.', 'warning');
+     }
+    } else {
+     toast('Đã đánh dấu thông báo là đã đọc');
+     await openNotifications(window.__notifTab);
     }
     break;
    }
@@ -5991,7 +6061,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      if (typeof window.refreshNotificationBadge === 'function') {
       window.refreshNotificationBadge();
      }
-     await openNotifications();
+     await openNotifications(window.__notifTab);
     }
     break;
    }

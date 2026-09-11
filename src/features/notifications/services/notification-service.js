@@ -114,6 +114,28 @@ export const NotificationService = {
   },
 
   /**
+   * Xóa toàn bộ thông báo đã đọc của người dùng trong tổ chức.
+   */
+  async clearReadNotifications(orgId = null) {
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+
+    let query = sb
+      .from('notifications')
+      .delete()
+      .eq('user_id', user.id)
+      .not('read_at', 'is', null);
+
+    if (orgId) {
+      query = query.eq('organization_id', orgId);
+    }
+
+    const { error } = await query;
+    if (error) throw error;
+  },
+
+  /**
    * Lấy cấu hình thông báo cá nhân (notification_preferences).
    */
   async getPreferences() {
