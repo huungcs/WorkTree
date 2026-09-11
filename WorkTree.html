@@ -5897,9 +5897,20 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      }
     }
     closeDialog('infoDialog');
-    const targetTaskId = (taskId && byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : taskId);
+    let targetTaskId = (taskId && byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : null);
+    if (taskId && !targetTaskId && window.__worktree_is_cloud_workspace) {
+     try {
+      const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+      if (typeof window.syncCloudTasksQuietly === 'function' && orgId) {
+       await window.syncCloudTasksQuietly(orgId);
+       targetTaskId = (byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : null);
+      }
+     } catch (_) {}
+    }
     if (targetTaskId && byTask.has(targetTaskId)) {
      openDrawer(targetTaskId);
+    } else if (taskId) {
+     toast('Không tìm thấy công việc hoặc bạn chưa được cấp quyền truy cập.', 'warning');
     }
     break;
    }
