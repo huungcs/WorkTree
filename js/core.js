@@ -1288,6 +1288,13 @@ function openDrawer(id){
  showDialog('drawer');
  requestAnimationFrame(()=>$('drawerTitle')?.focus({preventScroll:true}));
 }
+function openTask(id){
+ return openDrawer(id);
+}
+if(typeof window !== 'undefined'){
+ window.openDrawer = openDrawer;
+ window.openTask = openDrawer;
+}
 
 function refreshDrawer(){
  if(!$('drawer').open||!byTask.has(drawerId))return;
@@ -3086,7 +3093,8 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'notifications':openNotifications();break;
    case 'open-cloud-notif':{
     const notifId = el.dataset.id;
-    const taskId = el.dataset.taskId;
+    const rawTaskId = el.dataset.taskId;
+    const taskId = (rawTaskId && !isNaN(rawTaskId)) ? Number(rawTaskId) : rawTaskId;
     if (notifId && window.NotificationService) {
      await window.NotificationService.markAsRead(notifId);
      if (typeof window.refreshNotificationBadge === 'function') {
@@ -3094,8 +3102,9 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      }
     }
     closeDialog('infoDialog');
-    if (taskId && byTask.has(taskId)) {
-     openTask(taskId);
+    const targetTaskId = (taskId && byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : taskId);
+    if (targetTaskId && byTask.has(targetTaskId)) {
+     openDrawer(targetTaskId);
     }
     break;
    }
