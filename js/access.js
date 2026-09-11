@@ -1849,6 +1849,7 @@ function safeSnapshot(){
  return clone({nodes,tasks:tasks.map(t=>({...t,dependencies:t.dependencies.filter(id=>canReadTask(byTask.get(id)))})),activities:data.activities.filter(canReadActivity)});
 }
 function permissionForAction(action,id){
+ if(['notif-tab','mark-read-cloud-notif','delete-cloud-notif','clear-read-notifs','mark-all-read','open-cloud-notif','notif-settings','nav-attention-from-notif','close','set-badge-style','test-sound','test-device-notification','notif-pref-toggle','notif-quiet-toggle','reminder-create','reminder-cancel','reminder-delete','cancel-manual-reminder','delete-manual-reminder','ignore'].includes(action))return true;
  if(['access','new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery'].includes(action))return isAdmin();
  if(action==='new-task')return canCreateTask();
  if(['edit-task','delete-task','duplicate-task'].includes(action))return canManageTask(byTask.get(id));
@@ -1922,8 +1923,9 @@ function handleV8Click(e){
  }
  if(a){
   const action=a.dataset.action;
+  if(action==='ignore')return;
   if(!currentAccount()){
-   if(action==='close'&&a.dataset.dialog==='passwordDialog')return;
+   if(action==='close'||['notif-tab','mark-read-cloud-notif','delete-cloud-notif','clear-read-notifs','mark-all-read','open-cloud-notif','notif-settings','nav-attention-from-notif'].includes(action))return;
    e.preventDefault();e.stopImmediatePropagation();return;
   }
   if(!requireLogin()){e.preventDefault();e.stopImmediatePropagation();return;}

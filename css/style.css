@@ -654,6 +654,10 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .notification-icon svg{width:15px;height:15px}
 .notification-item strong{font-size:11px;font-weight:550;display:block}
 .notification-item small{font-size:10px;color:var(--muted);display:block;margin-top:4px}
+.notif-item-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.notif-item-actions .tiny-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s ease}
+.notif-item-actions .tiny-btn:hover{background:var(--surface-3);border-color:var(--line-strong);transform:scale(1.05)}
+.notif-item-actions .tiny-btn:active{transform:scale(0.95)}
 .notif-settings-view .notif-setting-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
 .notif-settings-view .notif-setting-text{flex:1;min-width:0}
 .notif-settings-view .notif-setting-text strong{font-size:12px;font-weight:600;display:block;color:var(--text)}
