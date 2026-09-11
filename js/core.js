@@ -2872,7 +2872,7 @@ async function openNotificationSettings() {
      <div>
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Thời gian nhắc hẹn (Tự động cập nhật realtime) <span style="color:var(--red)">*</span></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-       <input id="manualReminderTime" type="datetime-local" class="field" value="${defaultTimeIso}" min="${minTimeIso}" oninput="window.updateManualReminderPreview(this.value)" style="flex:1;min-width:210px;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:12px;background:var(--surface);color:var(--text)">
+       <input id="manualReminderTime" type="datetime-local" class="field" value="${defaultTimeIso}" min="${minTimeIso}" oninput="window.updateManualReminderPreview(this.value)" style="flex:1;min-width:210px;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:13px;font-weight:600;text-align:center;letter-spacing:0.3px;background:var(--surface);color:var(--text)">
        <div style="display:flex;gap:4px;flex-wrap:wrap">
         <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="15" title="Hẹn sau 15 phút">+15p</button>
         <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="30" title="Hẹn sau 30 phút">+30p</button>

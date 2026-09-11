@@ -775,6 +775,10 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .notif-settings-view .notif-setting-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
 .notif-settings-view .notif-single-btn{flex-shrink:0}
 .notif-settings-view .notif-datetime-group{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.notif-settings-view #manualReminderTime{text-align:center!important;font-weight:600!important;letter-spacing:0.3px!important}
+.notif-settings-view #manualReminderTime::-webkit-datetime-edit{text-align:center!important;margin:0 auto!important;padding:0!important}
+.notif-settings-view #manualReminderTime::-webkit-datetime-edit-fields-wrapper{display:inline-flex!important;justify-content:center!important;text-align:center!important}
+.notif-settings-view #manualReminderTime::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.75}
 .notif-settings-view .notif-quick-presets{display:flex;gap:4px;flex-wrap:wrap}
 .notif-settings-view .notif-submit-wrap{display:flex;justify-content:flex-start;margin-top:4px}
 .help-shortcuts{display:grid;grid-template-columns:1fr 1fr;gap:8px 25px;margin:16px 0}
@@ -1260,7 +1264,9 @@ dialog.mobile-only:not([open]){display:none!important}
  .notif-settings-view .notif-create-section{padding:16px 14px!important;border-radius:14px!important}
  .notif-settings-view .notif-create-section input#manualReminderTitle{min-height:46px!important;font-size:14px!important;border-radius:9px!important}
  .notif-settings-view .notif-datetime-group{flex-direction:column!important;align-items:stretch!important;gap:8px!important;width:100%!important}
- .notif-settings-view input#manualReminderTime{width:100%!important;min-width:100%!important;min-height:46px!important;font-size:14px!important;border-radius:9px!important;box-sizing:border-box!important}
+  .notif-settings-view input#manualReminderTime{width:100%!important;min-width:100%!important;min-height:46px!important;font-size:14.5px!important;font-weight:600!important;text-align:center!important;border-radius:9px!important;box-sizing:border-box!important;letter-spacing:0.3px!important}
+  .notif-settings-view input#manualReminderTime::-webkit-datetime-edit{text-align:center!important;margin:0 auto!important}
+  .notif-settings-view input#manualReminderTime::-webkit-datetime-edit-fields-wrapper{display:inline-flex!important;justify-content:center!important;text-align:center!important}
  .notif-settings-view .notif-quick-presets{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:6px!important;width:100%!important}
  .notif-settings-view .notif-quick-presets .btn{width:100%!important;min-height:42px!important;justify-content:center!important;font-size:12px!important;font-weight:600!important;padding:6px 2px!important;border-radius:8px!important;box-sizing:border-box!important}
  .notif-settings-view .notif-submit-wrap{width:100%!important;margin-top:6px!important}
@@ -5840,7 +5846,7 @@ async function openNotificationSettings() {
      <div>
       <label style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Thời gian nhắc hẹn (Tự động cập nhật realtime) <span style="color:var(--red)">*</span></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-       <input id="manualReminderTime" type="datetime-local" class="field" value="${defaultTimeIso}" min="${minTimeIso}" oninput="window.updateManualReminderPreview(this.value)" style="flex:1;min-width:210px;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:12px;background:var(--surface);color:var(--text)">
+       <input id="manualReminderTime" type="datetime-local" class="field" value="${defaultTimeIso}" min="${minTimeIso}" oninput="window.updateManualReminderPreview(this.value)" style="flex:1;min-width:210px;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:13px;font-weight:600;text-align:center;letter-spacing:0.3px;background:var(--surface);color:var(--text)">
        <div style="display:flex;gap:4px;flex-wrap:wrap">
         <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="15" title="Hẹn sau 15 phút">+15p</button>
         <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="30" title="Hẹn sau 30 phút">+30p</button>
