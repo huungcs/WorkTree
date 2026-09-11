@@ -2534,7 +2534,7 @@ async function openNotifications(){
     notifications.forEach(n => {
      const isUnread = !n.read_at;
      const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
-     const iconName = n.kind === 'task_assigned' ? 'user' : n.kind === 'task_comment' ? 'message-square' : (n.kind === 'due_soon' || n.kind === 'overdue') ? 'alert' : 'bell';
+     const iconName = n.kind === 'task_assigned' ? 'user' : n.kind === 'task_comment' ? 'message-square' : n.kind === 'task_completed' ? 'check' : (n.kind === 'due_soon' || n.kind === 'overdue' || n.kind === 'task_status_changed') ? 'alert' : 'bell';
      html += `
       <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" style="cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px">
        <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px">${icon(iconName)}</span>
