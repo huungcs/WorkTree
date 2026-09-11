@@ -2478,13 +2478,13 @@ window.renderNotificationCenter = function(targetTab) {
   <div class="notif-center-view">
    <div class="notif-center-head">
     <div class="notif-center-tabs">
-     <button class="btn small" type="button" data-action="notif-tab" data-tab="unread" style="${activeTab === 'unread' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
-      Chưa đọc ${unreadCount > 0 ? `<span style="margin-left:4px;font-size:10px;padding:1px 6px;border-radius:10px;background:var(--red);color:#fff">${unreadCount}</span>` : ''}
+     <button class="btn small notif-tab-btn" type="button" data-action="notif-tab" data-tab="unread" style="${activeTab === 'unread' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
+      <span>Chưa đọc</span>${unreadCount > 0 ? `<span class="notif-badge ${activeTab === 'unread' ? 'on-active' : 'on-inactive'}">${unreadCount}</span>` : ''}
      </button>
-     <button class="btn small" type="button" data-action="notif-tab" data-tab="all" style="${activeTab === 'all' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
-      Tất cả (${notifications.length})
+     <button class="btn small notif-tab-btn" type="button" data-action="notif-tab" data-tab="all" style="${activeTab === 'all' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
+      <span>Tất cả</span><span class="notif-tab-count">(${notifications.length})</span>
      </button>
-     ${pendingReminders.length > 0 ? `<button class="tag" type="button" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
+     ${pendingReminders.length > 0 ? `<button class="tag notif-reminder-tag" type="button" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
     </div>
     <div class="notif-center-actions">
      ${unreadCount > 0 ? `<button class="btn small" type="button" data-action="mark-all-read" title="Đánh dấu tất cả thông báo là đã đọc">${icon('check')}Đã đọc tất cả</button>` : ''}
@@ -2496,14 +2496,14 @@ window.renderNotificationCenter = function(targetTab) {
 
  if (pendingReminders.length > 0) {
   html += `
-   <div style="margin-bottom:14px;padding:10px 12px;border-radius:8px;background:var(--amber-soft);border:1px solid rgba(147,84,12,.2)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-     <strong style="font-size:11.5px;color:var(--amber);display:flex;align-items:center;gap:6px">
+   <div class="notif-reminders-card">
+    <div class="notif-reminders-head">
+     <strong class="notif-reminders-title">
       ${icon('clock')}Lịch nhắc việc cá nhân đang chờ (${pendingReminders.length})
      </strong>
-     <button class="btn small" type="button" data-action="notif-settings" style="font-size:10px;padding:2px 8px;background:var(--surface)">+ Đặt thêm / Quản lý</button>
+     <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings">+ Đặt thêm / Quản lý</button>
     </div>
-    <div style="display:grid;gap:5px">
+    <div class="notif-reminders-list">
      ${pendingReminders.slice(0, 5).map(r => {
        const scheduledDate = new Date(r.scheduled_for);
        const dateStr = !isNaN(scheduledDate.getTime())
@@ -2522,9 +2522,14 @@ window.renderNotificationCenter = function(targetTab) {
         }
        }
        return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:6px;background:var(--surface);border:1px solid var(--line);gap:8px">
-         <span style="font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;flex:1">${esc(r.title)}</span>
-         <span style="font-size:10.5px;color:var(--muted);white-space:nowrap;flex-shrink:0">${dateStr} ${timeRel ? `<strong style="color:var(--amber)">(${timeRel})</strong>` : ''}</span>
+        <div class="notif-reminder-row" data-action="notif-settings" title="${esc(r.title)}">
+         <div class="notif-reminder-text">
+          <span class="notif-reminder-name">${esc(r.title)}</span>
+          <div class="notif-reminder-sub">
+           <span class="notif-reminder-time">${dateStr}</span>
+           ${timeRel ? `<span class="notif-reminder-rel">(${timeRel})</span>` : ''}
+          </div>
+         </div>
         </div>
        `;
      }).join('')}
@@ -2551,12 +2556,12 @@ window.renderNotificationCenter = function(targetTab) {
    html += `
     <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" style="position:relative;cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px;transition:all .15s ease">
      <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px;flex-shrink:0">${icon(iconName)}</span>
-     <div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-       <strong style="font-size:12px;color:var(--text);font-weight:${isUnread ? '650' : '500'}">${esc(n.title)}</strong>
-       <small style="color:var(--muted);font-size:10px;white-space:nowrap">${timeStr}</small>
+     <div class="notif-item-content" style="flex:1;min-width:0">
+      <strong class="notif-item-title" style="display:block;font-size:12px;color:var(--text);font-weight:${isUnread ? '650' : '500'};line-height:1.45">${esc(n.title)}</strong>
+      ${n.body ? `<p class="notif-item-body" style="font-size:11px;color:var(--subtle);margin:3px 0 0;line-height:1.5">${esc(n.body)}</p>` : ''}
+      <div class="notif-item-meta" style="display:flex;align-items:center;gap:4px;margin-top:6px;font-size:10px;color:var(--muted)">
+       <span class="notif-item-time" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--muted);white-space:nowrap">${icon('clock')}${timeStr}</span>
       </div>
-      <p style="font-size:11px;color:var(--subtle);margin:3px 0 0;line-height:1.5">${esc(n.body)}</p>
      </div>
      <div class="notif-item-actions" data-action="ignore" style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:6px">
       ${isUnread ? `<button class="tiny-btn" type="button" data-action="mark-read-cloud-notif" data-id="${n.id}" title="Đánh dấu đã đọc" aria-label="Đánh dấu đã đọc" style="padding:2px 6px;font-size:11px;color:var(--primary)">${icon('check')}</button>` : ''}

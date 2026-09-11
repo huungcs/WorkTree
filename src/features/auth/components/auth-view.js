@@ -746,7 +746,7 @@ export class AuthView {
     if (demoLoginBtn) {
       demoLoginBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        this.handleDemoLogin();
+        this.handleDemoLogin(demoLoginBtn);
       });
     }
 
@@ -754,7 +754,7 @@ export class AuthView {
     if (signupDemoBtn) {
       signupDemoBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        this.handleDemoLogin();
+        this.handleDemoLogin(signupDemoBtn);
       });
     }
   }
@@ -867,18 +867,18 @@ export class AuthView {
   /**
    * Xử lý Đăng nhập tài khoản Demo có sẵn dữ liệu (nguyentronghuu1905@gmail.com)
    */
-  async handleDemoLogin() {
+  async handleDemoLogin(triggerBtn = null) {
     if (this.isSubmitting) return;
 
     const demoEmail = 'nguyentronghuu1905@gmail.com';
-    const demoPassword = 'WorkTreeDemo2026@!';
+    const demoPasswords = ['WorkTreeDemo2026@!', 'nguyentronghuu1905@gmail.com'];
 
     const emailInput = document.getElementById('loginEmail');
     const passInput = document.getElementById('loginPassword');
     if (emailInput) emailInput.value = demoEmail;
-    if (passInput) passInput.value = '••••••••';
+    if (passInput) passInput.value = demoPasswords[0];
 
-    const demoBtn = this.container.querySelector('#demoLoginBtn');
+    const demoBtn = triggerBtn || this.container.querySelector('#demoLoginBtn') || this.container.querySelector('#signupDemoBtn');
     let originalHtml = '';
     if (demoBtn) {
       originalHtml = demoBtn.innerHTML;
@@ -887,9 +887,25 @@ export class AuthView {
 
     this.setSubmitting(true);
     try {
-      const data = await AuthService.signIn(demoEmail, demoPassword);
+      let data = null;
+      let lastErr = null;
+
+      for (const pwd of demoPasswords) {
+        try {
+          data = await AuthService.signIn(demoEmail, pwd);
+          if (data?.session) {
+            lastErr = null;
+            break;
+          }
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+
       if (data?.session) {
         this.onAuthenticated(data.session);
+      } else if (lastErr) {
+        throw lastErr;
       }
     } catch (err) {
       console.warn('Đăng nhập tài khoản demo thất bại:', err.message);
