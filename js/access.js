@@ -398,7 +398,7 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
     <p>${emp.employee_code ? `<span class="muted">[${esc(emp.employee_code)}]</span> ` : ''}${esc(jobText || 'Chưa phân phòng ban')}</p>
     <div style="margin-top:4px">${statusBadge}</div>
    </div>
-   <div class="account-ops" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+   <div class="account-ops employee-ops">
     ${opsHTML}
    </div>
   </article>`;

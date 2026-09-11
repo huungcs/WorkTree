@@ -854,7 +854,7 @@ html[data-density="compact"] .tree-node{min-height:29px}
 .pin-dialog{width:min(730px,94vw)}.pin-description{font-size:11px;color:var(--muted);line-height:1.8;margin:0 0 16px}.pin-manage-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}.pin-order{color:var(--subtle);font-size:11px;flex-shrink:0;width:19px}.pin-manage-open{background:transparent;border:0;text-align:left;flex:1;min-width:0;padding:4px;color:var(--text)}.pin-manage-open strong{font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pin-manage-open small{font-size:9px;color:var(--muted);display:block;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pin-manage-controls{display:flex;gap:2px;flex-shrink:0}.pin-manage-controls .icon-btn{width:26px;height:29px}.pin-manage-controls .icon{width:13px;height:13px}.pin-urgent-active{color:var(--amber)!important;background:var(--amber-soft)!important}.pin-picker-head{display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px}.pin-picker-head h3{font-size:13px;margin:0}.pin-picker-head span{font-size:9px;color:var(--muted)}.pin-search-results{max-height:260px;overflow:auto;margin-top:10px}.pin-search-result{display:flex;align-items:center;gap:10px;width:100%;padding:11px 6px;border:0;border-radius:8px;background:transparent;color:var(--text);text-align:left}.pin-search-result:hover{background:var(--surface-2)}.pin-search-result>span{flex:1;min-width:0}.pin-search-result strong{font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:550}.pin-search-result small{font-size:9px;color:var(--muted);display:block;margin-top:3px}.pin-search-result>.icon{width:14px;flex-shrink:0;color:var(--subtle)}.pin-undo{font-size:10px;margin-top:12px}.pin-undo .icon{height:13px;width:13px}
 @media(min-width:901px){.app{--side-width:278px;grid-template-columns:var(--side-width) minmax(0,1fr)}}
 @media(max-width:900px){.auth-screen{padding:24px}.auth-layout{grid-template-columns:1fr;max-width:520px;gap:0}.auth-story{display:none}.auth-card{margin:16px auto;padding:28px;max-width:500px}.auth-brand{max-width:500px;margin-bottom:15px}.auth-footer{max-width:500px}.auth-version{font-size:8px}.role-cards{grid-template-columns:repeat(2,1fr)}.tree-pin,.pin-remove{opacity:1}.focus-side .task-pin-btn{display:none}}
-@media(max-width:560px){.auth-screen{padding:20px 16px}.auth-card{padding:23px 20px;border-radius:17px}.auth-card-header h2{font-size:24px}.auth-card-header p{font-size:11px}.auth-fields{gap:12px}.auth-local-note{font-size:9px}.auth-footer{font-size:9px}.auth-version{letter-spacing:1px}.access-dialog,.pin-dialog{width:96vw}.access-banner{padding:18px}.access-banner h3{font-size:20px}.access-banner p{font-size:10px}.access-stat{padding:5px}.access-stat strong{font-size:28px}.access-toolbar{flex-direction:column;align-items:stretch}.account-row{gap:9px}.account-row>.avatar{width:29px;height:29px;font-size:9px}.account-main strong{font-size:12px}.account-main p{font-size:9px;overflow-wrap:anywhere}.account-main>small{font-size:9px}.account-ops{max-width:85px}.account-ops .icon-btn{width:24px}.access-tabs{gap:15px}.access-tabs button{font-size:10px}.account-main .role-badge{font-size:8px}.pin-manage-row{flex-wrap:wrap;gap:6px}.pin-manage-open{min-width:calc(100% - 35px)}.pin-manage-controls{margin-left:25px}.pin-manage-controls .icon-btn{height:33px;width:34px}.profile-actions{grid-template-columns:1fr}.scope-option>small{display:none}.scope-option{font-size:10px}.role-cards article{padding:10px}.role-cards{gap:7px}.auth-layout{align-items:start}}
+@media(max-width:560px){.auth-screen{padding:20px 16px}.auth-card{padding:23px 20px;border-radius:17px}.auth-card-header h2{font-size:24px}.auth-card-header p{font-size:11px}.auth-fields{gap:12px}.auth-local-note{font-size:9px}.auth-footer{font-size:9px}.auth-version{letter-spacing:1px}.access-dialog,.pin-dialog{width:96vw}.access-banner{padding:18px}.access-banner h3{font-size:20px}.access-banner p{font-size:10px}.access-stat{padding:5px}.access-stat strong{font-size:28px}.access-toolbar{flex-direction:column;align-items:stretch}.account-row{gap:9px}.account-row>.avatar{width:29px;height:29px;font-size:9px}.account-main strong{font-size:12px}.account-main p{font-size:9px;overflow-wrap:anywhere}.account-main>small{font-size:9px}.account-ops:not(.employee-ops){max-width:85px}.account-ops .icon-btn{width:24px}.access-tabs{gap:15px}.access-tabs button{font-size:10px}.account-main .role-badge{font-size:8px}.pin-manage-row{flex-wrap:wrap;gap:6px}.pin-manage-open{min-width:calc(100% - 35px)}.pin-manage-controls{margin-left:25px}.pin-manage-controls .icon-btn{height:33px;width:34px}.profile-actions{grid-template-columns:1fr}.scope-option>small{display:none}.scope-option{font-size:10px}.role-cards article{padding:10px}.role-cards{gap:7px}.auth-layout{align-items:start}}
 @media(prefers-reduced-motion:reduce){.auth-illustration{transform:none}}
 #accountDialog{width:700px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 48px);box-sizing:border-box}
 #accountDialog[open]{display:flex;flex-direction:column;overflow:hidden}
@@ -1550,6 +1550,86 @@ div[class*="onesignal-slidedown"] {
 .account-row .account-main[data-v8="employee-detail"]:hover strong {
   color: var(--primary-text);
   transition: color 0.15s ease;
+}
+
+.account-ops.employee-ops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+.account-ops.employee-ops .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .account-row {
+    display: grid !important;
+    grid-template-columns: 36px minmax(0, 1fr) !important;
+    gap: 8px 12px !important;
+    align-items: start !important;
+  }
+  .account-row > .avatar {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+  .account-row > .account-main {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+  }
+  .account-ops:not(.employee-ops) {
+    max-width: 85px !important;
+  }
+  .account-row .account-ops.employee-ops,
+  .account-row .employee-ops {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 8px 0 0 0 !important;
+    padding: 2px 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .account-row .account-ops.employee-ops::-webkit-scrollbar,
+  .account-row .employee-ops::-webkit-scrollbar {
+    display: none;
+  }
+  .account-row .account-ops.employee-ops .btn,
+  .account-row .employee-ops .btn {
+    flex: 1 1 0 !important;
+    min-width: fit-content !important;
+    white-space: nowrap !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    font-size: 12px !important;
+    padding: 7px 10px !important;
+    min-height: 36px !important;
+    border-radius: 8px !important;
+    box-sizing: border-box !important;
+  }
+  .account-row .account-ops.employee-ops .btn .icon,
+  .account-row .employee-ops .btn .icon,
+  .account-row .account-ops.employee-ops .btn svg,
+  .account-row .employee-ops .btn svg {
+    width: 14px !important;
+    height: 14px !important;
+    flex-shrink: 0 !important;
+    margin-right: 4px !important;
+  }
 }
 
 
@@ -6984,7 +7064,7 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
     <p>${emp.employee_code ? `<span class="muted">[${esc(emp.employee_code)}]</span> ` : ''}${esc(jobText || 'Chưa phân phòng ban')}</p>
     <div style="margin-top:4px">${statusBadge}</div>
    </div>
-   <div class="account-ops" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+   <div class="account-ops employee-ops">
     ${opsHTML}
    </div>
   </article>`;
