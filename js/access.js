@@ -1272,11 +1272,11 @@ async function openEmployeeDetailsDialog(employeeId){
     ` : '<p class="muted" style="margin:0;">Chưa phân bổ phạm vi cụ thể.</p>'}
    </div>
   </div>
-  <div class="dialog-foot" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+  <div class="dialog-foot employee-detail-foot">
+   <div class="employee-detail-actions">
     ${actionButtons}
    </div>
-   <button type="button" class="btn" data-action="close" data-dialog="accountDialog">Đóng</button>
+   <button type="button" class="btn employee-detail-close" data-action="close" data-dialog="accountDialog">Đóng</button>
   </div>
  `;
 
