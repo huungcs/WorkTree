@@ -2476,8 +2476,8 @@ window.renderNotificationCenter = function(targetTab) {
 
  let html = `
   <div class="notif-center-view">
-   <div class="notif-center-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
-    <div class="notif-center-tabs" style="display:flex;align-items:center;gap:6px">
+   <div class="notif-center-head">
+    <div class="notif-center-tabs">
      <button class="btn small" type="button" data-action="notif-tab" data-tab="unread" style="${activeTab === 'unread' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
       Chưa đọc ${unreadCount > 0 ? `<span style="margin-left:4px;font-size:10px;padding:1px 6px;border-radius:10px;background:var(--red);color:#fff">${unreadCount}</span>` : ''}
      </button>
@@ -2486,7 +2486,7 @@ window.renderNotificationCenter = function(targetTab) {
      </button>
      ${pendingReminders.length > 0 ? `<button class="tag" type="button" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}
     </div>
-    <div class="notif-center-actions" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <div class="notif-center-actions">
      ${unreadCount > 0 ? `<button class="btn small" type="button" data-action="mark-all-read" title="Đánh dấu tất cả thông báo là đã đọc">${icon('check')}Đã đọc tất cả</button>` : ''}
      ${hasReadNotifications ? `<button class="btn small" type="button" data-action="clear-read-notifs" title="Xóa toàn bộ các thông báo đã đọc">${icon('trash')}Dọn sạch đã đọc</button>` : ''}
      <button class="btn small" type="button" data-action="notif-settings" title="Lịch nhắc & Cài đặt">${icon('clock')}Lịch nhắc</button>

@@ -1197,7 +1197,8 @@ async function openEmployeeDetailsDialog(employeeId){
  $('accountContent').innerHTML = `
   <div class="dialog-head">
    <div>
-    <h3 id="accountTitle">Thông tin tài khoản nhân sự</h3>
+    <p class="overline">HỒ SƠ NHÂN SỰ</p>
+    <h2 id="accountTitle">Thông tin tài khoản nhân sự</h2>
     <p class="dialog-sub">Chi tiết hồ sơ nhân sự và trạng thái tài khoản truy cập</p>
    </div>
    <button type="button" class="icon-btn" data-action="close" data-dialog="accountDialog" aria-label="Đóng">${icon('x')}</button>
