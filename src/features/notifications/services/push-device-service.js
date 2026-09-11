@@ -8,6 +8,8 @@ import { getSupabase } from '../../../lib/supabase/client.js';
 
 let isInitialized = false;
 let currentAppId = null;
+let initializationPromise = null;
+let oneSignalSdk = null;
 
 export const PushDeviceService = {
   /**
@@ -43,22 +45,23 @@ export const PushDeviceService = {
     if (isInitialized && currentAppId === appId) {
       return true;
     }
+    if (initializationPromise && currentAppId === appId) {
+      return initializationPromise;
+    }
 
     currentAppId = appId;
 
     try {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
-      
-      // Tải script OneSignal nếu chưa có
-      if (!document.getElementById('onesignal-sdk')) {
-        const script = document.createElement('script');
-        script.id = 'onesignal-sdk';
-        script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
-        script.defer = true;
-        document.head.appendChild(script);
-      }
 
-      await new Promise((resolve) => {
+      initializationPromise = new Promise((resolve) => {
+        let settled = false;
+        const finish = (result) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+
         window.OneSignalDeferred.push(async function (OneSignal) {
           try {
             await OneSignal.init({
@@ -79,6 +82,7 @@ export const PushDeviceService = {
             });
 
             isInitialized = true;
+            oneSignalSdk = OneSignal;
             console.info('[Push] OneSignal SDK khởi tạo thành công.');
 
             // Setup observer to intercept any OneSignal prompt rendering
@@ -92,7 +96,7 @@ export const PushDeviceService = {
               }
             });
 
-            resolve(true);
+            finish(true);
           } catch (initErr) {
             const isDomainMismatch = String(initErr?.message || initErr).includes('Can only be used on');
             if (isDomainMismatch) {
@@ -100,13 +104,28 @@ export const PushDeviceService = {
             } else {
               console.warn('[Push] Lỗi khởi tạo OneSignal:', initErr);
             }
-            resolve(false);
+            finish(false);
           }
         });
+
+        // Tải script OneSignal nếu chưa có
+        if (!document.getElementById('onesignal-sdk')) {
+          const script = document.createElement('script');
+          script.id = 'onesignal-sdk';
+          script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+          script.defer = true;
+          script.addEventListener('error', () => finish(false), { once: true });
+          document.head.appendChild(script);
+        }
+
+        setTimeout(() => finish(false), 15000);
       });
 
-      return isInitialized;
+      const initialized = await initializationPromise;
+      if (!initialized) initializationPromise = null;
+      return initialized;
     } catch (err) {
+      initializationPromise = null;
       console.warn('[Push] Không thể nạp OneSignal SDK:', err);
       return false;
     }
@@ -116,22 +135,18 @@ export const PushDeviceService = {
    * Đồng bộ tài khoản người dùng đăng nhập với OneSignal (External ID)
    */
   async loginUser(userId) {
-    if (!userId || !isInitialized) return;
+    if (!userId) return false;
     try {
-      if (window.OneSignalDeferred) {
-        window.OneSignalDeferred.push(async function (OneSignal) {
-          try {
-            if (!OneSignal || typeof OneSignal.login !== 'function') return;
-            await OneSignal.login(userId);
-            console.info('[Push] Đã liên kết tài khoản với OneSignal:', userId);
-            await PushDeviceService.syncCurrentDevice();
-          } catch (e) {
-            console.warn('[Push] OneSignal.login error:', e);
-          }
-        });
-      }
+      const initialized = isInitialized || await this.initOneSignal();
+      if (!initialized || !oneSignalSdk || typeof oneSignalSdk.login !== 'function') return false;
+
+      await oneSignalSdk.login(userId);
+      console.info('[Push] Đã liên kết tài khoản với OneSignal:', userId);
+      await this.syncCurrentDevice();
+      return true;
     } catch (err) {
-      console.warn('[Push] Lỗi loginUser:', err);
+      console.warn('[Push] OneSignal.login error:', err);
+      return false;
     }
   },
 
@@ -139,19 +154,11 @@ export const PushDeviceService = {
    * Đăng xuất OneSignal khi người dùng đăng xuất WorkTree X
    */
   async logoutUser() {
-    if (!isInitialized) return;
+    if (!isInitialized || !oneSignalSdk) return;
     try {
-      if (window.OneSignalDeferred) {
-        window.OneSignalDeferred.push(async function (OneSignal) {
-          try {
-            if (!OneSignal || typeof OneSignal.logout !== 'function') return;
-            await OneSignal.logout();
-            console.info('[Push] Đã hủy liên kết tài khoản OneSignal.');
-          } catch (e) {
-            console.warn('[Push] OneSignal.logout error:', e);
-          }
-        });
-      }
+      if (typeof oneSignalSdk.logout !== 'function') return;
+      await oneSignalSdk.logout();
+      console.info('[Push] Đã hủy liên kết tài khoản OneSignal.');
     } catch (err) {
       console.warn('[Push] Lỗi logoutUser:', err);
     }
@@ -177,20 +184,18 @@ export const PushDeviceService = {
       const granted = permResult === 'granted';
 
       if (granted) {
+        const initialized = isInitialized || await this.initOneSignal();
+
         // 2. Kích hoạt optIn ngầm trên OneSignal (tuyệt đối không mở UI popup của OneSignal)
-        if (window.OneSignalDeferred) {
-          window.OneSignalDeferred.push(async function (OneSignal) {
-            try {
-              if (OneSignal?.User?.PushSubscription?.optIn) {
-                await Promise.race([
-                  OneSignal.User.PushSubscription.optIn(),
-                  new Promise(res => setTimeout(res, 2500))
-                ]);
-              }
-            } catch (e) {
-              console.warn('[Push] OneSignal optIn note:', e);
-            }
-          });
+        if (initialized && oneSignalSdk?.User?.PushSubscription?.optIn) {
+          try {
+            await Promise.race([
+              oneSignalSdk.User.PushSubscription.optIn(),
+              new Promise(res => setTimeout(res, 2500))
+            ]);
+          } catch (e) {
+            console.warn('[Push] OneSignal optIn note:', e);
+          }
         }
 
         // 3. Đồng bộ thiết bị vào Supabase trong nền (timeout 3.5s)
@@ -216,21 +221,11 @@ export const PushDeviceService = {
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return null;
 
-      let playerId = null;
-      let pushToken = null;
-
-      if (window.OneSignal) {
-        playerId = window.OneSignal.User?.PushSubscription?.id || null;
-        pushToken = window.OneSignal.User?.PushSubscription?.token || null;
-      }
-
-      if (!playerId) {
-        // Fallback: Generate or get a persistent local device ID if OneSignal subscription is pending
-        playerId = localStorage.getItem('wtx_push_device_id');
-        if (!playerId) {
-          playerId = 'web-' + crypto.randomUUID();
-          localStorage.setItem('wtx_push_device_id', playerId);
-        }
+      const subscription = oneSignalSdk?.User?.PushSubscription;
+      const subscriptionId = subscription?.id || null;
+      if (!subscriptionId || subscription?.optedIn !== true) {
+        console.info('[Push] Chưa có OneSignal Subscription ID đang opt-in; chưa đăng ký thiết bị.');
+        return null;
       }
 
       const deviceType = /iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -240,7 +235,7 @@ export const PushDeviceService = {
         : 'web';
 
       const { data, error } = await sb.rpc('register_push_device', {
-        p_subscription_id: playerId,
+        p_subscription_id: subscriptionId,
         p_platform: deviceType,
         p_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
         p_device_label: 'Web Browser'
@@ -251,7 +246,7 @@ export const PushDeviceService = {
         return null;
       }
 
-      console.info('[Push] Thiết bị đã được ghi nhận vào Supabase Cloud:', playerId);
+      console.info('[Push] Thiết bị đã được ghi nhận vào Supabase Cloud:', subscriptionId);
       return data;
     } catch (err) {
       console.warn('[Push] Lỗi syncCurrentDevice:', err);
@@ -265,7 +260,7 @@ export const PushDeviceService = {
   async unregisterDevice(playerId = null) {
     try {
       const sb = await getSupabase();
-      const targetId = playerId || localStorage.getItem('wtx_push_device_id') || window.OneSignal?.User?.PushSubscription?.id;
+      const targetId = playerId || oneSignalSdk?.User?.PushSubscription?.id;
       if (!targetId) return;
 
       await sb.rpc('unregister_push_device', {

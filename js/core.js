@@ -2472,7 +2472,7 @@ async function openNotifications(){
     let html = `
      <div class="notif-center-view">
       <div class="notif-center-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap">
-       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+       <div class="notif-center-tags" style="display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:wrap">
         <span class="tag" style="background:var(--primary-soft);color:var(--primary-text);font-weight:600">${notifications.length} thông báo</span>
         ${unreadCount > 0 ? `<span class="tag" style="background:var(--red-soft);color:var(--red)">${unreadCount} chưa đọc</span>` : ''}
         ${pendingReminders.length > 0 ? `<button class="tag" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn chờ</button>` : ''}

@@ -714,8 +714,9 @@ export async function bootstrapAuthenticatedUser(user, session) {
 
       // Khởi tạo OneSignal Web Push / PWA
       if (typeof PushDeviceService.initOneSignal === 'function') {
-        PushDeviceService.initOneSignal().catch(err => console.warn('[Push] init error:', err));
-        PushDeviceService.loginUser(user.id).catch(err => console.warn('[Push] login error:', err));
+        PushDeviceService.initOneSignal()
+          .then(initialized => initialized ? PushDeviceService.loginUser(user.id) : false)
+          .catch(err => console.warn('[Push] init/login error:', err));
 
         // Hiển thị card xin quyền thông báo tinh tế chuẩn Design System sau khi workspace sẵn sàng
         setTimeout(() => {

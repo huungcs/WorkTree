@@ -165,7 +165,7 @@ c:\Users\ASUS\Desktop\WorkTree\
 - `src/lib/supabase/`: ✅ Đã chuẩn hóa khớp schema 100%. File `src/lib/supabase/repositories.js` đã được căn chỉnh toàn bộ tên cột (`type`, `archived_at`, `primary_assignee_id`, `position`, `node_id`, `task_id`).
 - `supabase/`: ✅ Đã triển khai.
 - `supabase/migrations/`: ✅ Đã triển khai đầy đủ 9 migration files.
-- `supabase/functions/`: ✅ Đã triển khai 4 functions (`invite-employee`, `organization-onboarding`, `billing-webhook`, `notification-dispatch`).
+- `supabase/functions/`: 🟡 Có source 4 functions (`invite-employee`, `organization-onboarding`, `billing-webhook`, `notification-dispatch`); riêng `notification-dispatch` cần deploy production, cấu hình OneSignal secrets và xác minh cron theo `docs/operations/NOTIFICATION_PUSH.md`.
 - `supabase/tests/`: ✅ Đã triển khai và chuẩn hóa. Các file SQL test đã chạy thực tế PASS 100% trên remote database.
 - `e2e/`: 🟡 Đang triển khai / một phần. Đã có file `.spec.js` dạng describe stub, chưa có test runner (Playwright/Cypress).
 - `docs/`: ✅ Đã triển khai đầy đủ 100%.
@@ -245,7 +245,7 @@ c:\Users\ASUS\Desktop\WorkTree\
   - `is_org_member(org_id)`, `has_org_role(org_id, role)`, `can_read_task_id(task_id)`.
 - **Realtime Integration:** Bật trên 8 bảng (`tasks`, `task_checklist_items`, `task_dependencies`, `task_comments`, `task_time_entries`, `task_attachments`, `organization_nodes`, `employees`). Bảo vệ bằng Private Channels (`config: { private: true }`) và RLS trên `realtime.messages`.
 - **Storage Bucket:** Canonical bucket `worktree-files` (Private, 50MB size limit) có 4 RLS policies trên `storage.objects` bảo vệ chống cross-tenant download/upload.
-- **Edge Functions:** 4 functions (`invite-employee`, `organization-onboarding`, `billing-webhook`, `notification-dispatch`).
+- **Edge Functions:** Source có 4 functions (`invite-employee`, `organization-onboarding`, `billing-webhook`, `notification-dispatch`); trạng thái deploy phải được xác minh theo từng môi trường.
 
 ---
 

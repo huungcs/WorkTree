@@ -70,50 +70,44 @@ Execution: **70/70 statements applied successfully** via `apply_step11_migration
    - `recipient_user_id` (UUID FK -> auth.users.id, ON DELETE CASCADE)
    - `actor_user_id` (UUID NULL FK -> auth.users.id, ON DELETE SET NULL)
    - `task_id` (UUID NULL FK -> tasks.id, ON DELETE CASCADE)
-   - `type` (TEXT: task_assigned, task_completed, task_due_soon, task_overdue, comment_added, reminder)
+   - `kind` (TEXT: task_assigned, task_completed, task_due_soon, task_overdue, task_comment, reminder)
    - `title` (TEXT NOT NULL)
    - `body` (TEXT NOT NULL)
-   - `data` (JSONB NOT NULL DEFAULT '{}')
+   - `metadata` (JSONB NOT NULL DEFAULT '{}')
    - `read_at` (TIMESTAMPTZ NULL)
-   - `status` (TEXT NOT NULL DEFAULT 'unread' CHECK in ('unread', 'read', 'archived'))
    - `created_at` (TIMESTAMPTZ NOT NULL DEFAULT now())
-   - `updated_at` (TIMESTAMPTZ NOT NULL DEFAULT now())
 2. `public.notification_preferences`:
    - `user_id` (UUID PK FK -> auth.users.id, ON DELETE CASCADE)
-   - `in_app_enabled` (BOOLEAN NOT NULL DEFAULT true)
-   - `push_enabled` (BOOLEAN NOT NULL DEFAULT true)
-   - `email_enabled` (BOOLEAN NOT NULL DEFAULT false)
-   - `notify_on_assignment` (BOOLEAN NOT NULL DEFAULT true)
-   - `notify_on_comment` (BOOLEAN NOT NULL DEFAULT true)
-   - `notify_on_due_date` (BOOLEAN NOT NULL DEFAULT true)
+   - `task_assigned_push`, `due_soon_push`, `overdue_push`, `comment_push`, `manual_reminder_push` (BOOLEAN NOT NULL DEFAULT true)
    - `quiet_hours_enabled` (BOOLEAN NOT NULL DEFAULT false)
-   - `quiet_hours_start` (SMALLINT NOT NULL DEFAULT 22 CHECK (quiet_hours_start BETWEEN 0 AND 23))
-   - `quiet_hours_end` (SMALLINT NOT NULL DEFAULT 7 CHECK (quiet_hours_end BETWEEN 0 AND 23))
+   - `quiet_hours_start` (TEXT NOT NULL DEFAULT '22:00')
+   - `quiet_hours_end` (TEXT NOT NULL DEFAULT '07:00')
    - `timezone` (TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh')
    - `created_at`, `updated_at`
 3. `public.push_devices`:
-   - `id` (UUID PK, gen_random_uuid())
+   - `subscription_id` (TEXT PRIMARY KEY, OneSignal subscription ID)
    - `user_id` (UUID NOT NULL FK -> auth.users.id, ON DELETE CASCADE)
-   - `player_id` (TEXT NOT NULL UNIQUE)
-   - `device_type` (TEXT NOT NULL CHECK (device_type IN ('web_push', 'android', 'ios', 'pwa')))
-   - `is_enabled` (BOOLEAN NOT NULL DEFAULT true)
+   - `platform` (TEXT NOT NULL DEFAULT 'web')
+   - `enabled` (BOOLEAN NOT NULL DEFAULT true)
    - `user_agent` (TEXT NULL)
+   - `device_label` (TEXT NULL)
    - `last_seen_at` (TIMESTAMPTZ NOT NULL DEFAULT now())
-   - `created_at`, `updated_at`
+   - `created_at`
 4. `public.notification_jobs`:
    - `id` (UUID PK, gen_random_uuid())
    - `organization_id` (UUID NOT NULL FK -> organizations.id, ON DELETE CASCADE)
    - `recipient_user_id` (UUID NOT NULL FK -> auth.users.id, ON DELETE CASCADE)
-   - `notification_id` (UUID NULL FK -> notifications.id, ON DELETE SET NULL)
-   - `job_type` (TEXT NOT NULL CHECK (job_type IN ('push_dispatch', 'due_date_reminder', 'manual_reminder')))
-   - `payload` (JSONB NOT NULL DEFAULT '{}')
-   - `status` (TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')))
+   - `notification_id` (UUID NULL FK -> notifications.id, ON DELETE CASCADE)
+   - `task_id` (UUID NULL FK -> tasks.id, ON DELETE CASCADE)
+   - `job_type` (TEXT: `push_dispatch`, `due_soon_reminder`, `overdue_reminder`, `manual_reminder`)
+   - `metadata` (JSONB NOT NULL DEFAULT '{}')
+   - `status` (TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'cancelled')))
    - `scheduled_for` (TIMESTAMPTZ NOT NULL DEFAULT now())
    - `attempt_count` (INT NOT NULL DEFAULT 0)
    - `max_attempts` (INT NOT NULL DEFAULT 3)
    - `last_error` (TEXT NULL)
-   - `locked_at` (TIMESTAMPTZ NULL)
-   - `locked_by` (TEXT NULL)
+   - `last_error_code` (TEXT NULL)
+   - `idempotency_key` (UUID NOT NULL)
    - `created_at`, `updated_at`
 5. `public.manual_reminders`:
    - `id` (UUID PK, gen_random_uuid())
@@ -193,17 +187,17 @@ In conformance with `AGENTS.md` and Step 10 Realtime requirements:
 
 Location: `supabase/functions/notification-dispatch/index.ts`
 Key Responsibilities:
-1. Claims pending notification jobs using `claim_notification_jobs(workerId, 25)`.
+1. Claims pending notification jobs using `claim_notification_jobs(p_batch_size)`.
 2. Inspects recipient's `notification_preferences` for:
    - Push enabled state.
    - Quiet hours evaluation in the recipient's timezone.
-3. Retrieves active `push_devices` for recipient (`player_id` from OneSignal).
+3. Retrieves active `push_devices` for recipient (`subscription_id` from OneSignal).
 4. Dispatches push request to OneSignal REST API v16:
-   - Endpoint: `https://onesignal.com/api/v1/notifications`
+   - Endpoint: `https://api.onesignal.com/notifications`
    - Headers: `Authorization: Key <ONESIGNAL_REST_API_KEY>`, `Content-Type: application/json`
-   - Target: `include_player_ids: [playerIds]`
+   - Target: `include_subscription_ids: [subscriptionIds]`
    - Payload: Title, Body, App Icon, URL deep-link to task/view.
-5. On success: marks job as `completed`.
+5. On success: marks job as `sent`.
 6. On error: increments attempt, records `last_error`, backs off, or marks `failed` if `attempt_count >= max_attempts`.
 7. Broadcasts invalidation signal to Supabase Realtime channel `user:<recipient_id>:notifications`.
 
@@ -224,7 +218,7 @@ Key Responsibilities:
    - Requests native Notification permission (`Notification.requestPermission()`).
    - Syncs OneSignal Player ID / Subscription ID with `public.push_devices`.
    - Cleans up device registration upon user logout.
-   - Provides graceful fallback and simulation mode when running without external API keys.
+   - Persists only real, opted-in OneSignal subscription IDs; no simulated device fallback.
 3. **Cloud Notification Center UI** (`js/core.js`):
    - Desktop Bell button in topbar with dynamic unread dot indicator (`#notificationDot`).
    - Popover dialog (`#infoDialog` styled as `#notificationDialog`) with tabs: Tất cả, Chưa đọc.
@@ -305,10 +299,9 @@ Following initial deployment to `worktree.nguyentronghuu.com` on Vercel, extensi
 | Component | Status | Verification Result |
 | :--- | :--- | :--- |
 | **Cloud Notification Center** | PASS | Popover opens, badges sync via Realtime, unread count accurate |
-| **OneSignal Push Notifications** | PASS | PWA ServiceWorker active, background optIn works, no freeze |
+| **OneSignal Push Notifications** | SOURCE PASS / DEPLOY PENDING | Client/dispatcher contracts pass locally; production requires Edge Function secrets, deployment and cron verification |
 | **Push Prompt UI Aesthetics** | PASS | Native WorkTree X card, top-right floating, OneSignal popup 100% suppressed |
 | **Task Status Updates** | PASS | Postgres enum errors eliminated, trigger fixed, dependency guards enforced |
 | **Comment Submission** | PASS | Comments save to cloud, realtime invalidates, avatars render with 0 errors |
 | **Attachment Management** | PASS | Uploads succeed, auth.uid() mapped, binary downloads authenticated |
-| **Vercel Production Deploy** | PASS | Bundle generated cleanly, synced to `https://github.com/huungcs/WorkTree.git` |
-
+| **Vercel Production Deploy** | REVERIFY | Current local notification fixes must be pushed and deployed before production verification |
