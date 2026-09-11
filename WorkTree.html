@@ -875,33 +875,29 @@ html[data-density="compact"] .tree-node{min-height:29px}
 .scope-picker,
 #accountForm .scope-picker,
 #addEmployeeForm .scope-picker,
-#inviteExistingForm .scope-picker{width:100%;min-width:0;max-height:260px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:6px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);display:flex;flex-direction:column;gap:2px}
+#inviteExistingForm .scope-picker{width:100%;min-width:0;max-height:230px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:6px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .scope-option,
 #accountForm .scope-option,
 #addEmployeeForm .scope-option,
-#inviteExistingForm .scope-option{display:flex!important;align-items:center!important;gap:8px!important;width:100%!important;min-width:0!important;min-height:38px!important;padding-top:6px!important;padding-bottom:6px!important;padding-right:10px!important;border-radius:7px!important;cursor:pointer;font-size:12px!important;line-height:1.5!important;transition:background .12s ease,border-color .12s ease;border:1px solid transparent;user-select:none;box-sizing:border-box}
-.scope-option:hover,
-#accountForm .scope-option:hover,
-#addEmployeeForm .scope-option:hover,
-#inviteExistingForm .scope-option:hover{background:var(--surface-2)!important}
+#inviteExistingForm .scope-option{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;min-width:0;min-height:42px;padding:8px;font-size:11px;font-weight:400;line-height:1.6;border-radius:6px;cursor:pointer;box-sizing:border-box}
 .scope-option:has(>input:checked),
 #accountForm .scope-option:has(>input:checked),
 #addEmployeeForm .scope-option:has(>input:checked),
-#inviteExistingForm .scope-option:has(>input:checked){background:var(--primary-soft)!important;border-color:rgba(105,98,219,.22)!important}
-.scope-option input[type="checkbox"]{width:16px!important;min-width:16px!important;max-width:16px!important;height:16px!important;min-height:16px!important;flex:0 0 16px!important;margin:0!important;accent-color:var(--primary)!important;cursor:pointer}
-.scope-branch-guide{font-family:monospace,ui-monospace,sans-serif;font-size:12px;color:var(--muted);opacity:.6;flex-shrink:0;margin-right:2px;line-height:1}
-.scope-option-main{display:flex;align-items:center;gap:6px;min-width:0;flex:1}
-.scope-option-main .icon{width:15px;height:15px;flex-shrink:0;color:var(--muted)}
+#inviteExistingForm .scope-option:has(>input:checked){background:var(--primary-soft)}
+.scope-option:focus-within{background:var(--surface-3)}
+.scope-option:hover,
+#accountForm .scope-option:hover,
+#addEmployeeForm .scope-option:hover,
+#inviteExistingForm .scope-option:hover{background:var(--surface-2)}
+.scope-option input[type="checkbox"]{width:18px;min-width:18px;max-width:18px;height:18px;min-height:18px;flex:0 0 18px;margin:0;accent-color:var(--primary);cursor:pointer}
+.scope-option-main{display:flex;align-items:center;gap:7px;min-width:0;padding-left:var(--scope-indent,0px)}
+.scope-option-main .icon{width:14px;height:14px;flex-shrink:0;color:var(--muted)}
 .scope-option:has(>input:checked) .scope-option-main .icon{color:var(--primary-text)}
-.scope-option-name{min-width:0;overflow-wrap:anywhere;white-space:normal;color:var(--text);line-height:1.4}
-.scope-option.depth-0{background:var(--surface-2);margin-bottom:2px}
-.scope-option.depth-0 .scope-option-name{font-weight:700;font-size:12.5px}
-.scope-option.depth-1 .scope-option-name{font-weight:600}
-.scope-option.depth-2 .scope-option-name{font-weight:500}
-.scope-option-meta{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
-.scope-parent-tag{font-size:10px;color:var(--muted);background:var(--surface-3);padding:2px 7px;border-radius:5px;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
-.scope-option:has(>input:checked) .scope-parent-tag{background:rgba(105,98,219,.15);color:var(--primary-text)}
-.scope-type-badge{font-size:9.5px;color:var(--subtle);background:var(--surface-2);border:1px solid var(--line);padding:2px 6px;border-radius:5px;white-space:nowrap}
+.scope-option-name{min-width:0;overflow-wrap:anywhere;white-space:normal;color:var(--text);font-size:12px}
+.scope-option>small,
+#accountForm .scope-option>small,
+#addEmployeeForm .scope-option>small,
+#inviteExistingForm .scope-option>small{font-size:9.5px;color:var(--muted);white-space:nowrap;background:var(--surface-2);border:1px solid var(--line);padding:2px 6px;border-radius:5px}
 #accountContent>.dialog-foot,#accountForm .dialog-foot{background:var(--surface);border-top:1px solid var(--line);padding:14px 24px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:10px;box-sizing:border-box}
 #accountContent .dialog-foot .btn,#accountForm .dialog-foot .btn{min-height:38px}
 @media(max-width:600px){
@@ -914,9 +910,22 @@ html[data-density="compact"] .tree-node{min-height:29px}
  #accountForm .form-grid>.field{grid-column:1/-1;font-size:12px}
  #accountForm .field input:not([type="checkbox"]):not([type="radio"]),#accountForm .field select{font-size:16px;min-height:44px}
  #accountForm .account-force-change{font-size:12px;padding:11px;gap:9px}
- .scope-picker{max-height:230px;padding:5px}
- .scope-option{min-height:40px;padding-top:7px;padding-bottom:7px}
- .scope-parent-tag{max-width:110px}
+ .scope-picker,
+ #accountForm .scope-picker,
+ #addEmployeeForm .scope-picker,
+ #inviteExistingForm .scope-picker{max-height:230px;padding:5px}
+ .scope-option,
+ #accountForm .scope-option,
+ #addEmployeeForm .scope-option,
+ #inviteExistingForm .scope-option{grid-template-columns:18px minmax(0,1fr);min-height:44px;padding:8px 6px;gap:9px;font-size:12px}
+ .scope-option-main,
+ #accountForm .scope-option-main,
+ #addEmployeeForm .scope-option-main,
+ #inviteExistingForm .scope-option-main{padding-left:min(var(--scope-indent,0px),16px);gap:6px}
+ .scope-option>small,
+ #accountForm .scope-option>small,
+ #addEmployeeForm .scope-option>small,
+ #inviteExistingForm .scope-option>small{display:none}
  #accountForm .dialog-foot{padding:12px 16px;gap:8px}
  #accountForm .dialog-foot .btn{min-height:44px}
  #accountForm .field-hint,#accountForm .role-explanation p{font-size:11px}
@@ -1070,8 +1079,10 @@ dialog.mobile-only:not([open]){display:none!important}
  .field textarea{min-height:110px;line-height:1.6}.field-hint,#accountForm .field-hint{font-size:12px;line-height:1.65}
  .checkbox-label{min-height:48px;font-size:13px;gap:10px;line-height:1.6;cursor:pointer;align-items:center}.checkbox-label input{width:20px;height:20px;flex-shrink:0}
  .field input[type=checkbox],#accountForm input[type=checkbox]{height:20px;width:20px;min-width:20px;max-width:20px;flex:0 0 20px}
- #accountForm .account-force-change{font-size:13px;gap:10px;padding:12px;min-height:52px;display:flex}#accountForm .scope-picker{max-height:none;padding:4px;overflow:visible}
- #accountForm .scope-option{grid-template-columns:20px minmax(0,1fr);gap:10px;min-height:52px;font-size:13px;padding:10px 7px}#accountForm .scope-option>small{display:none}#accountForm .scope-option-main{padding-left:min(var(--scope-indent,0px),18px)}
+ #accountForm .account-force-change{font-size:13px;gap:10px;padding:12px;min-height:52px;display:flex}.scope-picker,#accountForm .scope-picker,#addEmployeeForm .scope-picker,#inviteExistingForm .scope-picker{max-height:240px;padding:4px;overflow-y:auto}
+ .scope-option,#accountForm .scope-option,#addEmployeeForm .scope-option,#inviteExistingForm .scope-option{grid-template-columns:20px minmax(0,1fr)!important;gap:10px;min-height:48px;font-size:13px;padding:8px 7px}
+ .scope-option>small,#accountForm .scope-option>small,#addEmployeeForm .scope-option>small,#inviteExistingForm .scope-option>small{display:none!important}
+ .scope-option-main,#accountForm .scope-option-main,#addEmployeeForm .scope-option-main,#inviteExistingForm .scope-option-main{padding-left:min(var(--scope-indent,0px),18px)!important}
  #accountForm .role-explanation p{font-size:12px}.scope-label{font-size:13px}.password-wrap>button{width:44px;height:44px;right:2px}
  .form-error{font-size:13px;line-height:1.7;padding:13px}.form-details summary{font-size:13px;min-height:48px;padding:12px 0}
  #taskForm .form-grid>.field{order:8}#taskForm .form-grid>.field:has(#tTitle){order:1}#taskForm .form-grid>.field:has(#tNode){order:2}#taskForm .form-grid>.field:has(#tOwner){order:3}#taskForm .form-grid>.field:has(#tPriority){order:4}#taskForm .form-grid>.field:has(#tDue){order:5}#taskForm .form-grid>.field:has(#tStatus){order:6}
@@ -7148,74 +7159,17 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
 
 function buildScopeTreeOptions(selectedIds = [], inputName = 'empScope') {
  const selectedSet = new Set((selectedIds || []).map(String));
- const rawNodes = data?.nodes || [];
- if (!rawNodes.length) return '<div class="scope-empty muted" style="padding:12px;text-align:center;font-size:12px">Chưa có dữ liệu cơ cấu tổ chức.</div>';
+ const nodes = data?.nodes || [];
+ if (!nodes.length) return '<div class="scope-empty muted" style="padding:12px;text-align:center;font-size:12px">Chưa có dữ liệu cơ cấu tổ chức.</div>';
 
- const nodeMap = new Map(rawNodes.map(n => [n.id, n]));
- const childrenMap = new Map();
- rawNodes.forEach(n => {
-  const p = n.parent;
-  if (!childrenMap.has(p)) childrenMap.set(p, []);
-  childrenMap.get(p).push(n);
- });
-
- const typePriority = { company: 0, department: 1, team: 2, project: 3, folder: 4 };
- for (const list of childrenMap.values()) {
-  list.sort((a, b) => (typePriority[a.type] ?? 9) - (typePriority[b.type] ?? 9) || a.name.localeCompare(b.name, 'vi'));
- }
-
- const roots = rawNodes.filter(n => n.parent === null || !nodeMap.has(n.parent));
- if (!roots.length && rawNodes.length) roots.push(rawNodes[0]);
-
- const orderedItems = [];
- function traverse(n, depth = 0, parentChain = [], isLastChild = false) {
-  orderedItems.push({ node: n, depth, parentChain, isLastChild });
-  const kids = childrenMap.get(n.id) || [];
-  kids.forEach((child, idx) => {
-   traverse(child, depth + 1, [...parentChain, n], idx === kids.length - 1);
-  });
- }
-
- roots.forEach((r, idx) => traverse(r, 0, [], idx === roots.length - 1));
-
- const seenIds = new Set(orderedItems.map(item => item.node.id));
- rawNodes.forEach(n => {
-  if (!seenIds.has(n.id)) {
-   orderedItems.push({ node: n, depth: 0, parentChain: [], isLastChild: true });
-  }
- });
-
- return orderedItems.map(({ node: n, depth, parentChain, isLastChild }) => {
-  const isChecked = selectedSet.has(String(n.id));
-  const fullPath = pathName(n.id) || n.name;
-  const indentPx = depth * 22;
-
-  const parentDept = parentChain.slice().reverse().find(p => p.type === 'department');
-  const parentName = parentDept ? parentDept.name : (parentChain.length ? parentChain[parentChain.length - 1].name : '');
-
-  let branchPrefix = '';
-  if (depth > 0) {
-   branchPrefix = `<span class="scope-branch-guide" aria-hidden="true">${isLastChild ? '└─' : '├─'}</span>`;
-  }
-
-  let deptBadgeHTML = '';
-  if (depth >= 2 && parentName && parentDept?.id !== n.id) {
-   deptBadgeHTML = `<span class="scope-parent-tag" title="Thuộc ${esc(parentName)}">thuộc ${esc(parentName)}</span>`;
-  }
-
-  return `<label class="scope-option depth-${depth}" data-scope-name="${esc(fold(fullPath))}" style="padding-left:${10 + indentPx}px">
-   <input type="checkbox" name="${esc(inputName)}" value="${esc(n.id)}" ${isChecked ? 'checked' : ''}>
-   <span class="scope-option-main">
-    ${branchPrefix}
-    ${icon(nodeIcon(n.type))}
-    <span class="scope-option-name">${esc(n.name)}</span>
-   </span>
-   <div class="scope-option-meta">
-    ${deptBadgeHTML}
-    <small class="scope-type-badge">${esc(TYPES[n.type] || n.type)}</small>
-   </div>
-  </label>`;
- }).join('');
+ return nodes.map(n => `<label class="scope-option" data-scope-name="${esc(fold(pathName(n.id)))}">
+  <input type="checkbox" name="${esc(inputName)}" value="${esc(n.id)}" ${selectedSet.has(String(n.id)) ? 'checked' : ''}>
+  <span class="scope-option-main" style="--scope-indent:${Math.min(36, (pathNodes(n.id).length - 1) * 10)}px">
+   ${icon(nodeIcon(n.type))}
+   <span class="scope-option-name">${esc(n.name)}</span>
+  </span>
+  <small>${esc(TYPES[n.type] || n.type)}</small>
+ </label>`).join('');
 }
 
 function openAddEmployeeDialog(){
