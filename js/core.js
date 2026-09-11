@@ -3611,7 +3611,6 @@ function boot(){
   if(++tick%15===0){
    checkDate();
    if(typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
-   if(typeof fetch === 'function') fetch('/api/push-dispatch', { method: 'POST' }).catch(() => {});
    if(window.__worktree_is_cloud_workspace && window.NotificationService){
     const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
     if(orgId){

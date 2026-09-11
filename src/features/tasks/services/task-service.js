@@ -10,11 +10,6 @@ import { appState } from '../../../app/state.js';
 // Per-task mutation version tracker to prevent out-of-order stale async writes
 const taskMutationVersions = new Map();
 
-function triggerPushDispatchQuietly() {
-  if (typeof fetch === 'function') {
-    fetch('/api/push-dispatch', { method: 'POST' }).catch(() => {});
-  }
-}
 
 export const DB_STATUS_TO_UI = {
   todo: 'Chưa làm',

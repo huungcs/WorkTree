@@ -84,6 +84,7 @@ module.exports = async function handler(req, res) {
           const title = notif?.title || '🔔 WorkTree X';
           const body = notif?.body || 'Bạn có công việc mới cần xử lý';
 
+          const topic = 'task_' + (job.task_id || notif?.task_id || job.id);
           const osRes = await fetch('https://api.onesignal.com/notifications', {
             method: 'POST',
             headers: {
@@ -95,6 +96,13 @@ module.exports = async function handler(req, res) {
               include_subscription_ids: subscriptionIds,
               headings: { en: title },
               contents: { en: body },
+              url: 'https://worktree.nguyentronghuu.com',
+              chrome_web_icon: 'https://worktree.nguyentronghuu.com/assets/icon-192.png',
+              chrome_web_badge: 'https://worktree.nguyentronghuu.com/assets/icon-192.png',
+              web_push_topic: topic,
+              collapse_id: topic,
+              priority: 10,
+              ttl: 259200,
               data: {
                 url: 'https://worktree.nguyentronghuu.com',
                 taskId: job.task_id || notif?.task_id || null,
