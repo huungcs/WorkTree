@@ -5064,8 +5064,51 @@ async function openNotifications(){
      </div>
     `;
 
+    if(pendingReminders.length > 0){
+     html += `
+      <div style="margin-bottom:14px;padding:10px 12px;border-radius:8px;background:var(--amber-soft);border:1px solid rgba(147,84,12,.2)">
+       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <strong style="font-size:11.5px;color:var(--amber);display:flex;align-items:center;gap:6px">
+         ${icon('clock')}Lịch nhắc việc cá nhân đang chờ (${pendingReminders.length})
+        </strong>
+        <button class="btn small" data-action="notif-settings" style="font-size:10px;padding:2px 8px;background:var(--surface)">+ Đặt thêm / Quản lý</button>
+       </div>
+       <div style="display:grid;gap:5px">
+        ${pendingReminders.slice(0, 5).map(r => {
+          const scheduledDate = new Date(r.scheduled_for);
+          const dateStr = !isNaN(scheduledDate.getTime())
+           ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(scheduledDate)
+           : r.scheduled_for;
+          let timeRel = '';
+          if (!isNaN(scheduledDate.getTime())) {
+           const diffMs = scheduledDate.getTime() - Date.now();
+           if (diffMs > 0) {
+            const diffMins = Math.round(diffMs / 60000);
+            if (diffMins < 60) timeRel = `còn ${diffMins} phút`;
+            else if (diffMins < 1440) timeRel = `còn ~${Math.round(diffMins / 60)} giờ`;
+            else timeRel = `còn ~${Math.round(diffMins / 1440)} ngày`;
+           } else {
+            timeRel = 'đã đến giờ';
+           }
+          }
+          return `
+           <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:6px;background:var(--surface);border:1px solid var(--line);gap:8px">
+            <span style="font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;flex:1">${esc(r.title)}</span>
+            <span style="font-size:10.5px;color:var(--muted);white-space:nowrap;flex-shrink:0">${dateStr} ${timeRel ? `<strong style="color:var(--amber)">(${timeRel})</strong>` : ''}</span>
+           </div>
+          `;
+        }).join('')}
+       </div>
+      </div>
+     `;
+    }
+
    if(notifications.length === 0){
-    html += emptyState('Không có thông báo mới', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
+    if(pendingReminders.length > 0){
+     html += emptyState('Chưa có thông báo mới', 'Bạn có ' + pendingReminders.length + ' lịch nhắc việc đang đếm ngược ở trên. Khi đến giờ hệ thống sẽ đổ chuông và gửi thông báo.', null, '', false, 'bell');
+    } else {
+     html += emptyState('Không có thông báo mới', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
+    }
    } else {
     html += `<div class="notification-list" style="display:grid;gap:6px;max-height:360px;overflow:auto">`;
     notifications.forEach(n => {
@@ -5985,7 +6028,20 @@ function boot(){
       if(res && res.processed > 0){
        if(typeof window.playNotificationSound === 'function') window.playNotificationSound();
        if(navigator.vibrate) navigator.vibrate([150, 100, 200]);
-       (res.reminders || []).forEach(r => toast(`🔔 Đến giờ nhắc: ${r.title}`));
+       (res.reminders || []).forEach(r => {
+        toast(`🔔 Đến giờ nhắc: ${r.title}`);
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+         try {
+          new Notification('⏰ Nhắc việc: ' + r.title, {
+           body: 'Đã đến giờ nhắc việc bạn đã lên lịch: "' + r.title + '"',
+           icon: '/favicon.ico',
+           badge: '/favicon.ico',
+           vibrate: [200, 100, 200],
+           tag: 'reminder-' + r.id
+          });
+         } catch (_) {}
+        }
+       });
        if(typeof window.refreshNotificationBadge === 'function') window.refreshNotificationBadge();
       }
      }).catch(()=>{});
