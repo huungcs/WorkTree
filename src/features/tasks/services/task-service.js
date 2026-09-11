@@ -173,7 +173,6 @@ export const TaskService = {
 
       // Refetch canonical row from task_rollups view
       const canonical = await TaskRepository.getTaskById(created.id);
-      triggerPushDispatchQuietly();
       return mapCloudTaskToUI(canonical || created);
     } catch (err) {
       console.error('[TaskService.createTask error]', err);
@@ -198,9 +197,6 @@ export const TaskService = {
 
       // Refetch canonical rollup row
       const canonical = await TaskRepository.getTaskById(taskId);
-      if (updates.primary_assignee_id || updates.status) {
-        triggerPushDispatchQuietly();
-      }
       return mapCloudTaskToUI(canonical || updated);
     } catch (err) {
       console.error('[TaskService.updateTask error]', err);
@@ -236,7 +232,6 @@ export const TaskService = {
 
       const canonical = await TaskRepository.getTaskById(taskId);
       const mapped = mapCloudTaskToUI(canonical || updated);
-      triggerPushDispatchQuietly();
       return { isLatest: true, task: mapped };
     } catch (err) {
       console.error('[TaskService.updateStatus error]', err);
