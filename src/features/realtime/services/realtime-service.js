@@ -419,6 +419,17 @@ class RealtimeServiceManager {
     this.userNotificationCallbacks = callbacks;
 
     const supabase = await getSupabase();
+
+    // Thiết lập auth token cho realtime connection trước khi subscribe kênh private
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        await supabase.realtime.setAuth(session.access_token);
+      }
+    } catch (authErr) {
+      console.warn('[Realtime] Không thể thiết lập auth token cho notifications:', authErr);
+    }
+
     const channelName = `user:${userId}:notifications`;
     const channel = supabase.channel(channelName, { config: { private: true } });
 
@@ -445,10 +456,19 @@ class RealtimeServiceManager {
       }
     });
 
-    channel.subscribe((status) => {
-      console.info(`[Realtime] Kênh thông báo user:${userId}:notifications trạng thái:`, status);
-      if (status === 'SUBSCRIBED' && callbacks.onSubscribed) {
-        callbacks.onSubscribed(channelName);
+    channel.subscribe((status, err) => {
+      console.info(`[Realtime] Kênh thông báo user:${userId}:notifications trạng thái:`, status, err || '');
+      if (status === 'SUBSCRIBED') {
+        if (callbacks.onSubscribed) callbacks.onSubscribed(channelName);
+      } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+        console.warn(`[Realtime] Kênh thông báo user:${userId}:notifications gặp sự cố:`, status, err);
+        // Tự động thử kết nối lại sau 3 giây
+        setTimeout(() => {
+          if (this.activeUserId === userId && this.userNotificationsChannel === channel) {
+            console.info('[Realtime] Đang tự động kết nối lại kênh thông báo người dùng...');
+            this.subscribeUserNotifications(userId, callbacks).catch(() => {});
+          }
+        }, 3000);
       }
     });
 
@@ -475,7 +495,19 @@ class RealtimeServiceManager {
   }
 
   /**
-   * Xóa sạch toàn bộ channels (workspace switch, logout, unmount)
+   * Chỉ hủy các channels thuộc phạm vi workspace khi đổi workspace (giữ nguyên user notifications)
+   */
+  async cleanupWorkspaceOnly() {
+    this.debounceTimers.forEach(timer => clearTimeout(timer));
+    this.debounceTimers.clear();
+    this.recentLocalMutations.clear();
+
+    await this.unsubscribeTaskDetail();
+    await this.unsubscribeWorkspace();
+  }
+
+  /**
+   * Xóa sạch toàn bộ channels (khi logout hoặc unmount hoàn toàn)
    */
   async cleanupAll() {
     // Clear all pending debounce timers

@@ -3535,8 +3535,70 @@ window.addEventListener('beforeunload',e=>{
 function checkDate(){
  const now=dateISO();if(now!==TODAY){TODAY=now;renderAll();if($('drawer').open)refreshDrawer();}
 }
-window.addEventListener('focus',checkDate);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkDate();});
+
+window.checkIncomingNotifications = async function() {
+ if (!window.__worktree_is_cloud_workspace || !window.NotificationService) return;
+ const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+ if (!orgId) return;
+
+ try {
+  const notifs = await window.NotificationService.getNotifications(orgId, { limit: 15, unreadOnly: true });
+  if (!notifs) return;
+
+  if (!window.__seenNotifIds) {
+   window.__seenNotifIds = new Set(notifs.map(n => n.id));
+   return;
+  }
+
+  const newNotifs = notifs.filter(n => !window.__seenNotifIds.has(n.id));
+  if (newNotifs.length > 0) {
+   newNotifs.forEach(n => window.__seenNotifIds.add(n.id));
+
+   if (typeof window.playNotificationSound === 'function') {
+    window.playNotificationSound();
+   }
+   if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    try { navigator.vibrate([150, 100, 200]); } catch (_) {}
+   }
+
+   newNotifs.forEach(n => {
+    const msg = n.title ? ('🔔 ' + n.title + (n.body ? ': ' + n.body : '')) : '🔔 Bạn có thông báo mới';
+    toast(msg);
+    if (typeof window.displayNativeNotification === 'function') {
+     window.displayNativeNotification(n.title || 'WorkTree X', {
+      body: n.body || '',
+      tag: 'notif-' + n.id
+     });
+    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+     try {
+      new Notification(n.title || 'WorkTree X', {
+       body: n.body || '',
+       icon: '/favicon.ico',
+       badge: '/favicon.ico',
+       vibrate: [150, 100, 200],
+       tag: 'notif-' + n.id
+      });
+     } catch (_) {}
+    }
+   });
+
+   if (typeof window.refreshNotificationBadge === 'function') {
+    window.refreshNotificationBadge();
+   }
+  }
+ } catch (_) {}
+};
+
+window.addEventListener('focus', () => {
+ checkDate();
+ if (typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
+});
+document.addEventListener('visibilitychange', () => {
+ if (!document.hidden) {
+  checkDate();
+  if (typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
+ }
+});
 function boot(){
  loadData();loadPrefs();rebuild();hydrateIcons();
  if(typeof $('toastRegion').showPopover==='function')$('toastRegion').setAttribute('popover','manual');
@@ -3548,6 +3610,7 @@ function boot(){
   if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());
   if(++tick%15===0){
    checkDate();
+   if(typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
    if(window.__worktree_is_cloud_workspace && window.NotificationService){
     const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
     if(orgId){

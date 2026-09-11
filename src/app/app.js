@@ -542,8 +542,8 @@ export async function switchWorkspace(targetOrgId, shouldShowToast = true) {
     return;
   }
 
-  // 2. Xóa sạch dữ liệu tenant cũ trong bộ nhớ và hủy Realtime subscriptions cũ
-  await RealtimeService.cleanupAll();
+  // 2. Xóa sạch dữ liệu tenant cũ trong bộ nhớ và hủy Realtime subscriptions của workspace cũ (giữ kênh thông báo người dùng)
+  await RealtimeService.cleanupWorkspaceOnly();
   appState.purgeTenantData();
 
   // Đóng các dialog/drawer đang mở
@@ -674,14 +674,32 @@ export async function bootstrapAuthenticatedUser(user, session) {
 
     // STEP 11: Khởi tạo lắng nghe kênh riêng tư thông báo người dùng: user:<uuid>:notifications
     try {
+      // Khởi tạo snapshot các thông báo chưa đọc đã có để tránh đổ chuông hàng loạt thông báo cũ khi vừa vào trang
+      try {
+        const initialUnreads = await NotificationService.getNotifications(null, { limit: 50, unreadOnly: true });
+        window.__seenNotifIds = new Set((initialUnreads || []).map(n => n.id));
+      } catch (_) {
+        window.__seenNotifIds = new Set();
+      }
+
       await RealtimeService.subscribeUserNotifications(user.id, {
         onNotificationChange: async (payload) => {
           console.info('[Notification Realtime] Thay đổi bản ghi thông báo:', payload.eventType);
           if (payload.eventType === 'INSERT' && payload.new) {
+            const notif = payload.new;
+            if (!window.__seenNotifIds) window.__seenNotifIds = new Set();
+            if (notif.id && window.__seenNotifIds.has(notif.id)) {
+              // Đã thông báo trước đó hoặc qua polling
+              return;
+            }
+            if (notif.id) window.__seenNotifIds.add(notif.id);
+
             if (typeof window.playNotificationSound === 'function') {
               window.playNotificationSound();
             }
-            const notif = payload.new;
+            if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+              try { navigator.vibrate([150, 100, 200]); } catch (_) {}
+            }
             const msg = notif.title ? (`🔔 ${notif.title}${notif.body ? ': ' + notif.body : ''}`) : '🔔 Có thông báo mới';
             callLegacyGlobal('toast', [msg]);
             displayDeviceNotification(notif.title || 'WorkTree X', {
@@ -695,6 +713,9 @@ export async function bootstrapAuthenticatedUser(user, session) {
           console.info('[Notification Realtime] Push broadcast nhận được:', payload?.title);
           if (typeof window.playNotificationSound === 'function') {
             window.playNotificationSound();
+          }
+          if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+            try { navigator.vibrate([150, 100, 200]); } catch (_) {}
           }
           if (payload?.title) {
             callLegacyGlobal('toast', [`🔔 ${payload.title}: ${payload.body || ''}`]);
