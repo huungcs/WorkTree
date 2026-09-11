@@ -1102,7 +1102,8 @@ dialog.mobile-only:not([open]){display:none!important}
  .notif-center-view .notif-center-head{flex-direction:column;align-items:stretch;gap:10px}
  .notif-center-view .notif-center-actions{display:flex;gap:8px;width:100%}
  .notif-center-view .notif-center-actions .btn{flex:1;min-height:42px;justify-content:center;font-size:12.5px;box-sizing:border-box}
- .notif-center-view .notification-list{max-height:none}
+ .notif-center-view .notification-list{max-height:none!important;overflow:visible!important}
+ .info-dialog .dialog-scroll{padding-bottom:calc(32px + var(--m-safe, env(safe-area-inset-bottom, 0px)))!important}
  .notif-settings-view .notif-setting-row{flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;padding:14px 0!important;gap:10px!important;text-align:left!important}
  .notif-settings-view .notif-setting-text{width:100%!important;flex:none!important;text-align:left!important}
  .notif-settings-view .notif-setting-text strong{display:block!important;font-size:13.5px!important;font-weight:600!important;line-height:1.4!important;text-align:left!important;color:var(--text)!important}
@@ -5144,7 +5145,7 @@ async function openNotifications(){
      html += emptyState('Không có thông báo mới', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
     }
    } else {
-    html += `<div class="notification-list" style="display:grid;gap:6px;max-height:360px;overflow:auto">`;
+    html += `<div class="notification-list" style="display:grid;gap:6px">`;
     notifications.forEach(n => {
      const isUnread = !n.read_at;
      const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
@@ -5239,7 +5240,8 @@ async function openNotificationSettings() {
 
  try {
   const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
-  const pref = window.NotificationService ? await window.NotificationService.getNotificationPreferences().catch(() => ({})) : {};
+  const getPrefFn = window.NotificationService?.getPreferences || window.NotificationService?.getNotificationPreferences;
+   const pref = (window.NotificationService && typeof getPrefFn === 'function') ? await getPrefFn.call(window.NotificationService).catch(() => ({})) : {};
   const reminders = (window.NotificationService && orgId) ? await window.NotificationService.getManualReminders(orgId).catch(() => []) : [];
   const isDotOnly = pref?.badge_style === 'dot';
   const isPushOn = typeof Notification !== 'undefined' && Notification.permission === 'granted';

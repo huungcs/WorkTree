@@ -2530,7 +2530,7 @@ async function openNotifications(){
      html += emptyState('Không có thông báo mới', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
     }
    } else {
-    html += `<div class="notification-list" style="display:grid;gap:6px;max-height:360px;overflow:auto">`;
+    html += `<div class="notification-list" style="display:grid;gap:6px">`;
     notifications.forEach(n => {
      const isUnread = !n.read_at;
      const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
@@ -2625,7 +2625,8 @@ async function openNotificationSettings() {
 
  try {
   const orgId = window.__active_org_id || window.__worktree_supabase_user?.organization?.id;
-  const pref = window.NotificationService ? await window.NotificationService.getNotificationPreferences().catch(() => ({})) : {};
+  const getPrefFn = window.NotificationService?.getPreferences || window.NotificationService?.getNotificationPreferences;
+   const pref = (window.NotificationService && typeof getPrefFn === 'function') ? await getPrefFn.call(window.NotificationService).catch(() => ({})) : {};
   const reminders = (window.NotificationService && orgId) ? await window.NotificationService.getManualReminders(orgId).catch(() => []) : [];
   const isDotOnly = pref?.badge_style === 'dot';
   const isPushOn = typeof Notification !== 'undefined' && Notification.permission === 'granted';

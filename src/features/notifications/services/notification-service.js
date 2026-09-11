@@ -148,6 +148,13 @@ export const NotificationService = {
   },
 
   /**
+   * Alias tương thích ngược cho getPreferences().
+   */
+  async getNotificationPreferences() {
+    return this.getPreferences();
+  },
+
+  /**
    * Cập nhật cấu hình thông báo cá nhân.
    */
   async updatePreferences(updates = {}) {
