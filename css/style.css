@@ -650,6 +650,9 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .notif-center-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap}
 .notif-center-tabs{display:flex;align-items:center;gap:6px}
 .notif-center-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.notif-filter-btn{width:32px;height:32px;min-width:32px;min-height:32px;max-width:32px;max-height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;font-size:11px;font-weight:600;flex-shrink:0;background:var(--surface);border:1px solid var(--line);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.04);cursor:pointer;transition:all .15s ease}
+.notif-filter-btn:hover{background:var(--surface-2);border-color:var(--line-strong)}
+.notif-attention-btn{height:28px;min-height:28px;padding:0 10px;font-size:11px;font-weight:550;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
 .notification-section{margin-bottom:20px}
 .notification-section h3{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:9px}
 .notification-item{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:12px;border:1px solid var(--line);background:var(--surface);border-radius:8px;margin-top:7px}
@@ -1124,13 +1127,15 @@ dialog.mobile-only:not([open]){display:none!important}
  .settings-section h3{font-size:16px}.settings-section p{font-size:13px}.settings-row{gap:12px;flex-wrap:wrap;font-size:13px}.settings-row select{min-height:46px;font-size:16px;max-width:100%}.profile-actions{grid-template-columns:1fr}.profile-scope{font-size:13px}.profile-summary p{font-size:13px}
   .notif-center-view .notif-center-head{flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;gap:10px!important;padding-bottom:12px!important;margin-bottom:12px!important}
   .notif-center-view .notif-center-tabs{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:6px!important;width:auto!important}
-  .notif-center-view .notif-center-tabs .btn{flex:0 0 auto!important;width:auto!important;min-width:auto!important}
-  .notif-center-view .notif-center-tabs .tag{flex:0 0 auto!important}
+  .notif-center-view .notif-center-tabs .btn{flex:0 0 auto!important;width:auto!important;min-width:auto!important;height:30px!important;min-height:30px!important;max-height:30px!important;line-height:28px!important;padding:0 12px!important;font-size:11.5px!important;font-weight:600!important;border-radius:7px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
+  .notif-center-view .notif-center-tabs .tag{flex:0 0 auto!important;height:30px!important;min-height:30px!important;max-height:30px!important;line-height:28px!important;padding:0 10px!important;border-radius:7px!important;font-size:11px!important;font-weight:550!important;display:inline-flex!important;align-items:center!important}
   .notif-center-view .notif-center-actions{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:6px!important;width:100%!important;box-sizing:border-box!important}
   .notif-center-view .notif-center-actions::-webkit-scrollbar{display:none}
   .notif-center-view .notif-center-actions .btn{flex:1 1 0!important;min-width:0!important;height:34px!important;min-height:34px!important;max-height:34px!important;font-size:11px!important;letter-spacing:-0.2px!important;font-weight:550!important;border-radius:8px!important;padding:0 4px!important;white-space:nowrap!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important}
   .notif-center-view .notif-center-actions .btn:only-child{flex:0 0 auto!important;min-width:110px!important;padding:0 14px!important}
   .notif-center-view .notif-center-actions .btn .icon,.notif-center-view .notif-center-actions .btn svg{width:12px!important;height:12px!important;margin-right:3px!important;flex-shrink:0!important}
+  .notif-filter-btn,button[data-action="insight-late"],button[data-action="insight-today"]{width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;max-width:32px!important;max-height:32px!important;padding:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:7px!important;font-size:11px!important;font-weight:600!important;background:var(--surface)!important;border:1px solid var(--line)!important;color:var(--text)!important;flex-shrink:0!important;box-shadow:0 1px 2px rgba(0,0,0,.04)!important}
+  .notif-attention-btn,button[data-action="nav-attention-from-notif"]{height:28px!important;min-height:28px!important;max-height:28px!important;padding:0 10px!important;font-size:11px!important;font-weight:550!important;border-radius:6px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
  .notif-center-view .notification-list{max-height:none!important;overflow:visible!important}
  .info-dialog .dialog-scroll{padding-bottom:calc(32px + var(--m-safe, env(safe-area-inset-bottom, 0px)))!important}
  .notif-settings-view .notif-setting-row{flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;padding:14px 0!important;gap:10px!important;text-align:left!important}
