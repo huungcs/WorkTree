@@ -1575,6 +1575,18 @@ div[class*="onesignal-slidedown"] {
   transition: all 0.15s ease;
 }
 
+.wtx-prompt-btn-allow svg {
+  width: 14px;
+  height: 14px;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
+  flex-shrink: 0;
+}
+
 .wtx-prompt-btn-allow:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);

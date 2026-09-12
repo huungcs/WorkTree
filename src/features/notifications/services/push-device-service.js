@@ -344,7 +344,7 @@ export const PushDeviceService = {
       <div class="wtx-prompt-actions">
         <button type="button" class="wtx-prompt-btn-later" id="wtxPromptLater">Để sau</button>
         <button type="button" class="wtx-prompt-btn-allow" id="wtxPromptAllow">
-          <svg viewBox="0 0 24 24" width="14" height="14">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           Bật thông báo
@@ -403,7 +403,7 @@ export const PushDeviceService = {
             // Khôi phục nút nếu trình duyệt đang chờ người dùng thao tác
             allowBtn.disabled = false;
             allowBtn.innerHTML = `
-              <svg viewBox="0 0 24 24" width="14" height="14">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
               Bật thông báo
