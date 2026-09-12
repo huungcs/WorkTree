@@ -53,12 +53,14 @@ button{border:0}
  .app.collapsed .tree-row span, .app.sidebar-collapsed .tree-row span,
  .app.collapsed .side-title span, .app.sidebar-collapsed .side-title span,
  .app.collapsed .side-head-right, .app.sidebar-collapsed .side-head-right,
- .app.collapsed .side-create span, .app.sidebar-collapsed .side-create span{display:none!important}
+ .app.collapsed .side-create .side-label, .app.sidebar-collapsed .side-create .side-label, body[data-sidebar-collapsed="true"] .app .side-create .side-label,
+ .app.collapsed .side-create kbd, .app.sidebar-collapsed .side-create kbd, body[data-sidebar-collapsed="true"] .app .side-create kbd{display:none!important}
  .app.collapsed .brand, .app.sidebar-collapsed .brand{justify-content:center;padding-left:0;padding-right:0}
  .app.collapsed .brand-mark, .app.sidebar-collapsed .brand-mark{margin:0 auto}
  .app.collapsed .workspace-switch, .app.sidebar-collapsed .workspace-switch{justify-content:center;padding:8px 0}
  .app.collapsed .side-item, .app.sidebar-collapsed .side-item{justify-content:center;padding:9px 0}
- .app.collapsed .side-create, .app.sidebar-collapsed .side-create{padding:10px 0;justify-content:center}
+ .app.collapsed .side-create, .app.sidebar-collapsed .side-create, body[data-sidebar-collapsed="true"] .app .side-create{padding:10px 0;justify-content:center}
+ .app.collapsed .side-create [data-icon], .app.sidebar-collapsed .side-create [data-icon], body[data-sidebar-collapsed="true"] .app .side-create [data-icon]{display:inline-flex!important}
 }
 .sidebar{height:100vh;height:100dvh;position:sticky;top:0;background:var(--sidebar);color:var(--sidebar-text);padding:24px 15px 10px;display:flex;flex-direction:column;min-width:0;z-index:40;border-right:1px solid var(--sidebar-line)}
 .brand{display:flex;gap:10px;align-items:center;padding:0 8px 24px;min-height:60px}
@@ -739,7 +741,8 @@ dialog::backdrop{background:rgba(13,21,40,.45);backdrop-filter:blur(3px)}
 .app.collapsed .brand{padding:0 10px 24px}
 .app.collapsed .brand-text,.app.collapsed .collapse-control,.app.collapsed .side-label,.app.collapsed .org-tree,.app.collapsed .tree-heading,.app.collapsed .side-heading{display:none}
 .app.collapsed .workspace-switch{justify-content:center;padding:9px}
-.app.collapsed .side-create{padding:12px}
+.app.collapsed .side-create{padding:10px 0;justify-content:center}
+.app.collapsed .side-create [data-icon]{display:inline-flex!important}
 .app.collapsed .nav-item{justify-content:center;padding:12px 0}
 .app.collapsed .side-scroll{margin-top:22px}
 .app.collapsed .side-footer{margin-top:auto}
