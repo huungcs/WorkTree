@@ -363,7 +363,7 @@ export const EmployeeRepository = {
     const sb = await getSupabase();
     const { data, error } = await sb
       .from('employees')
-      .select('id, organization_id, full_name, email, employee_code, job_title, home_node_id, employment_status, created_at, updated_at')
+      .select('id, organization_id, full_name, email, phone, zalo_chat_id, zalo_linked_at, employee_code, job_title, home_node_id, employment_status, created_at, updated_at')
       .eq('organization_id', organizationId)
       .eq('employment_status', 'active')
       .order('full_name');
@@ -374,7 +374,8 @@ export const EmployeeRepository = {
       ...emp,
       name: emp.full_name,
       department_id: emp.home_node_id,
-      is_active: emp.employment_status === 'active'
+      is_active: emp.employment_status === 'active',
+      has_zalo: Boolean(emp.zalo_chat_id)
     }));
   },
 
@@ -455,6 +456,7 @@ export const EmployeeRepository = {
     organizationId,
     fullName,
     email = null,
+    phone = null,
     employeeCode = null,
     jobTitle = null,
     homeNodeId = null
@@ -468,6 +470,7 @@ export const EmployeeRepository = {
         organization_id: organizationId,
         full_name: fullName.trim(),
         email: email && email.trim() ? email.trim().toLowerCase() : null,
+        phone: phone && phone.trim() ? phone.trim() : null,
         employee_code: employeeCode && employeeCode.trim() ? employeeCode.trim() : null,
         job_title: jobTitle && jobTitle.trim() ? jobTitle.trim() : null,
         home_node_id: homeNodeId,
@@ -480,7 +483,8 @@ export const EmployeeRepository = {
       ...data,
       name: data.full_name,
       department_id: data.home_node_id,
-      is_active: data.employment_status === 'active'
+      is_active: data.employment_status === 'active',
+      has_zalo: Boolean(data.zalo_chat_id)
     };
   },
 
@@ -491,12 +495,15 @@ export const EmployeeRepository = {
     const payload = {};
     if (updates.full_name !== undefined) payload.full_name = updates.full_name;
     if (updates.email !== undefined) payload.email = updates.email ? updates.email.toLowerCase() : null;
+    if (updates.phone !== undefined) payload.phone = updates.phone && updates.phone.trim() ? updates.phone.trim() : null;
     if (updates.employee_code !== undefined) payload.employee_code = updates.employee_code;
     if (updates.job_title !== undefined) payload.job_title = updates.job_title;
     if (updates.home_node_id !== undefined || updates.department_id !== undefined) {
       payload.home_node_id = updates.home_node_id ?? updates.department_id;
     }
     if (updates.employment_status !== undefined) payload.employment_status = updates.employment_status;
+    if (updates.zalo_chat_id !== undefined) payload.zalo_chat_id = updates.zalo_chat_id;
+    if (updates.zalo_linked_at !== undefined) payload.zalo_linked_at = updates.zalo_linked_at;
 
     const { data, error } = await sb
       .from('employees')
@@ -509,8 +516,17 @@ export const EmployeeRepository = {
       ...data,
       name: data.full_name,
       department_id: data.home_node_id,
-      is_active: data.employment_status === 'active'
+      is_active: data.employment_status === 'active',
+      has_zalo: Boolean(data.zalo_chat_id)
     };
+  },
+
+  async unlinkZalo(employeeId) {
+    if (!employeeId) throw new Error('Missing employeeId');
+    const sb = await getSupabase();
+    const { data, error } = await sb.rpc('unlink_employee_zalo', { p_employee_id: employeeId });
+    if (error) throw error;
+    return data;
   }
 };
 

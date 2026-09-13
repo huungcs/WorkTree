@@ -23,6 +23,7 @@ export const EmployeeService = {
     organizationId,
     fullName,
     email = null,
+    phone = null,
     employeeCode = null,
     jobTitle = null,
     homeNodeId = null,
@@ -50,6 +51,7 @@ export const EmployeeService = {
       organizationId,
       fullName: fullName.trim(),
       email: cleanEmail,
+      phone: phone && phone.trim() ? phone.trim() : null,
       employeeCode: employeeCode && employeeCode.trim() ? employeeCode.trim() : null,
       jobTitle: jobTitle && jobTitle.trim() ? jobTitle.trim() : null,
       homeNodeId
@@ -170,6 +172,7 @@ export const EmployeeService = {
     employeeId,
     fullName,
     email = null,
+    phone = undefined,
     employeeCode = null,
     jobTitle = null,
     homeNodeId,
@@ -185,16 +188,29 @@ export const EmployeeService = {
       if (!emailRegex.test(cleanEmail)) throw new Error('Định dạng email không hợp lệ');
     }
 
-    const updated = await EmployeeRepository.updateEmployee(employeeId, {
+    const payload = {
       full_name: fullName.trim(),
       email: cleanEmail,
       employee_code: employeeCode && employeeCode.trim() ? employeeCode.trim() : null,
       job_title: jobTitle && jobTitle.trim() ? jobTitle.trim() : null,
       home_node_id: homeNodeId,
       employment_status: employmentStatus
-    });
+    };
 
+    if (phone !== undefined) {
+      payload.phone = phone && phone.trim() ? phone.trim() : null;
+    }
+
+    const updated = await EmployeeRepository.updateEmployee(employeeId, payload);
     return updated;
+  },
+
+  /**
+   * Unlink Zalo account from employee
+   */
+  async unlinkZalo(employeeId) {
+    if (!employeeId) throw new Error('Thiếu ID nhân sự');
+    return await EmployeeRepository.unlinkZalo(employeeId);
   }
 };
 

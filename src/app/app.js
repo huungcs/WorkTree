@@ -22,6 +22,7 @@ import { SavedViewService } from '../features/saved-views/index.js';
 import { AttachmentService } from '../features/attachments/index.js';
 import { RealtimeService } from '../features/realtime/index.js';
 import { NotificationService, PushDeviceService } from '../features/notifications/index.js';
+import { ZaloBotService, ZALO_BOT_CONFIG } from '../features/integrations/index.js';
 
 if (typeof window !== 'undefined') {
   publishLegacyGlobals({
@@ -105,6 +106,10 @@ function mapCloudEmployees(rawEmployees) {
     name: e.full_name || 'Nhân sự',
     full_name: e.full_name || 'Nhân sự',
     email: e.email || '',
+    phone: e.phone || '',
+    zalo_chat_id: e.zalo_chat_id || null,
+    zalo_linked_at: e.zalo_linked_at || null,
+    has_zalo: Boolean(e.zalo_chat_id),
     employee_code: e.employee_code || '',
     job_title: e.job_title || '',
     home_node_id: e.home_node_id || null,
@@ -1160,7 +1165,9 @@ if (typeof window !== 'undefined') {
     AttachmentRepository,
     AttachmentService,
     NotificationService,
-    PushDeviceService
+    PushDeviceService,
+    ZaloBotService,
+    ZALO_BOT_CONFIG
   });
 }
 

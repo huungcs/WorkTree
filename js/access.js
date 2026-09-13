@@ -396,7 +396,10 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
      ${roleBadge}
     </div>
     <p>${emp.employee_code ? `<span class="muted">[${esc(emp.employee_code)}]</span> ` : ''}${esc(jobText || 'Chưa phân phòng ban')}</p>
-    <div style="margin-top:4px">${statusBadge}</div>
+    <div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+     ${statusBadge}
+     ${emp.zalo_chat_id ? `<span class="badge" style="background:rgba(0,104,255,0.08);color:#0068ff;border:1px solid rgba(0,104,255,0.25);font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;" title="Đã liên kết Zalo Bot (Chat ID: ${esc(emp.zalo_chat_id)})">${icon('message')} Zalo</span>` : (emp.phone ? `<span class="badge" style="background:var(--surface-3);color:var(--muted);font-size:11px;font-weight:500;padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;" title="Số điện thoại: ${esc(emp.phone)} - Chưa kích hoạt Zalo">${icon('phone')} ${esc(emp.phone)}</span>` : '')}
+    </div>
    </div>
    <div class="account-ops employee-ops">
     ${opsHTML}
@@ -508,6 +511,7 @@ function openAddEmployeeDialog(){
     <div class="form-grid">
      ${field('Họ và tên *','newEmpName','text','','required maxlength="180" autocomplete="name" placeholder="VD: Nguyễn Văn A"')}
      ${field('Email','newEmpEmail','email','','maxlength="180" autocomplete="email" placeholder="email@congty.com"')}
+     ${field('Số điện thoại (Nhận tin Zalo)','newEmpPhone','tel','','maxlength="20" placeholder="VD: 0912345678"')}
      ${field('Mã nhân viên','newEmpCode','text','','maxlength="50" placeholder="VD: NV001"')}
      ${field('Chức danh','newEmpTitle','text','','maxlength="100" placeholder="VD: Chuyên viên kinh doanh"')}
     </div>
@@ -653,6 +657,7 @@ async function submitNewEmployee(e){
   if(!fullName) throw new Error('Họ và tên nhân viên là bắt buộc.');
 
   const email = $('newEmpEmail').value.trim() || null;
+  const phone = $('newEmpPhone') ? $('newEmpPhone').value.trim() || null : null;
   const employeeCode = $('newEmpCode').value.trim() || null;
   const jobTitle = $('newEmpTitle').value.trim() || null;
   const homeNodeId = $('newEmpHomeNode').value;
@@ -685,6 +690,7 @@ async function submitNewEmployee(e){
    organizationId: orgId,
    fullName,
    email,
+   phone,
    employeeCode,
    jobTitle,
    homeNodeId,
@@ -767,6 +773,7 @@ function openEditEmployeeDialog(employeeId){
     <div class="form-grid">
      ${field('Họ và tên *','editEmpName','text',emp.full_name||'','required maxlength="180" autocomplete="name" placeholder="VD: Nguyễn Văn A"')}
      ${field('Email liên hệ','editEmpEmail','email',emp.email||'','maxlength="180" autocomplete="email" placeholder="email@congty.com"')}
+     ${field('Số điện thoại (Nhận tin Zalo)','editEmpPhone','tel',emp.phone||'','maxlength="20" placeholder="VD: 0912345678"')}
      ${field('Mã nhân viên','editEmpCode','text',emp.employee_code||'','maxlength="50" placeholder="VD: NV001"')}
      ${field('Chức danh','editEmpTitle','text',emp.job_title||'','maxlength="100" placeholder="VD: Chuyên viên kinh doanh"')}
     </div>
@@ -817,6 +824,7 @@ async function submitEditEmployee(e, employeeId){
   if(!fullName) throw new Error('Họ và tên nhân viên là bắt buộc.');
 
   const email = $('editEmpEmail').value.trim() || null;
+  const phone = $('editEmpPhone') ? $('editEmpPhone').value.trim() || null : null;
   const employeeCode = $('editEmpCode').value.trim() || null;
   const jobTitle = $('editEmpTitle').value.trim() || null;
   const homeNodeId = $('editEmpHomeNode').value;
@@ -832,6 +840,7 @@ async function submitEditEmployee(e, employeeId){
    employeeId,
    fullName,
    email,
+   phone,
    employeeCode,
    jobTitle,
    homeNodeId,
@@ -1238,10 +1247,48 @@ async function openEmployeeDetailsDialog(employeeId){
      <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Tình trạng nhân sự:</span>
      ${employmentBadge}
     </div>
-    <div style="grid-column:1 / -1;">
+    <div>
      <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Email liên hệ:</span>
      <span>${esc(emp.email || 'Chưa cập nhật')}</span>
     </div>
+    <div>
+     <span class="muted" style="display:block;font-size:11px;margin-bottom:2px;">Số điện thoại:</span>
+     <strong>${esc(emp.phone || 'Chưa cập nhật')}</strong>
+    </div>
+   </div>
+
+   <div style="margin:16px 0 10px;font-weight:700;color:var(--text);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:6px;">
+     ${icon('message')} <span>Thông báo qua Zalo Bot</span>
+    </div>
+    ${emp.zalo_chat_id ? `
+      <span class="badge" style="background:var(--green-soft);color:var(--green);font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">
+       ${icon('check')} Đã liên kết
+      </span>
+    ` : `
+      <span class="badge" style="background:var(--surface-3);color:var(--muted);font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;">
+       Chưa liên kết
+      </span>
+    `}
+   </div>
+   <div style="background:var(--surface);padding:14px;border-radius:8px;border:1px solid var(--line);font-size:13px;margin-bottom:16px;">
+    ${emp.zalo_chat_id ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+       <div>
+        <p style="margin:0 0 4px 0;color:var(--text);">Nhân viên nhận thông báo công việc tự động qua Zalo (Chat ID: <code style="font-size:11px;background:var(--surface-2);padding:2px 5px;border-radius:3px;">${esc(emp.zalo_chat_id)}</code>).</p>
+        <small class="muted">Liên kết lúc: ${emp.zalo_linked_at ? esc(new Date(emp.zalo_linked_at).toLocaleString('vi-VN')) : 'Đã kích hoạt'}</small>
+       </div>
+       <button type="button" class="btn btn-sm" style="color:var(--red);border-color:var(--line);" data-v8="employee-unlink-zalo" data-employee-id="${emp.id}">${icon('trash')} Hủy liên kết</button>
+      </div>
+    ` : `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+       <div>
+        <p style="margin:0 0 4px 0;color:var(--text);font-weight:600;">Chưa kích hoạt nhận thông báo qua Zalo</p>
+        <small class="muted">Nhân viên chỉ cần gửi số điện thoại <strong>${esc(emp.phone || 'của mình')}</strong> vào Zalo Bot là xong.</small>
+       </div>
+       <button type="button" class="btn btn-sm primary" data-v8="employee-guide-zalo" data-employee-id="${emp.id}" data-employee-phone="${esc(emp.phone||'')}" data-employee-name="${esc(emp.full_name||'')}">📱 Hướng dẫn liên kết Zalo</button>
+      </div>
+    `}
    </div>
 
    <div style="margin:16px 0 10px;font-weight:700;color:var(--text);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:6px;display:flex;align-items:center;gap:6px;">
@@ -1284,6 +1331,83 @@ async function openEmployeeDetailsDialog(employeeId){
  `;
 
  showDialog('accountDialog');
+}
+
+function openZaloGuideDialog(phone, name) {
+ const botName = 'Bot AI Assistant 1';
+ const botAccount = 'bot.JgtmAepW';
+ const botLink = 'https://zalo.me/s/botcreator/';
+
+ $('infoEyebrow').textContent = 'ZALO BOT PLATFORM';
+ $('infoTitle').textContent = 'Hướng dẫn liên kết Zalo 1 chạm';
+ $('infoContent').innerHTML = `
+  <div style="padding:16px 20px;">
+   <div style="background:rgba(0,104,255,0.06);border:1px solid rgba(0,104,255,0.25);border-radius:10px;padding:16px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+     <span style="font-size:24px;">🤖</span>
+     <div>
+      <strong style="font-size:15px;color:var(--text);">${botName}</strong>
+      <div class="muted" style="font-size:12px;">Tài khoản: @${botAccount}</div>
+     </div>
+    </div>
+    <p style="margin:0;font-size:13px;color:var(--text);line-height:1.6;">
+     Hệ thống sẽ tự động ghép nối tài khoản Zalo với nhân viên <strong>${esc(name || 'này')}</strong> thông qua số điện thoại <strong>${phone ? esc(phone) : '(chưa có SĐT)'}</strong>.
+    </p>
+   </div>
+
+   <div style="font-size:13px;color:var(--text);line-height:1.7;">
+    <strong style="display:block;margin-bottom:8px;font-size:14px;">Quy trình 3 bước cực kỳ đơn giản:</strong>
+    <ol style="margin:0;padding-left:20px;">
+     <li style="margin-bottom:8px;">
+      Nhấn nút <strong>"Mở Zalo Bot ngay"</strong> bên dưới để mở khung chat với Bot.
+     </li>
+     <li style="margin-bottom:8px;">
+      Tại khung chat, chỉ cần <strong>nhắn tin số điện thoại của bạn</strong> (${phone ? `<code style="background:var(--surface-3);padding:2px 6px;border-radius:4px;font-weight:700;">${esc(phone)}</code>` : 'số điện thoại đã lưu'}).
+     </li>
+     <li>
+      Bot sẽ lập tức phản hồi: <em>"🎉 Liên kết thành công!"</em>. Từ thời điểm này, mọi thông báo việc mới hoặc nhắc deadline sẽ gửi tự động qua Zalo!
+     </li>
+    </ol>
+   </div>
+
+   <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+    ${phone ? `<button type="button" class="btn" id="btnCopyEmpPhone">Sao chép SĐT</button>` : ''}
+    <button type="button" class="btn primary" id="btnOpenZaloBotDirect">Mở Zalo Bot ngay ↗</button>
+   </div>
+  </div>
+ `;
+
+ if(phone && $('btnCopyEmpPhone')){
+  $('btnCopyEmpPhone').onclick = () => {
+   navigator.clipboard.writeText(phone);
+   toast(`Đã sao chép số điện thoại ${phone}`);
+  };
+ }
+ if($('btnOpenZaloBotDirect')){
+  $('btnOpenZaloBotDirect').onclick = () => {
+   window.open(botLink, '_blank');
+  };
+ }
+
+ showDialog('infoDialog');
+}
+
+async function confirmUnlinkEmployeeZalo(employeeId) {
+ const emp = cloudEmployeesWithStatus.find(e => e.id === employeeId);
+ if (!emp) return toast('Không tìm thấy nhân sự.', 'error');
+ if (!await ask('Hủy liên kết Zalo', `Bạn có chắc chắn muốn hủy liên kết Zalo cho nhân sự "${emp.full_name}" không? Sau khi hủy, nhân viên sẽ không nhận được thông báo công việc qua Zalo nữa.`, 'Hủy liên kết', true)) return;
+
+ try {
+  if (!window.EmployeeService?.unlinkZalo) {
+   throw new Error('Chức năng hủy liên kết chưa được khởi tạo');
+  }
+  await window.EmployeeService.unlinkZalo(employeeId);
+  toast(`Đã hủy liên kết Zalo cho nhân sự ${emp.full_name}.`);
+  closeDialog('accountDialog');
+  await renderCloudEmployeeDirectory(true);
+ } catch (err) {
+  toast(err.message || 'Lỗi hủy liên kết Zalo', 'error');
+ }
 }
 
 async function confirmSuspendEmployee(employeeId){
@@ -1904,6 +2028,8 @@ function handleV8Click(e){
     case 'employee-invite':openInviteExistingEmployeeDialog(v.dataset.employeeId);break;
     case 'employee-resend':await resendEmployeeInvitation(v.dataset.employeeId);break;
     case 'employee-detail':await openEmployeeDetailsDialog(v.dataset.employeeId);break;
+    case 'employee-unlink-zalo':await confirmUnlinkEmployeeZalo(v.dataset.employeeId);break;
+    case 'employee-guide-zalo':openZaloGuideDialog(v.dataset.employeePhone, v.dataset.employeeName);break;
     case 'employee-suspend':await confirmSuspendEmployee(v.dataset.employeeId);break;
     case 'employee-reactivate':await confirmReactivateEmployee(v.dataset.employeeId);break;
     case 'employee-revoke-invite':await confirmRevokeInvitation(v.dataset.employeeId);break;

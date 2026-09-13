@@ -6,6 +6,7 @@
 
 import { TaskRepository, STATUS_MAP, PRIORITY_MAP } from '../../../lib/supabase/repositories.js';
 import { appState } from '../../../app/state.js';
+import { ZaloBotService } from '../../integrations/index.js';
 
 // Per-task mutation version tracker to prevent out-of-order stale async writes
 const taskMutationVersions = new Map();
@@ -173,7 +174,35 @@ export const TaskService = {
 
       // Refetch canonical row from task_rollups view
       const canonical = await TaskRepository.getTaskById(created.id);
-      return mapCloudTaskToUI(canonical || created);
+      const mappedUI = mapCloudTaskToUI(canonical || created);
+
+      // Asynchronously notify assigned employee via Zalo Bot if linked
+      if (primaryAssigneeId && mappedUI) {
+        (async () => {
+          try {
+            const assignee = (appState.employees || []).find(e => e.id === primaryAssigneeId);
+            if (assignee && assignee.zalo_chat_id) {
+              const node = (appState.nodes || []).find(n => n.id === nodeId);
+              const nodeName = node ? node.name : 'Toàn công ty';
+              const assignerName = appState.user?.user_metadata?.full_name || appState.user?.email || 'Quản lý';
+              await ZaloBotService.sendTaskNotification({
+                zaloChatId: assignee.zalo_chat_id,
+                taskTitle: title,
+                nodeName,
+                dueDate: dueDate || null,
+                priority: mappedUI.priority || priority,
+                assignerName,
+                taskId: created.id
+              });
+              console.info(`[ZaloBot] Đã gửi thông báo giao việc đến ${assignee.name || assignee.full_name} (${assignee.zalo_chat_id})`);
+            }
+          } catch (zaloErr) {
+            console.warn('[ZaloBot] Gửi thông báo giao việc qua Zalo thất bại:', zaloErr);
+          }
+        })();
+      }
+
+      return mappedUI;
     } catch (err) {
       console.error('[TaskService.createTask error]', err);
       throw new Error(formatTaskErrorMessage(err));
@@ -197,7 +226,36 @@ export const TaskService = {
 
       // Refetch canonical rollup row
       const canonical = await TaskRepository.getTaskById(taskId);
-      return mapCloudTaskToUI(canonical || updated);
+      const mappedUI = mapCloudTaskToUI(canonical || updated);
+
+      // Asynchronously notify newly assigned employee via Zalo Bot if primary assignee changed
+      if (updates.primary_assignee_id && mappedUI) {
+        (async () => {
+          try {
+            const assignee = (appState.employees || []).find(e => e.id === updates.primary_assignee_id);
+            if (assignee && assignee.zalo_chat_id) {
+              const targetNodeId = canonical?.node_id || updates.node_id;
+              const node = (appState.nodes || []).find(n => n.id === targetNodeId);
+              const nodeName = node ? node.name : 'Toàn công ty';
+              const assignerName = appState.user?.user_metadata?.full_name || appState.user?.email || 'Quản lý';
+              await ZaloBotService.sendTaskNotification({
+                zaloChatId: assignee.zalo_chat_id,
+                taskTitle: canonical?.title || updates.title || 'Công việc được giao',
+                nodeName,
+                dueDate: canonical?.due_date || updates.due_date || null,
+                priority: mappedUI.priority || 'Trung bình',
+                assignerName,
+                taskId
+              });
+              console.info(`[ZaloBot] Đã gửi thông báo giao việc mới đến ${assignee.name || assignee.full_name} (${assignee.zalo_chat_id})`);
+            }
+          } catch (zaloErr) {
+            console.warn('[ZaloBot] Gửi thông báo giao việc qua Zalo thất bại:', zaloErr);
+          }
+        })();
+      }
+
+      return mappedUI;
     } catch (err) {
       console.error('[TaskService.updateTask error]', err);
       throw new Error(formatTaskErrorMessage(err));
