@@ -540,8 +540,9 @@ function changeStatus(id,status){
  else if(window.ZaloBotService && typeof window.ZaloBotService.sendStatusNotification === 'function') {
   (async () => {
    try {
+    const currentPersonId = typeof person === 'function' ? person().id : null;
     const emps = window.cloudEmployees || [];
-    const linkedEmp = emps.find(e => e.zalo_chat_id);
+    const linkedEmp = emps.find(e => e.zalo_chat_id && e.id !== currentPersonId);
     if (linkedEmp && linkedEmp.zalo_chat_id) {
      const node = byNode.get(t.node);
      await window.ZaloBotService.sendStatusNotification({
