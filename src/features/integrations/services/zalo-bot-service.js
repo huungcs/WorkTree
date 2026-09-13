@@ -155,6 +155,40 @@ export const ZaloBotService = {
   },
 
   /**
+   * Format and send a notification when someone comments on a task
+   */
+  async sendCommentNotification({
+    zaloChatId,
+    taskTitle,
+    nodeName = 'Toàn công ty',
+    authorName = 'Thành viên nhóm',
+    commentBody = '',
+    taskId = null
+  }) {
+    if (!zaloChatId) {
+      return { ok: false, description: 'Chưa liên kết Zalo' };
+    }
+
+    const shortComment = (commentBody || '').length > 300
+      ? (commentBody || '').substring(0, 300) + '...'
+      : (commentBody || '');
+
+    const message = [
+      '**💬 WORKTREE X — BÌNH LUẬN MỚI TRÊN CÔNG VIỆC**',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━',
+      `📋 **Công việc:** ${taskTitle}`,
+      `🏢 **Đơn vị:** ${nodeName}`,
+      `👤 **Người bình luận:** ${authorName}`,
+      `💬 **Nội dung:** "${shortComment}"`,
+      '━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '👉 **Mở WorkTree X để xem trao đổi & phản hồi:**',
+      'https://worktree.nguyentronghuu.com'
+    ].join('\n');
+
+    return await this.sendMessage(zaloChatId, message, { parse_mode: 'markdown' });
+  },
+
+  /**
    * Format and send a reminder for an upcoming or overdue task
    */
   async sendReminderNotification({

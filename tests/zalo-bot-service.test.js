@@ -162,3 +162,37 @@ test('ZaloBotService.sendStatusNotification formats Vietnamese rich markdown not
     ZaloBotService.sendMessage = originalSendMessage;
   }
 });
+
+test('ZaloBotService.sendCommentNotification formats Vietnamese rich markdown notification', async () => {
+  const { ZaloBotService } = await import('../src/features/integrations/services/zalo-bot-service.js');
+
+  let sentPayload = null;
+  const originalSendMessage = ZaloBotService.sendMessage;
+  ZaloBotService.sendMessage = async (chatId, text, options) => {
+    sentPayload = { chatId, text, options };
+    return { ok: true, result: { message_id: 'msg_comment_1' } };
+  };
+
+  try {
+    const res = await ZaloBotService.sendCommentNotification({
+      zaloChatId: 'chat_emp_003',
+      taskTitle: 'Kiểm toán hệ thống bảo mật quý 3',
+      nodeName: 'Ban Giám Đốc',
+      authorName: 'Trần Văn Quản Lý',
+      commentBody: 'Đã hoàn tất rà soát RLS, cần thêm báo cáo trước 17h hôm nay.',
+      taskId: 'task_789'
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(sentPayload.chatId, 'chat_emp_003');
+    assert.match(sentPayload.text, /BÌNH LUẬN MỚI TRÊN CÔNG VIỆC/);
+    assert.match(sentPayload.text, /Kiểm toán hệ thống bảo mật quý 3/);
+    assert.match(sentPayload.text, /Ban Giám Đốc/);
+    assert.match(sentPayload.text, /Trần Văn Quản Lý/);
+    assert.match(sentPayload.text, /Đã hoàn tất rà soát RLS/);
+    assert.match(sentPayload.text, /worktree\.nguyentronghuu\.com/);
+  } finally {
+    ZaloBotService.sendMessage = originalSendMessage;
+  }
+});
+

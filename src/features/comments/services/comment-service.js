@@ -4,8 +4,9 @@
  * Handles validation, double-submit protection, and user profile display.
  */
 
-import { CommentRepository } from '../../../lib/supabase/repositories.js';
+import { CommentRepository, TaskRepository } from '../../../lib/supabase/repositories.js';
 import { appState } from '../../../app/state.js';
+import { ZaloBotService } from '../../integrations/index.js';
 
 const submittingComments = new Set();
 
@@ -48,11 +49,47 @@ export const CommentService = {
     submittingComments.add(lockKey);
 
     try {
-      return await CommentRepository.addComment({
+      const result = await CommentRepository.addComment({
         organizationId: orgId,
         taskId,
         body: trimmed
       });
+
+      // Asynchronously notify assigned employee via Zalo Bot if linked
+      (async () => {
+        try {
+          const task = (appState.tasks || []).find(t => t.id === taskId) ||
+            await TaskRepository.getTaskById(taskId).catch(() => null);
+
+          const assigneeId = task?.primary_assignee_id || task?.primaryAssigneeId || task?.owner || task?.assigneeId;
+          const currentEmployeeId = appState.activeMembership?.employeeId;
+
+          // Do not send notification to the comment author themselves
+          if (assigneeId && assigneeId !== currentEmployeeId) {
+            const assignee = (appState.employees || []).find(e => e.id === assigneeId);
+            if (assignee && assignee.zalo_chat_id) {
+              const targetNodeId = task.node_id || task.nodeId || task.node;
+              const node = (appState.nodes || []).find(n => n.id === targetNodeId);
+              const nodeName = node ? node.name : 'Toàn công ty';
+              const authorName = appState.user?.user_metadata?.full_name || appState.user?.email || 'Thành viên nhóm';
+
+              await ZaloBotService.sendCommentNotification({
+                zaloChatId: assignee.zalo_chat_id,
+                taskTitle: task.title || 'Công việc trên WorkTree X',
+                nodeName,
+                authorName,
+                commentBody: trimmed,
+                taskId
+              });
+              console.info(`[ZaloBot] Đã gửi thông báo bình luận mới đến ${assignee.name || assignee.full_name} (${assignee.zalo_chat_id})`);
+            }
+          }
+        } catch (zaloErr) {
+          console.warn('[ZaloBot] Gửi thông báo bình luận qua Zalo thất bại:', zaloErr);
+        }
+      })();
+
+      return result;
     } catch (err) {
       throw new Error(formatCommentErrorMessage(err));
     } finally {
