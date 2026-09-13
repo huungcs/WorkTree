@@ -255,6 +255,19 @@ function createServer({ publicDir = PUBLIC_DIR } = {}) {
     return;
   }
 
+  if (reqPath === '/api/platform-admin' || reqPath.startsWith('/api/platform-admin')) {
+    const platformAdminHandler = require('./api/platform-admin.js');
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', () => {
+      req.body = bodyStr;
+      const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      req.query = Object.fromEntries(urlObj.searchParams.entries());
+      platformAdminHandler(req, res);
+    });
+    return;
+  }
+
   if (reqPath === '/' || reqPath === '') {
     reqPath = '/index.html';
   }

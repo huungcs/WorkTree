@@ -19,12 +19,12 @@ WorkTree X là hệ sinh thái quản trị công việc và tổ chức đa doa
   - **Task Attachments & Supabase Storage:** Triển khai tệp đính kèm cloud-native hoàn chỉnh trong Task Detail Drawer. Lưu trữ binary vào bucket canonical private `worktree-files` (giới hạn 50MB/object, mã hóa đường dẫn canonical an toàn `<org_uuid>/<task_uuid>/<random-id>-<safe-filename>`), quản lý metadata tại `public.task_attachments`. Hỗ trợ xem danh sách, upload với `upsert: false`, compensating transaction tự động dọn storage object mồ côi nếu metadata insert thất bại, authenticated direct blob download, xóa tệp có bảo vệ delete partial-failure safety.
   - **Secure Supabase Realtime Synchronization:** Triển khai hạ tầng đồng bộ hóa thời gian thực đa người dùng, đa thiết bị và đa tab an toàn. Kích hoạt `postgres_changes` trên 8 bảng cốt lõi (`tasks`, `task_checklist_items`, `task_dependencies`, `task_comments`, `task_time_entries`, `task_attachments`, `organization_nodes`, `employees`) với `REPLICA IDENTITY FULL`. Thiết lập Private Authorized Channels (`config: { private: true }`) với chính sách RLS trên `realtime.messages` xác thực membership và task reading authority ở tầng kết nối WebSocket, loại trừ hoàn toàn nguy cơ rò rỉ sự kiện DELETE và các cuộc tấn công direct UUID subscription attack.
   - **Cloud Notification Center, Scheduled Reminders & OneSignal PWA Push:** Triển khai trung tâm thông báo thời gian thực (`public.notifications`), tùy chọn người dùng (`public.notification_preferences`), thiết bị push (`public.push_devices`), hàng đợi tác vụ (`public.notification_jobs`), và nhắc việc định kỳ (`public.manual_reminders`). Cơ chế claim atomic an toàn luồng với `FOR UPDATE SKIP LOCKED`. Edge Function `notification-dispatch` tích hợp OneSignal REST API v16. Kênh Realtime private `user:<uuid>:notifications` bảo vệ đa thiết bị không rò rỉ tenant.
-  - **Product Onboarding V1 (Đang triển khai):** Đã xây dựng cấu trúc Onboarding Module tại `src/features/onboarding/` (Welcome Modal, Tour Controller với spotlight backdrop, Getting Started Checklist, Contextual Help Popover, Popup Coordinator tránh xung đột với thông báo đẩy) và file di trú `supabase/migrations/20260910183000_user_onboarding_progress.sql`.
+  - **Platform Admin Portal V1 (Secure SaaS Super-Admin Operations Console):** Đã triển khai hoàn chỉnh cổng điều hành độc lập dành riêng cho Platform Super-Admins. Thẩm quyền tối cao dựa trên `public.platform_admins` (`is_platform_admin()`), phân tách tuyệt đối với quyền Tenant Owner (`Platform Admin != Tenant Owner`). Cung cấp 9 module điều hành: Tổng quan nền tảng (KPI aggregates), Danh mục doanh nghiệp (tìm kiếm, lọc gói, slide-over detail drawer), Danh bạ người dùng toàn hệ thống (bảo mật, không lộ `auth.users`), Doanh thu & phân bổ gói cước (trung thực không tạo doanh thu ảo), Cảnh báo & vi phạm (`public.tenant_violations`), Nhật ký bảo mật (`public.security_audit_logs`), Quản lý Platform Admins và Cấu hình nền tảng (`public.platform_settings`). Cơ chế khóa (suspension) được bảo vệ bằng RLS trung tâm (`o.status = 'active'`), ghi vết bất biến, bảo toàn dữ liệu và cô lập đa tổ chức. Zero Service Role in browser bundle. Bộ test tự động `tests/platform-admin.test.js` đạt 100% pass (24/24 check).
 - **Đánh giá tổng thể:**
-  - Frontend UI: **88%**
-  - Frontend ↔ Supabase Integration: **82%**
-  - Backend / Database / RLS: **90%**
-  - Production Readiness: **75%**
+  - Frontend UI: **92%**
+  - Frontend ↔ Supabase Integration: **88%**
+  - Backend / Database / RLS: **93%**
+  - Production Readiness: **85%**
 
 ---
 

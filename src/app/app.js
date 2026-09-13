@@ -24,6 +24,7 @@ import { RealtimeService } from '../features/realtime/index.js';
 import { NotificationService, PushDeviceService } from '../features/notifications/index.js';
 import { ZaloBotService, ZALO_BOT_CONFIG } from '../features/integrations/index.js';
 import { initConsoleGuard } from '../lib/security/console-guard.js';
+import { PlatformAdminService, openPlatformAdminPortal, closePlatformAdminPortal } from '../features/platform-admin/index.js';
 
 // Activate Client Console Security Guard & Self-XSS Warning
 initConsoleGuard();
@@ -35,10 +36,16 @@ if (typeof window !== 'undefined') {
     PushDeviceService,
     ActivityRepository,
     ZaloBotService,
-    ZALO_BOT_CONFIG
+    ZALO_BOT_CONFIG,
+    PlatformAdminService,
+    openPlatformAdminPortal,
+    closePlatformAdminPortal
   });
   window.ZaloBotService = ZaloBotService;
   window.ZALO_BOT_CONFIG = ZALO_BOT_CONFIG;
+  window.PlatformAdminService = PlatformAdminService;
+  window.openPlatformAdminPortal = openPlatformAdminPortal;
+  window.closePlatformAdminPortal = closePlatformAdminPortal;
 }
 
 let authViewInstance = null;
@@ -828,6 +835,37 @@ export async function bootstrapAuthenticatedUser(user, session) {
       }
     }
 
+    // 4. Kiểm tra quyền Platform Super-Admin độc lập với role tổ chức
+    try {
+      PlatformAdminService.checkIsPlatformAdmin().then((isSuperAdmin) => {
+        const adminNavBtn = document.getElementById('platformAdminNavBtn');
+        if (adminNavBtn) {
+          if (isSuperAdmin) {
+            adminNavBtn.style.display = 'flex';
+            adminNavBtn.onclick = (e) => {
+              e.preventDefault();
+              openPlatformAdminPortal();
+            };
+          } else {
+            adminNavBtn.style.display = 'none';
+            adminNavBtn.onclick = null;
+          }
+        }
+
+        // Deep link support: #platform-admin
+        if (isSuperAdmin && window.location.hash.startsWith('#platform-admin')) {
+          const parts = window.location.hash.split('/');
+          const initialView = parts[1] || 'overview';
+          openPlatformAdminPortal(initialView);
+        } else if (!isSuperAdmin && window.location.hash.startsWith('#platform-admin')) {
+          callLegacyGlobal('toast', ['Truy cập bị từ chối: Tài khoản không có thẩm quyền Platform Super-Admin.', 'error']);
+          window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        }
+      }).catch(e => console.warn('[PlatformAdmin] Check failed:', e));
+    } catch (adminErr) {
+      console.warn('[PlatformAdmin] Setup failed:', adminErr);
+    }
+
   } catch (err) {
     console.error('Lỗi bootstrap session:', err);
     if (authViewInstance) {
@@ -993,6 +1031,9 @@ export async function bootstrapApp() {
       console.warn('Lỗi khi signOut:', err.message);
     } finally {
       closeAllModalsAndPopovers();
+      try { closePlatformAdminPortal(); } catch (_) {}
+      const adminNavBtn = document.getElementById('platformAdminNavBtn');
+      if (adminNavBtn) adminNavBtn.style.display = 'none';
       window.__worktree_supabase_user = null;
       appState.user = null;
       appState.activeOrganizationId = null;
@@ -1145,6 +1186,21 @@ export async function bootstrapApp() {
       appState.setTheme(nextTheme);
     });
   }
+
+  // 9. Lắng nghe Hash Change cho Platform Admin portal
+  window.addEventListener('hashchange', async () => {
+    if (window.location.hash.startsWith('#platform-admin')) {
+      const isSuperAdmin = await PlatformAdminService.checkIsPlatformAdmin();
+      if (isSuperAdmin) {
+        const parts = window.location.hash.split('/');
+        const initialView = parts[1] || 'overview';
+        openPlatformAdminPortal(initialView);
+      } else {
+        callLegacyGlobal('toast', ['Truy cập bị từ chối: Tài khoản không có thẩm quyền Platform Super-Admin.', 'error']);
+        window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+      }
+    }
+  });
 
   console.info('WorkTree X bootstrap complete.');
 }

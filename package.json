@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "build": "npm run bundle",
-    "check": "npm run check:syntax && npm run check:architecture && npm run test:state && npm run test:employees && npm run test:visibility && npm run test:notifications && npm run test:zalo && npm run test:server && npm run test:smoke",
+    "check": "npm run check:syntax && npm run check:architecture && npm run test:state && npm run test:employees && npm run test:visibility && npm run test:notifications && npm run test:zalo && npm run test:server && npm run test:platform-admin && npm run test:smoke",
     "check:syntax": "node scripts/check-js-syntax.js",
     "check:architecture": "node scripts/check-architecture.js",
     "test:state": "node --test tests/app-state.test.js",
@@ -16,6 +16,7 @@
     "test:notifications": "node --test tests/notification-push-contract.test.js",
     "test:zalo": "node --test tests/zalo-bot-service.test.js",
     "test:server": "node --test tests/server.test.js",
+    "test:platform-admin": "node --test tests/platform-admin.test.js",
     "test:smoke": "node scripts/smoke-test.js",
     "bundle": "node scripts/bundle.js"
   },
