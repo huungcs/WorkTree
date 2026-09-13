@@ -835,33 +835,26 @@ export async function bootstrapAuthenticatedUser(user, session) {
       }
     }
 
-    // 4. Kiểm tra quyền Platform Super-Admin độc lập với role tổ chức
+    // 4. Kiểm tra link truy cập Platform Admin qua URL (ẩn hoàn toàn khỏi menu giao diện thường)
     try {
-      PlatformAdminService.checkIsPlatformAdmin().then((isSuperAdmin) => {
-        const adminNavBtn = document.getElementById('platformAdminNavBtn');
-        if (adminNavBtn) {
-          if (isSuperAdmin) {
-            adminNavBtn.style.display = 'flex';
-            adminNavBtn.onclick = (e) => {
-              e.preventDefault();
-              openPlatformAdminPortal();
-            };
-          } else {
-            adminNavBtn.style.display = 'none';
-            adminNavBtn.onclick = null;
-          }
-        }
+      const isPlatformAdminRoute = (h) => {
+        const hash = (h || '').toLowerCase();
+        return hash.startsWith('#admin') || hash.startsWith('#platform-admin') || hash.startsWith('#admon');
+      };
 
-        // Deep link support: #platform-admin
-        if (isSuperAdmin && window.location.hash.startsWith('#platform-admin')) {
-          const parts = window.location.hash.split('/');
-          const initialView = parts[1] || 'overview';
-          openPlatformAdminPortal(initialView);
-        } else if (!isSuperAdmin && window.location.hash.startsWith('#platform-admin')) {
-          callLegacyGlobal('toast', ['Truy cập bị từ chối: Tài khoản không có thẩm quyền Platform Super-Admin.', 'error']);
-          window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
-        }
-      }).catch(e => console.warn('[PlatformAdmin] Check failed:', e));
+      if (isPlatformAdminRoute(window.location.hash)) {
+        PlatformAdminService.checkIsPlatformAdmin().then((isSuperAdmin) => {
+          if (isSuperAdmin) {
+            const raw = window.location.hash.toLowerCase();
+            const clean = raw.replace(/^#(?:platform-)?admi?o?n\/?/, '');
+            const initialView = clean || 'overview';
+            openPlatformAdminPortal(initialView);
+          } else {
+            callLegacyGlobal('toast', ['Truy cập bị từ chối: Tài khoản không có thẩm quyền Platform Super-Admin.', 'error']);
+            window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+          }
+        }).catch(e => console.warn('[PlatformAdmin] Check failed:', e));
+      }
     } catch (adminErr) {
       console.warn('[PlatformAdmin] Setup failed:', adminErr);
     }
@@ -1032,8 +1025,6 @@ export async function bootstrapApp() {
     } finally {
       closeAllModalsAndPopovers();
       try { closePlatformAdminPortal(); } catch (_) {}
-      const adminNavBtn = document.getElementById('platformAdminNavBtn');
-      if (adminNavBtn) adminNavBtn.style.display = 'none';
       window.__worktree_supabase_user = null;
       appState.user = null;
       appState.activeOrganizationId = null;
@@ -1187,13 +1178,14 @@ export async function bootstrapApp() {
     });
   }
 
-  // 9. Lắng nghe Hash Change cho Platform Admin portal
+  // 9. Lắng nghe Hash Change khi quản trị viên chủ động thêm #admin hoặc #platform-admin vào link
   window.addEventListener('hashchange', async () => {
-    if (window.location.hash.startsWith('#platform-admin')) {
+    const raw = (window.location.hash || '').toLowerCase();
+    if (raw.startsWith('#admin') || raw.startsWith('#platform-admin') || raw.startsWith('#admon')) {
       const isSuperAdmin = await PlatformAdminService.checkIsPlatformAdmin();
       if (isSuperAdmin) {
-        const parts = window.location.hash.split('/');
-        const initialView = parts[1] || 'overview';
+        const clean = raw.replace(/^#(?:platform-)?admi?o?n\/?/, '');
+        const initialView = clean || 'overview';
         openPlatformAdminPortal(initialView);
       } else {
         callLegacyGlobal('toast', ['Truy cập bị từ chối: Tài khoản không có thẩm quyền Platform Super-Admin.', 'error']);

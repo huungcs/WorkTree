@@ -1306,7 +1306,8 @@ export function closePlatformAdminPortal() {
   if (portalContainer) {
     portalContainer.style.display = 'none';
   }
-  if (window.location.hash.startsWith('#platform-admin')) {
+  const h = (window.location.hash || '').toLowerCase();
+  if (h.startsWith('#admin') || h.startsWith('#platform-admin') || h.startsWith('#admon')) {
     window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
   }
 }
