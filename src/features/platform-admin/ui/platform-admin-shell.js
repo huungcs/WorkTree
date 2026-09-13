@@ -120,9 +120,11 @@ function activatePortalContext(container) {
 
   previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   previousDocumentTitle = document.title;
+  const appEl = document.getElementById('app');
   portalContextSnapshot = {
     bodyOverflow: document.body.style.overflow,
     htmlOverflow: document.documentElement.style.overflow,
+    appDisplay: appEl ? appEl.style.display : undefined,
     backgroundElements: [...document.body.children]
       .filter(el => el !== container && !['SCRIPT', 'STYLE', 'LINK'].includes(el.tagName))
       .map(el => ({
@@ -134,6 +136,9 @@ function activatePortalContext(container) {
 
   document.body.style.overflow = 'hidden';
   document.documentElement.style.overflow = 'hidden';
+  if (appEl) {
+    appEl.style.display = 'none';
+  }
   portalContextSnapshot.backgroundElements.forEach(({ el }) => {
     el.inert = true;
     el.setAttribute('aria-hidden', 'true');
@@ -148,6 +153,10 @@ function deactivatePortalContext(container) {
 
   document.body.style.overflow = snapshot.bodyOverflow;
   document.documentElement.style.overflow = snapshot.htmlOverflow;
+  const appEl = document.getElementById('app');
+  if (appEl && snapshot.appDisplay !== undefined) {
+    appEl.style.display = snapshot.appDisplay;
+  }
   snapshot.backgroundElements.forEach(({ el, inert, ariaHidden }) => {
     el.inert = inert;
     if (ariaHidden === null) el.removeAttribute('aria-hidden');
@@ -690,12 +699,14 @@ export function initPlatformAdminShell() {
       <!-- Sidebar -->
       <aside class="sidebar" id="paSidebar">
         <div class="brand">
-          <div class="brand-mark">W</div>
-          <div class="brand-copy">
-            <div class="brand-title">WorkTree <span style="color:var(--primary);">X</span></div>
-            <div class="brand-sub">Platform Admin</div>
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none" style="width:20px;height:20px;"><path d="M7 8v9a6 6 0 006 6h12M16 5v18M25 10v13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="7" cy="7" r="3" fill="currentColor"/><circle cx="16" cy="6" r="3" fill="currentColor"/><circle cx="25" cy="10" r="3" fill="currentColor"/></svg>
           </div>
-          <button class="collapse-btn" id="paCollapseBtn" aria-label="Thu gọn sidebar" aria-expanded="true" title="Thu gọn sidebar">
+          <div class="brand-copy">
+            <div class="brand-title" style="font-size:16px;font-weight:800;letter-spacing:-.02em;">WorkTree<span style="color:var(--primary);margin-left:1px;">X</span></div>
+            <div class="brand-sub" style="font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--sidebar-muted);text-transform:uppercase;">Platform Admin</div>
+          </div>
+          <button class="collapse-btn" id="paCollapseBtn" aria-label="Thu gọn sidebar" aria-expanded="true" title="Thu gọn sidebar (Ctrl+B)">
             <svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
         </div>
@@ -764,6 +775,12 @@ export function initPlatformAdminShell() {
         <!-- Topbar -->
         <header class="topbar">
           <button class="icon-btn mobile-menu" id="paMobileMenu" aria-label="Mở menu" aria-expanded="false" aria-controls="paSidebar">${icon('menu')}</button>
+          <div class="top-crumb" style="display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;">
+            <span class="icon" style="color:var(--primary);width:16px;height:16px;">${icon('shield')}</span>
+            <span style="color:var(--muted);font-weight:600;">WorkTree X</span>
+            <span class="crumb-divider" style="color:var(--muted);opacity:.4;">/</span>
+            <strong id="paTopBreadcrumbView" style="color:var(--text);font-weight:750;">Tổng quan nền tảng</strong>
+          </div>
           <div class="top-search">
             <span>${icon('search')}</span>
             <input id="paGlobalSearch" aria-label="Tìm doanh nghiệp, người dùng hoặc email" placeholder="Tìm doanh nghiệp, người dùng, email...">
@@ -1042,6 +1059,9 @@ function switchView(viewName, focusHeading = false) {
       window.location.hash = targetHash;
     }
   }
+
+  const breadcrumbEl = portalContainer?.querySelector('#paTopBreadcrumbView');
+  if (breadcrumbEl) breadcrumbEl.textContent = VIEW_TITLES[viewName];
 
   renderCurrentView();
   if (focusHeading) window.requestAnimationFrame(() => {
