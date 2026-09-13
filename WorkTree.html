@@ -7165,7 +7165,16 @@ let identity={version:1,accounts:[],audit:[]},identityRaw=null,identityIssue='',
 let pinDB={version:1,users:{}},pinRaw=null,pinUndo=null,accessTab='accounts',accountQuery='',accountEditing=null,passwordTarget=null;
 const PERSONAL_DEFAULTS={collapsed:false,sort:'smart',pageSize:15,focusTab:'attention',theme:'light',density:'comfortable',currentUser:null,timelineDays:14};
 let authBusy=false,lastActivityWrite=0,appReady=false,pinsExpanded=false,scopeSearch='';
-Object.assign(ICONS,{'arrow-top':'<path d="M4 3h16M7 12l5-5 5 5M12 7v14"/>',pin:'<path d="m16 3 5 5-4 2-3 6-3-3-6 6-1-1 6-6-3-3 6-3Z"/>',logout:'<path d="M9 4H4v16h5M14 8l4 4-4 4M8 12h10"/>',key:'<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-5-5 2-2m-5-1 2-2"/>','arrow-up':'<path d="m6 10 6-6 6 6M12 4v16"/>','arrow-down':'<path d="m6 14 6 6 6-6M12 4v16"/>'});
+Object.assign(ICONS,{
+ 'arrow-top':'<path d="M4 3h16M7 12l5-5 5 5M12 7v14"/>',
+ pin:'<path d="m16 3 5 5-4 2-3 6-3-3-6 6-1-1 6-6-3-3 6-3Z"/>',
+ logout:'<path d="M9 4H4v16h5M14 8l4 4-4 4M8 12h10"/>',
+ key:'<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-5-5 2-2m-5-1 2-2"/>',
+ 'arrow-up':'<path d="m6 10 6-6 6 6M12 4v16"/>',
+ 'arrow-down':'<path d="m6 14 6 6 6-6M12 4v16"/>',
+ bot:'<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+ phone:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>'
+});
 function currentAccount(){
  if(window.__worktree_supabase_user) return window.__worktree_supabase_user;
  if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
@@ -7542,7 +7551,7 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
     <p>${emp.employee_code ? `<span class="muted">[${esc(emp.employee_code)}]</span> ` : ''}${esc(jobText || 'Chưa phân phòng ban')}</p>
     <div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">
      ${statusBadge}
-     ${emp.zalo_chat_id ? `<span class="badge" style="background:rgba(0,104,255,0.08);color:#0068ff;border:1px solid rgba(0,104,255,0.25);font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;" title="Đã liên kết Zalo Bot (Chat ID: ${esc(emp.zalo_chat_id)})">${icon('message')} Zalo</span>` : (emp.phone ? `<span class="badge" style="background:var(--surface-3);color:var(--muted);font-size:11px;font-weight:500;padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;" title="Số điện thoại: ${esc(emp.phone)} - Chưa kích hoạt Zalo">${icon('phone')} ${esc(emp.phone)}</span>` : '')}
+     ${emp.zalo_chat_id ? `<span class="badge" style="background:var(--green-soft);color:var(--green);border:1px solid rgba(16,115,83,0.2);font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;" title="Đã liên kết Zalo Bot (Chat ID: ${esc(emp.zalo_chat_id)})">${icon('bot')} Zalo đã kết nối</span>` : (emp.phone ? `<span class="badge" style="background:var(--surface-3);color:var(--muted);font-size:11px;font-weight:500;padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;" title="Số điện thoại: ${esc(emp.phone)} - Chưa kích hoạt Zalo">${icon('phone')} ${esc(emp.phone)}</span>` : '')}
     </div>
    </div>
    <div class="account-ops employee-ops">
@@ -8403,7 +8412,7 @@ async function openEmployeeDetailsDialog(employeeId){
 
    <div style="margin:16px 0 10px;font-weight:700;color:var(--text);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:6px;">
-     ${icon('message')} <span>Thông báo qua Zalo Bot</span>
+     ${icon('bot')} <span>Thông báo qua Zalo Bot</span>
     </div>
     ${emp.zalo_chat_id ? `
       <span class="badge" style="background:var(--green-soft);color:var(--green);font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">
@@ -8430,7 +8439,7 @@ async function openEmployeeDetailsDialog(employeeId){
         <p style="margin:0 0 4px 0;color:var(--text);font-weight:600;">Chưa kích hoạt nhận thông báo qua Zalo</p>
         <small class="muted">Nhân viên chỉ cần gửi số điện thoại <strong>${esc(emp.phone || 'của mình')}</strong> vào Zalo Bot là xong.</small>
        </div>
-       <button type="button" class="btn btn-sm primary" data-v8="employee-guide-zalo" data-employee-id="${emp.id}" data-employee-phone="${esc(emp.phone||'')}" data-employee-name="${esc(emp.full_name||'')}">📱 Hướng dẫn liên kết Zalo</button>
+       <button type="button" class="btn btn-sm primary" data-v8="employee-guide-zalo" data-employee-id="${emp.id}" data-employee-phone="${esc(emp.phone||'')}" data-employee-name="${esc(emp.full_name||'')}">${icon('bot')} Hướng dẫn liên kết Zalo</button>
       </div>
     `}
    </div>
@@ -8478,20 +8487,28 @@ async function openEmployeeDetailsDialog(employeeId){
 }
 
 function openZaloGuideDialog(phone, name) {
- const botName = 'Bot AI Assistant 1';
- const botAccount = 'bot.JgtmAepW';
- const botLink = 'https://zalo.me/s/botcreator/';
+ const cfg = (typeof window !== 'undefined' && (window.ZALO_BOT_CONFIG || window.__ZALO_BOT_CONFIG__)) || {};
+ const botName = cfg.BOT_NAME || 'Bot WorkTree X 🛎';
+ const botAccount = cfg.BOT_ACCOUNT_NAME || 'bot.vdxOmKTr';
+ const botLink = cfg.BOT_LINK || ('https://bot.zaloplatforms.com/groups/invite/' + botAccount) || 'https://zalo.me/s/botcreator/';
 
  $('infoEyebrow').textContent = 'ZALO BOT PLATFORM';
  $('infoTitle').textContent = 'Hướng dẫn liên kết Zalo 1 chạm';
  $('infoContent').innerHTML = `
   <div style="padding:16px 20px;">
-   <div style="background:rgba(0,104,255,0.06);border:1px solid rgba(0,104,255,0.25);border-radius:10px;padding:16px;margin-bottom:16px;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-     <span style="font-size:24px;">🤖</span>
-     <div>
-      <strong style="font-size:15px;color:var(--text);">${botName}</strong>
-      <div class="muted" style="font-size:12px;">Tài khoản: @${botAccount}</div>
+   <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+     <div style="width:46px;height:46px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;border:1px solid rgba(105,98,219,0.22);box-shadow:0 2px 8px rgba(105,98,219,0.08);flex-shrink:0;">
+      <svg class="icon" style="width:24px;height:24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+       <path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>
+      </svg>
+     </div>
+     <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+       <strong style="font-size:15px;color:var(--text);font-weight:700;">${esc(botName)}</strong>
+       <span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600;background:var(--green-soft);color:var(--green);">Online</span>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:2px;">Tài khoản chính thức: <code>@${esc(botAccount)}</code></div>
      </div>
     </div>
     <p style="margin:0;font-size:13px;color:var(--text);line-height:1.6;">
@@ -8500,7 +8517,7 @@ function openZaloGuideDialog(phone, name) {
    </div>
 
    <div style="font-size:13px;color:var(--text);line-height:1.7;">
-    <strong style="display:block;margin-bottom:8px;font-size:14px;">Quy trình 3 bước cực kỳ đơn giản:</strong>
+    <strong style="display:block;margin-bottom:8px;font-size:14px;color:var(--text);">Quy trình 3 bước cực kỳ đơn giản:</strong>
     <ol style="margin:0;padding-left:20px;">
      <li style="margin-bottom:8px;">
       Nhấn nút <strong>"Mở Zalo Bot ngay"</strong> bên dưới để mở khung chat với Bot.
@@ -8515,8 +8532,8 @@ function openZaloGuideDialog(phone, name) {
    </div>
 
    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
-    ${phone ? `<button type="button" class="btn" id="btnCopyEmpPhone">Sao chép SĐT</button>` : ''}
-    <button type="button" class="btn primary" id="btnOpenZaloBotDirect">Mở Zalo Bot ngay ↗</button>
+    ${phone ? `<button type="button" class="btn" id="btnCopyEmpPhone">${icon('copy')} Sao chép SĐT</button>` : ''}
+    <button type="button" class="btn primary" id="btnOpenZaloBotDirect">${icon('arrow-up-right')} Mở Zalo Bot ngay</button>
    </div>
   </div>
  `;
