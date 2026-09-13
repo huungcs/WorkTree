@@ -174,41 +174,22 @@ module.exports = async function handler(req, res) {
       const statusFilter = query.status || body.status || '';
       const planFilter = query.plan || body.plan || '';
 
-      let orgs = [];
-      try {
-        let orgQuery = supabase
-          .from('organizations')
-          .select('id, name, slug, status, created_at, created_by, suspended_at, suspension_reason')
-          .order('created_at', { ascending: false });
+      // Keep the list compatible with the baseline schema. Optional suspension
+      // metadata is loaded by the detail endpoint after its migration exists.
+      let orgQuery = supabase
+        .from('organizations')
+        .select('id, name, slug, status, created_at, created_by')
+        .order('created_at', { ascending: false });
 
-        if (statusFilter) {
-          orgQuery = orgQuery.eq('status', statusFilter);
-        }
-        if (search) {
-          orgQuery = orgQuery.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
-        }
-
-        const { data, error } = await orgQuery;
-        if (error) throw error;
-        orgs = data || [];
-      } catch (colErr) {
-        // Fallback for baseline schema without optional suspension columns
-        let orgQuery = supabase
-          .from('organizations')
-          .select('id, name, slug, status, created_at, created_by')
-          .order('created_at', { ascending: false });
-
-        if (statusFilter) {
-          orgQuery = orgQuery.eq('status', statusFilter);
-        }
-        if (search) {
-          orgQuery = orgQuery.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
-        }
-
-        const { data, error } = await orgQuery;
-        if (error) throw error;
-        orgs = data || [];
+      if (statusFilter) {
+        orgQuery = orgQuery.eq('status', statusFilter);
       }
+      if (search) {
+        orgQuery = orgQuery.or(`name.ilike.%${search}%,slug.ilike.%${search}%`);
+      }
+
+      const { data: orgs = [], error: orgsError } = await orgQuery;
+      if (orgsError) throw orgsError;
 
       const orgIds = (orgs || []).map(o => o.id);
 
@@ -242,8 +223,8 @@ module.exports = async function handler(req, res) {
           slug: org.slug,
           domain: `${org.slug}.worktree.vn`,
           status: org.status,
-          suspendedAt: org.suspended_at,
-          suspensionReason: org.suspension_reason,
+          suspendedAt: null,
+          suspensionReason: null,
           createdAt: org.created_at,
           createdBy: org.created_by,
           ownerName: ownerMap.get(org.created_by) || 'Người quản trị',
@@ -656,20 +637,25 @@ module.exports = async function handler(req, res) {
     // ACTION: Violations
     // -------------------------------------------------------------------------
     if (action === 'violations') {
-      // Find tenants with suspended status or high task counts as automated warning insights
-      const { data: suspendedOrgs } = await supabase
-        .from('organizations')
-        .select('id, name, suspended_at, suspension_reason')
-        .eq('status', 'suspended');
+      let suspendedOrgs = [];
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('id, name, status')
+          .eq('status', 'suspended');
+        if (!error && data) suspendedOrgs = data;
+      } catch (_) {
+        suspendedOrgs = [];
+      }
 
-      const violationsList = (suspendedOrgs || []).map((org, i) => ({
+      const violationsList = (suspendedOrgs || []).map((org) => ({
         id: `v-${org.id}`,
         level: 'red',
         title: 'Doanh nghiệp đang bị tạm khóa vận hành',
         tenant: org.name,
         type: 'Suspension',
-        time: org.suspended_at || 'Gần đây',
-        desc: org.suspension_reason || 'Tạm ngưng truy cập bởi Platform Super-Admin'
+        time: 'Gần đây',
+        desc: 'Tạm ngưng truy cập bởi Platform Super-Admin'
       }));
 
       return res.status(200).json({ ok: true, violations: violationsList });
