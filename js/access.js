@@ -1346,7 +1346,7 @@ function openZaloGuideDialog(phone, name) {
  const cfg = (typeof window !== 'undefined' && (window.ZALO_BOT_CONFIG || window.__ZALO_BOT_CONFIG__)) || {};
  const botName = cfg.BOT_NAME || 'Bot WorkTree X 🛎';
  const botAccount = cfg.BOT_ACCOUNT_NAME || 'bot.vdxOmKTr';
- const botLink = cfg.BOT_LINK || ('https://bot.zaloplatforms.com/groups/invite/' + botAccount) || 'https://zalo.me/s/botcreator/';
+ const botLink = cfg.BOT_LINK || 'https://zalo.me/3771437682242262538';
 
  $('infoEyebrow').textContent = 'ZALO BOT PLATFORM';
  $('infoTitle').textContent = 'Hướng dẫn liên kết Zalo 1 chạm';

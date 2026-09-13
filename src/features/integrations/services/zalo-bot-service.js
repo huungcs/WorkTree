@@ -13,7 +13,7 @@ export const ZALO_BOT_CONFIG = {
   DEFAULT_TOKEN: '2266752785520432648:FWBqyZfsALXUJUEzYBIBPRYhgLjmQTHtbGFxGvgLoksAMBDfWkerxoAGlkvqCaQh',
   API_BASE: 'https://bot-api.zaloplatforms.com',
   MINI_APP_URL: 'https://zalo.me/s/botcreator/',
-  BOT_LINK: 'https://bot.zaloplatforms.com/groups/invite/bot.vdxOmKTr'
+  BOT_LINK: 'https://zalo.me/3771437682242262538'
 };
 
 export const ZaloBotService = {

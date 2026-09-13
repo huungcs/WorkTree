@@ -27,7 +27,8 @@ const SUPABASE_CONFIG = {
 const ZALO_BOT_CONFIG = {
   botId: '2266752785520432648',
   defaultToken: '2266752785520432648:FWBqyZfsALXUJUEzYBIBPRYhgLjmQTHtbGFxGvgLoksAMBDfWkerxoAGlkvqCaQh',
-  apiBase: 'https://bot-api.zaloplatforms.com'
+  apiBase: 'https://bot-api.zaloplatforms.com',
+  botLink: 'https://zalo.me/3771437682242262538'
 };
 
 async function sendZaloMessage(chatId, text) {

@@ -3111,10 +3111,10 @@ const ICONS={
  question:'<circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>'
 };
 const $=id=>document.getElementById(id);
-const $=(selector,root=document)=>Array.from(root.querySelectorAll(selector));
+const $$=(selector,root=document)=>Array.from(root.querySelectorAll(selector));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=(name,extra='')=>`<svg class="icon ${extra}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]||ICONS.folder}</svg>`;
-function hydrateIcons(root=document){$('[data-icon]',root).forEach(el=>{el.innerHTML=icon(el.dataset.icon);});}
+function hydrateIcons(root=document){$$('[data-icon]',root).forEach(el=>{el.innerHTML=icon(el.dataset.icon);});}
 const clone=v=>JSON.parse(JSON.stringify(v));
 const fold=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLocaleLowerCase('vi').trim();
 const clamp=(n,a,b)=>Math.min(b,Math.max(a,n));
@@ -3368,7 +3368,7 @@ function applySidebar(){
  const mobile=innerWidth<=900;
  const expanded=mobile?state.mobileOpen:!state.collapsed;
  const toggleLabel=mobile?(expanded?'Đóng thanh điều hướng':'Mở thanh điều hướng'):(expanded?'Thu gọn thanh điều hướng':'Mở rộng thanh điều hướng');
- $('[data-action="sidebar"]').forEach(button=>{
+ $$('[data-action="sidebar"]').forEach(button=>{
   button.setAttribute('aria-controls','sidebar');
   button.setAttribute('aria-expanded',String(expanded));
   button.setAttribute('aria-label',toggleLabel);
@@ -3764,12 +3764,12 @@ function renderShell(arr){
  }else if(typeof window.refreshNotificationBadge==='function'){
   window.refreshNotificationBadge();
  }
- $('.primary-nav .nav-item').forEach(b=>{
+ $$('.primary-nav .nav-item').forEach(b=>{
   const kind=b.dataset.nav;
   const active=node.id===root.id&&(kind==='mine'?mine&&state.view==='list':kind==='attention'?attentionView&&state.view==='list':kind===state.view&&!(state.view==='list'&&(mine||attentionView)));
   b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
  });
- $('#viewTabs .view-tab').forEach(b=>{const active=b.dataset.view===state.view;b.setAttribute('aria-selected',active);b.tabIndex=active?0:-1;const badge=b.querySelector('.tab-count');if(badge)badge.textContent=arr.length;});
+ $$('#viewTabs .view-tab').forEach(b=>{const active=b.dataset.view===state.view;b.setAttribute('aria-selected',active);b.tabIndex=active?0:-1;const badge=b.querySelector('.tab-count');if(badge)badge.textContent=arr.length;});
  $('viewContent').setAttribute('role','tabpanel');$('viewContent').setAttribute('aria-labelledby','tab-'+state.view);$('viewContent').setAttribute('aria-label',VIEWS[state.view][0]);$('undoBtn').disabled=!history.length;
  const dueLabels={late:'Quá hạn',today:'Đến hạn hôm nay',week:'7 ngày tới',unscheduled:'Chưa có hạn',attention:'Cần chú ý'},f=state.filters,chips=[];
  if(f.q)chips.push(['q','Tìm: '+f.q]);if(f.status)chips.push(['status',f.status]);if(f.priority)chips.push(['priority',f.priority]);
@@ -6112,7 +6112,7 @@ function renderCommand(){
 }
 function selectCommand(index){
  if(!commandOptions.length)return;commandIndex=(index+commandOptions.length)%commandOptions.length;
- $('#commandResults [role="option"]').forEach((el,i)=>el.setAttribute('aria-selected',String(i===commandIndex)));
+ $$('#commandResults [role="option"]').forEach((el,i)=>el.setAttribute('aria-selected',String(i===commandIndex)));
  const el=$('command-option-'+commandIndex);$('commandInput').setAttribute('aria-activedescendant',el.id);el.scrollIntoView({block:'nearest'});
 }
 function executeCommand(index=commandIndex){const action=commandOptions[index];if(!action)return;closeDialog('commandDialog',true);action.run();}
@@ -6662,7 +6662,7 @@ $('taskForm').addEventListener('submit',saveTask);$('nodeForm').addEventListener
 document.addEventListener('submit',e=>{if(e.target.id==='checklistForm')addChecklist(e);if(e.target.id==='commentForm')addComment(e);if(e.target.id==='logForm')logHours(e);if(e.target.id==='dependencyForm')addDependencyForm(e);});
 $('importFile').addEventListener('change',importJSON);
 $('confirmOk').addEventListener('click',()=>resolveConfirm(true));$('confirmCancel').addEventListener('click',()=>resolveConfirm(false));
-$('dialog').forEach(dialog=>{
+$$('dialog').forEach(dialog=>{
  dialog.addEventListener('cancel',e=>{e.preventDefault();if(dialog.id==='confirmDialog')resolveConfirm(false);else{if(dialog.id==='drawer')storeDrawerDraft();closeDialog(dialog.id);}});
  dialog.addEventListener('click',e=>{
   if(e.target!==dialog)return;const rect=dialog.getBoundingClientRect();
@@ -6672,7 +6672,7 @@ $('dialog').forEach(dialog=>{
 });
 $('viewTabs').addEventListener('keydown',e=>{
  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
- const tabs=$('#viewTabs .view-tab'),idx=tabs.indexOf(document.activeElement);if(idx<0)return;
+ const tabs=$$('#viewTabs .view-tab'),idx=tabs.indexOf(document.activeElement);if(idx<0)return;
  e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(idx+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
  setView(tabs[next].dataset.view);tabs[next].focus();
 });
@@ -6693,7 +6693,7 @@ document.addEventListener('keydown',e=>{
  if(key==='escape'&&state.mobileOpen&&!modal){e.preventDefault();closeSidebar(true);return;}
  if((e.ctrlKey||e.metaKey)&&key==='z'&&!editing&&!modal){e.preventDefault();e.shiftKey?redo():undo();return;}
  if(state.mobileOpen&&e.key==='Tab'&&!modal){
-  const els=$('button,input,select,[tabindex="0"]',$('sidebar')).filter(x=>!x.disabled&&x.offsetParent!==null);
+  const els=$$('button,input,select,[tabindex="0"]',$('sidebar')).filter(x=>!x.disabled&&x.offsetParent!==null);
   if(els.length){if(e.shiftKey&&document.activeElement===els[0]){e.preventDefault();els.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===els.at(-1)){e.preventDefault();els[0].focus();}}return;
  }
  if(editing||modal||e.ctrlKey||e.metaKey)return;
@@ -6713,14 +6713,14 @@ document.addEventListener('dragstart',e=>{
 });
 document.addEventListener('dragover',e=>{
  const col=e.target.closest('[data-drop-status]');if(!col||!draggingId)return;e.preventDefault();e.dataTransfer.dropEffect='move';
- $('.board-column.drag-over').forEach(c=>{if(c!==col)c.classList.remove('drag-over');});col.classList.add('drag-over');
+ $$('.board-column.drag-over').forEach(c=>{if(c!==col)c.classList.remove('drag-over');});col.classList.add('drag-over');
 });
 document.addEventListener('drop',e=>{
  const col=e.target.closest('[data-drop-status]');if(!col||!draggingId)return;e.preventDefault();
- const id=e.dataTransfer.getData('text/plain'),status=col.dataset.dropStatus;draggingId=null;$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));
+ const id=e.dataTransfer.getData('text/plain'),status=col.dataset.dropStatus;draggingId=null;$$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));
  if(byTask.has(id)&&STATUS.includes(status))changeStatus(id,status);
 });
-document.addEventListener('dragend',()=>{draggingId=null;$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));});
+document.addEventListener('dragend',()=>{draggingId=null;$$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));});
 window.addEventListener('resize',()=>{if(innerWidth>900)state.mobileOpen=false;applySidebar();});
 window.addEventListener('storage',event=>{
  if(event.key===KEYS.data&&event.newValue!==lastRaw){externalRaw=event.newValue??'';renderStorage();}
@@ -6805,7 +6805,7 @@ function boot(){
  if(!lastRaw&&!storageProtected)persistData();else renderStorage();
  if(migrationMessage)setTimeout(()=>toast(migrationMessage),300);
  let tick=0;setInterval(()=>{
-  if(state.timer)$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());
+  if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());
   if(++tick%15===0){
    checkDate();
    if(typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
@@ -7425,7 +7425,7 @@ function lockWorkspace(message=T.sessionExpired){
  if(session&&state.timer){state.timer.pausedAt=Date.now();savePrefs();}
  session=null;pendingUser=null;saveSession();dirtyTask=false;dirtyNode=false;drawerId=null;editingTask=null;editingNode=null;
  if(confirmResolver){confirmResolver(false);confirmResolver=null;}
- $('dialog[open]').forEach(d=>{try{d.close();}catch(e){}});
+ $$('dialog[open]').forEach(d=>{try{d.close();}catch(e){}});
  for(const id of ['viewContent','orgTree','savedViews','drawerContent','settingsContent','infoContent','commandResults','accessContent','accountContent','profileContent','passwordContent','pinContent']){
   const el=$(id);if(el)el.innerHTML='';
  }
@@ -7776,7 +7776,7 @@ function openAddEmployeeDialog(){
   const r = roleSelect.value;
   scopeSection.hidden = (r === 'admin');
   $('newEmpRoleExplanation').innerHTML = `<span class="role-badge role-${r}">${T[r]||r}</span><p>${roleDescription(r)}</p>`;
-  const checkedCount = $('#addEmployeeForm [name="empScope"]:checked').length;
+  const checkedCount = $$('#addEmployeeForm [name="empScope"]:checked').length;
   $('newEmpScopeCount').textContent = checkedCount + ' nhánh';
  }
 
@@ -7796,9 +7796,9 @@ function openAddEmployeeDialog(){
  });
  roleSelect.addEventListener('change', updateRoleScopeUI);
  homeSelect.addEventListener('change', () => {
-  const allChecked = $('#addEmployeeForm [name="empScope"]:checked');
+  const allChecked = $$('#addEmployeeForm [name="empScope"]:checked');
   if(allChecked.length <= 1){
-   $('#addEmployeeForm [name="empScope"]').forEach(c => c.checked = false);
+   $$('#addEmployeeForm [name="empScope"]').forEach(c => c.checked = false);
    const cb = $(`#addEmployeeForm [name="empScope"][value="${homeSelect.value}"]`);
    if(cb) cb.checked = true;
    updateRoleScopeUI();
@@ -7807,10 +7807,10 @@ function openAddEmployeeDialog(){
 
  $('newEmpScopeSearch').addEventListener('input', e => {
   const q = fold(e.target.value);
-  $('#addEmployeeForm .scope-option').forEach(el => el.hidden = !el.dataset.scopeName.includes(q));
+  $$('#addEmployeeForm .scope-option').forEach(el => el.hidden = !el.dataset.scopeName.includes(q));
  });
 
- $('#addEmployeeForm [name="empScope"]').forEach(el => el.addEventListener('change', updateRoleScopeUI));
+ $$('#addEmployeeForm [name="empScope"]').forEach(el => el.addEventListener('change', updateRoleScopeUI));
 
  updateRoleScopeUI();
  $('addEmployeeForm').addEventListener('submit', submitNewEmployee);
@@ -7856,7 +7856,7 @@ async function submitNewEmployee(e){
     throw new Error('Vai trò không hợp lệ.');
    }
 
-   scopeNodeIds = role === 'admin' ? [] : $('#addEmployeeForm [name="empScope"]:checked').map(el => el.value);
+   scopeNodeIds = role === 'admin' ? [] : $$('#addEmployeeForm [name="empScope"]:checked').map(el => el.value);
    if(role !== 'admin' && !scopeNodeIds.length){
     scopeNodeIds = [homeNodeId];
    }
@@ -8113,16 +8113,16 @@ function openInviteExistingEmployeeDialog(employeeId){
   const r = roleSelect.value;
   scopeSection.hidden = (r === 'admin');
   $('inviteExistRoleExplanation').innerHTML = `<span class="role-badge role-${r}">${T[r]||r}</span><p>${roleDescription(r)}</p>`;
-  const checkedCount = $('#inviteExistingForm [name="inviteExistScope"]:checked').length;
+  const checkedCount = $$('#inviteExistingForm [name="inviteExistScope"]:checked').length;
   $('inviteExistScopeCount').textContent = checkedCount + ' nhánh';
  }
 
  roleSelect.addEventListener('change', updateRoleScopeUI);
  $('inviteExistScopeSearch').addEventListener('input', e => {
   const q = fold(e.target.value);
-  $('#inviteExistingForm .scope-option').forEach(el => el.hidden = !el.dataset.scopeName.includes(q));
+  $$('#inviteExistingForm .scope-option').forEach(el => el.hidden = !el.dataset.scopeName.includes(q));
  });
- $('#inviteExistingForm [name="inviteExistScope"]').forEach(el => el.addEventListener('change', updateRoleScopeUI));
+ $$('#inviteExistingForm [name="inviteExistScope"]').forEach(el => el.addEventListener('change', updateRoleScopeUI));
 
  updateRoleScopeUI();
 
@@ -8144,7 +8144,7 @@ function openInviteExistingEmployeeDialog(employeeId){
    const r = roleSelect.value;
    if(r === 'owner') throw new Error('Không thể chọn vai trò Chủ sở hữu.');
 
-   const scopes = r === 'admin' ? [] : $('#inviteExistingForm [name="inviteExistScope"]:checked').map(el => el.value);
+   const scopes = r === 'admin' ? [] : $$('#inviteExistingForm [name="inviteExistScope"]:checked').map(el => el.value);
 
    const token = await window.EmployeeService.inviteExistingEmployee({
     organizationId: orgId,
@@ -8513,7 +8513,7 @@ function openZaloGuideDialog(phone, name) {
  const cfg = (typeof window !== 'undefined' && (window.ZALO_BOT_CONFIG || window.__ZALO_BOT_CONFIG__)) || {};
  const botName = cfg.BOT_NAME || 'Bot WorkTree X 🛎';
  const botAccount = cfg.BOT_ACCOUNT_NAME || 'bot.vdxOmKTr';
- const botLink = cfg.BOT_LINK || ('https://bot.zaloplatforms.com/groups/invite/' + botAccount) || 'https://zalo.me/s/botcreator/';
+ const botLink = cfg.BOT_LINK || 'https://zalo.me/3771437682242262538';
 
  $('infoEyebrow').textContent = 'ZALO BOT PLATFORM';
  $('infoTitle').textContent = 'Hướng dẫn liên kết Zalo 1 chạm';
@@ -8711,16 +8711,16 @@ function openAccount(id=null){
  const curId=session?.id||currentAccount()?.id;
  $('accountContent').innerHTML=`<form id="accountForm">${dialogHead(a?T.edit:T.newAccount,'accountTitle','accountDialog')}<div class="dialog-scroll"><div class="form-error" id="accountError" role="alert" tabindex="-1" hidden></div><div class="form-grid">${field(T.name,'accountName','text',a?.name||'','required maxlength="180" autocomplete="name"')}${field(T.username,'accountUsername','text',a?.username||'','required maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false"')}<label class="field">${T.role}<select id="accountRole" ${a?.id===curId?'disabled':''}>${ROLES.map(r=>`<option value="${r}" ${(a?.role||'member')===r?'selected':''}>${T[r]}</option>`).join('')}</select></label><label class="field">${T.person}<select id="accountPerson"><option value="">${T.noPerson}</option>${permittedPeople().map(n=>`<option value="${n.id}" ${n.id===a?.personId?'selected':''}>${esc(n.name)}</option>`).join('')}</select></label>${a?'':`<div class="field full">${passwordField(T.temporary,'accountPassword')}<p class="field-hint">${T.passwordHint}</p><label class="checkbox-label account-force-change"><input id="accountForceChange" type="checkbox" checked><span>${T.forceChange}</span></label></div>`}<div class="field full" id="scopeField"><div class="scope-label"><strong>${T.scope}</strong><small id="scopeSelectedCount"></small></div><p class="field-hint">${T.scopeHint}</p><input type="search" id="scopeSearch" placeholder="Tìm nhánh..." aria-label="Tìm nhánh phân quyền"><div class="scope-picker">${buildScopeTreeOptions(a?.scopes||[],'scope')}</div></div><div class="role-explanation full" id="roleExplanation"></div></div></div><div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="accountDialog">${T.cancel}</button><button type="submit" class="btn primary" id="accountSave">${a?T.save:T.create}</button></div></form>`;
  $('accountForm').addEventListener('submit',saveAccount);$('accountRole').addEventListener('change',updateScopeForm);$('accountPerson').addEventListener('change',()=>{if(!$('accountName').value.trim()&&$('accountPerson').value)$('accountName').value=nodeName(Number($('accountPerson').value));});
- $('scopeSearch').addEventListener('input',e=>{const q=fold(e.target.value);$('.scope-option').forEach(el=>el.hidden=!el.dataset.scopeName.includes(q));});
- $('#accountForm [name="scope"]').forEach(el=>el.addEventListener('change',updateScopeForm));updateScopeForm();showDialog('accountDialog','#accountName');
+ $('scopeSearch').addEventListener('input',e=>{const q=fold(e.target.value);$$('.scope-option').forEach(el=>el.hidden=!el.dataset.scopeName.includes(q));});
+ $$('#accountForm [name="scope"]').forEach(el=>el.addEventListener('change',updateScopeForm));updateScopeForm();showDialog('accountDialog','#accountName');
 }
-function updateScopeForm(){const r=$('accountRole').value;$('scopeField').hidden=r==='admin';$('roleExplanation').innerHTML=`<span class="role-badge role-${r}">${T[r]}</span><p>${roleDescription(r)}</p>`;$('scopeSelectedCount').textContent=$('#accountForm [name="scope"]:checked').length+' nhánh';}
+function updateScopeForm(){const r=$('accountRole').value;$('scopeField').hidden=r==='admin';$('roleExplanation').innerHTML=`<span class="role-badge role-${r}">${T[r]}</span><p>${roleDescription(r)}</p>`;$('scopeSelectedCount').textContent=$$('#accountForm [name="scope"]:checked').length+' nhánh';}
 async function saveAccount(e){
  e.preventDefault();if(!requireAdmin()||$('accountSave').disabled)return;
  $('accountSave').disabled=true;$('accountError').hidden=true;
  try{
   const username=checkUsername($('accountUsername').value),name=$('accountName').value.trim(),role=$('accountRole').value,personId=Number($('accountPerson').value)||null;
-  const scopes=role==='admin'?[]:$('#accountForm [name="scope"]:checked').map(el=>Number(el.value));
+  const scopes=role==='admin'?[]:$$('#accountForm [name="scope"]:checked').map(el=>Number(el.value));
   if(!name||!ROLES.includes(role))throw Error(T.name);if(role!=='admin'&&!scopes.length)throw Error(T.scopeRequired);
   if(role==='member'&&!personId)throw Error(T.personRequired);
   if(identity.accounts.some(a=>a.id!==accountEditing&&a.username===username))throw Error(T.duplicateUsername);
@@ -8887,7 +8887,7 @@ function renderTree(){
 function injectDrawerPin(t){const tools=$('drawerContent').querySelector('.drawer-tools');if(tools)tools.insertAdjacentHTML('afterbegin',taskPinButton(t.id));}
 function decoratePinButtons(){
  if(!currentAccount())return;
- $('#viewContent [data-action="favorite"]').forEach(b=>{
+ $$('#viewContent [data-action="favorite"]').forEach(b=>{
   const rawId=b.dataset.id;
   if(!rawId)return;
   const parent=b.parentElement;
@@ -8902,7 +8902,7 @@ function decoratePinButtons(){
   }
   b.insertAdjacentHTML('beforebegin',taskPinButton(rawId));
  });
- $('#viewContent [data-drag-task]').forEach(card=>{
+ $$('#viewContent [data-drag-task]').forEach(card=>{
   const rawId=card.dataset.dragTask;
   if(!rawId)return;
   const actions=card.querySelector('.board-card-actions');
@@ -8921,7 +8921,7 @@ function decoratePinButtons(){
   const b=card.querySelector('[data-action="favorite"]');
   (b||card).insertAdjacentHTML(b?'beforebegin':'afterbegin',taskPinButton(rawId));
  });
- $('.task-pin-btn,.tree-pin').forEach(b=>{
+ $$('.task-pin-btn,.tree-pin').forEach(b=>{
   const raw=b.dataset.id;
   const on=isPinned(b.dataset.kind||'task',raw);
   b.classList.toggle('is-pinned',on);
@@ -9136,7 +9136,7 @@ async function reorderPin(action,kind,id){
 }
 function openSettings(){
  if(!requireLogin())return;legacyOpenSettings();
- const sections=$('.settings-section',$('settingsContent'));
+ const sections=$$('.settings-section',$('settingsContent'));
  const profileSection=sections.find(s=>s.querySelector('#profileSelect'));
  if(profileSection){profileSection.innerHTML=`<h3>${icon('shield')}${T.account}</h3><div class="settings-row"><div><strong>${esc(currentAccount().name)}</strong><p>${T[currentAccount().role]} · ${esc(accountSummary(currentAccount()))}</p></div><button class="btn" data-v8="profile">${T.account}</button></div><p>${T.idle}</p>`;}
  if(!isAdmin()){sections.filter((s,i)=>[0,3,4].includes(i)).forEach(s=>s.remove());}
@@ -9172,12 +9172,12 @@ function applyPermissionUI(){
  $('profileRole').textContent=T[a.role];$('topAvatar').setAttribute('aria-label',T.account+': '+a.name);
  $('accessNav').hidden=!isAdmin();
  if(!isAdmin()&&state.selected===rootNode().id){$('topScope').textContent=T.allowedScope;$('pageEyebrow').textContent=T.allowedScope.toUpperCase();}
- $('[data-action]',$('app')).concat($('[data-action]',$('drawer'))).forEach(b=>{
+ $$('[data-action]',$('app')).concat($$('[data-action]',$('drawer'))).forEach(b=>{
   const action=b.dataset.action, rawId=b.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
   if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,id);
   else if(['complete','favorite','delete-check','timer-toggle','delete-comment'].includes(action)){b.disabled=!permissionForAction(action,id);}
  });
- $('[data-status-task],[data-owner-task],[data-priority-task],[data-check-task]').forEach(el=>{
+ $$('[data-status-task],[data-owner-task],[data-priority-task],[data-check-task]').forEach(el=>{
   const rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask;
   const id=(rawId&&!isNaN(rawId))?Number(rawId):rawId,t=byTask.get(id);
   el.disabled=el.hasAttribute('data-owner-task')||el.hasAttribute('data-priority-task')?!canManageTask(t):!canUpdateTask(t);
@@ -9185,12 +9185,12 @@ function applyPermissionUI(){
  const t=byTask.get(drawerId);if(t){
   for(const id of ['checklistForm','commentForm','logForm','dependencyForm'])if($(id))$(id).hidden=!canUpdateTask(t);
   if($('drawerAutoProgress'))$('drawerAutoProgress').disabled=!canUpdateTask(t);
-  $('#drawerContent [data-action="delete-comment"]').forEach(b=>{const c=t.comments.find(c=>String(c.id)===String(b.dataset.comment));b.hidden=!canUpdateTask(t)||a.role==='member'&&c?.authorId!==a.personId;});
+  $$('#drawerContent [data-action="delete-comment"]').forEach(b=>{const c=t.comments.find(c=>String(c.id)===String(b.dataset.comment));b.hidden=!canUpdateTask(t)||a.role==='member'&&c?.authorId!==a.personId;});
  }
   if($('bulkOwner'))$('bulkOwner').disabled=!['owner','admin','manager'].includes(a.role);
   if($('bulkStatus'))$('bulkStatus').disabled=a.role==='viewer';
-  $('[data-select-task],#selectPage').forEach(el=>el.disabled=a.role==='viewer');
-  $('[data-drag-task]').forEach(el=>el.draggable=canUpdateTask(byTask.get(el.dataset.dragTask)));
+  $$('[data-select-task],#selectPage').forEach(el=>el.disabled=a.role==='viewer');
+  $$('[data-drag-task]').forEach(el=>el.draggable=canUpdateTask(byTask.get(el.dataset.dragTask)));
  decoratePinButtons();
 }
 function handleV8Click(e){
@@ -9277,7 +9277,7 @@ function bootV8(){
   $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
   if(typeof window.renderSupabaseAuth==='function') window.renderSupabaseAuth();
  }
- let tick=0;setInterval(()=>{if(session||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer)$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
+ let tick=0;setInterval(()=>{if(session||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
  window.openAddEmployeeDialog = openAddEmployeeDialog;
  window.openEditEmployeeDialog = openEditEmployeeDialog;
  window.openInviteExistingEmployeeDialog = openInviteExistingEmployeeDialog;
@@ -9364,7 +9364,7 @@ bootV8();
   $('mobileUndo').disabled=!history.length;$('filterBtn').setAttribute('aria-controls','mobileFilter');$('filterBtn').setAttribute('aria-haspopup','dialog');$('taskSearch').placeholder=decode('T&#236;m c&#244;ng vi&#7879;c...');
  }
  renderShell=function(arr){core.renderShell(arr);shell(arr);};
- renderView=function(arr){core.renderView(arr);if(mobile()&&currentAccount()){shell(arr||filteredTasks());$('[data-drag-task]').forEach(el=>el.draggable=false);}};
+ renderView=function(arr){core.renderView(arr);if(mobile()&&currentAccount()){shell(arr||filteredTasks());$$('[data-drag-task]').forEach(el=>el.draggable=false);}};
  renderPins=function(){core.renderPins();if(mobile()&&currentAccount()){shell();const slot=$('mobileOverviewPins');if(slot)slot.innerHTML=overviewPins();}};
  showDialog=function(id,focusSelector){
   if(!mobile())return core.showDialog(id,focusSelector);if(id==='accountDialog'&&!$(id).open)accountDirty=false;updateViewport();core.showDialog(id,id==='commandDialog'?focusSelector:null);
@@ -9408,7 +9408,7 @@ bootV8();
  $('taskForm').addEventListener('invalid',e=>{if(mobile()&&e.target.closest('.m-secondary,#taskAdvanced')){taskExtra(true);$('taskAdvanced').open=true;}},true);
  renderDrawer=function(){core.renderDrawer();if(mobile()&&drawerId){const tools=$('drawerContent').querySelector('.drawer-tools');if(tools&&!tools.querySelector('[data-mobile]')){const close=tools.querySelector('[data-action="close"]');close?.insertAdjacentHTML('beforebegin',`<button class="icon-btn" data-mobile="task-more" data-id="${drawerId}" aria-label="${L.more}">${icon('more')}</button>`);}const hint=$('commentForm')?.querySelector('small');if(hint)hint.textContent=decode('B&#236;nh lu&#7853;n ch&#7881; l&#432;u tr&#234;n tr&#236;nh duy&#7879;t n&#224;y.');}};
  function overlayState(){
-  const opened=$('dialog[open]').length>0;
+  const opened=$$('dialog[open]').length>0;
   document.body.classList.toggle('m-modal',mobile()&&opened);if(!mobile())document.body.classList.remove('m-home');document.body.classList.toggle('m-menu',mobile()&&state.mobileOpen);
   if(mobile()&&$('mobileFilter')&&!$('mobileFilter').open)$('filterBtn').setAttribute('aria-expanded','false');
   if(!currentAccount()){nav.hidden=true;for(const id of ['mobileScope','mobileViewbar','mobileSheet','mobileFilterForm'])if($(id))$(id).innerHTML='';choosing=false;}
@@ -9425,7 +9425,7 @@ bootV8();
  function scheduleViewport(){if(!viewportFrame)viewportFrame=requestAnimationFrame(updateViewport);}
  window.visualViewport?.addEventListener('resize',scheduleViewport);window.visualViewport?.addEventListener('scroll',scheduleViewport);window.addEventListener('resize',scheduleViewport);
  document.addEventListener('focusin',scheduleViewport);document.addEventListener('focusout',()=>setTimeout(scheduleViewport,80));
- const observer=new MutationObserver(overlayState);observer.observe($('app'),{attributes:true,attributeFilter:['hidden']});$('dialog').forEach(d=>{observer.observe(d,{attributes:true,attributeFilter:['open']});d.addEventListener('close',()=>{overlayState();scheduleViewport();});});
+ const observer=new MutationObserver(overlayState);observer.observe($('app'),{attributes:true,attributeFilter:['hidden']});$$('dialog').forEach(d=>{observer.observe(d,{attributes:true,attributeFilter:['open']});d.addEventListener('close',()=>{overlayState();scheduleViewport();});});
  for(const id of ['mobileSheet','mobileFilter']){const d=$(id);d.addEventListener('cancel',e=>{e.preventDefault();closeDialog(id);});d.addEventListener('click',e=>{if(e.target!==d)return;const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog(id);});}
  document.addEventListener('click',e=>{
   if(!mobile())return;const originalFilter=e.target.closest('#filterBtn'),el=e.target.closest('[data-mobile]');if(!el&&!originalFilter)return;
@@ -9468,6 +9468,6 @@ bootV8();
 </script>
 
 
-<script type="module" src="src/app/app.js"></script>
+<script type="module" src="src/app/app.js?v=8.2.0"></script>
 </body>
 </html>
