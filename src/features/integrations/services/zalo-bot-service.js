@@ -33,20 +33,42 @@ export const ZaloBotService = {
     if (!text || !text.trim()) throw new Error('Nội dung tin nhắn không được rỗng');
 
     const token = options.token || this.getToken();
-    const url = `${ZALO_BOT_CONFIG.API_BASE}/bot${token}/sendMessage`;
-
-    const body = {
-      chat_id: String(chatId),
+    const payload = {
+      chatId: String(chatId),
       text: text.trim(),
-      parse_mode: options.parse_mode || 'markdown'
+      parse_mode: options.parse_mode || 'markdown',
+      token
     };
 
+    // If running in browser environment, use same-origin proxy to bypass CORS
+    if (typeof window !== 'undefined') {
+      try {
+        const proxyRes = await fetch('/api/zalo-send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (proxyRes.ok) {
+          const data = await proxyRes.json();
+          if (data && data.ok) return data;
+        }
+      } catch (proxyErr) {
+        console.warn('[ZaloBotService] Proxy /api/zalo-send failed, falling back to direct:', proxyErr);
+      }
+    }
+
+    // Direct fallback (e.g. Node server / CLI)
+    const url = `${ZALO_BOT_CONFIG.API_BASE}/bot${token}/sendMessage`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        chat_id: String(chatId),
+        text: text.trim(),
+        parse_mode: options.parse_mode || 'markdown'
+      })
     });
 
     const data = await response.json();

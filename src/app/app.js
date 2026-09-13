@@ -29,8 +29,12 @@ if (typeof window !== 'undefined') {
     RealtimeService,
     NotificationService,
     PushDeviceService,
-    ActivityRepository
+    ActivityRepository,
+    ZaloBotService,
+    ZALO_BOT_CONFIG
   });
+  window.ZaloBotService = ZaloBotService;
+  window.ZALO_BOT_CONFIG = ZALO_BOT_CONFIG;
 }
 
 let authViewInstance = null;

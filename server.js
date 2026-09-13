@@ -201,6 +201,25 @@ function handleZaloApi(req, res, reqPath) {
     return;
   }
 
+  if ((reqPath === '/api/zalo/send' || reqPath === '/api/zalo-send') && req.method === 'POST') {
+    let bodyStr = '';
+    req.on('data', chunk => { bodyStr += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(bodyStr || '{}');
+        const chatId = payload.chatId || payload.chat_id || payload.zaloChatId;
+        const text = payload.text || payload.message;
+        const sendRes = await sendZaloMessage(chatId, text);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(sendRes));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   if (reqPath === '/api/zalo/get-updates' && req.method === 'GET') {
     (async () => {
       try {
@@ -231,7 +250,7 @@ function createServer({ publicDir = PUBLIC_DIR } = {}) {
     return;
   }
 
-  if (reqPath.startsWith('/api/zalo/')) {
+  if (reqPath.startsWith('/api/zalo/') || reqPath === '/api/zalo-send') {
     handleZaloApi(req, res, reqPath);
     return;
   }
