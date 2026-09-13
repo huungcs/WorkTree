@@ -72,16 +72,22 @@ export const CommentService = {
           );
           const actorZaloChatId = currentEmp?.zalo_chat_id;
 
+          const actorRole = appState.activeMembership?.role || (typeof window !== 'undefined' && window.__worktree_supabase_user?.role);
+          const isAdminActor = actorRole === 'owner' || actorRole === 'admin';
+
           const chatIdsToNotify = new Set();
-          if (assigneeId && assigneeId !== currentEmployeeId) {
-            // Manager/other commented -> Notify assignee
-            const assignee = employees.find(e => e.id === assigneeId);
-            if (assignee?.zalo_chat_id && assignee.zalo_chat_id !== actorZaloChatId) {
-              chatIdsToNotify.add(assignee.zalo_chat_id);
+          if (isAdminActor) {
+            // Admin commented -> ONLY notify the assigned employee (if not admin themselves)
+            if (assigneeId && assigneeId !== currentEmployeeId) {
+              const assignee = employees.find(e => e.id === assigneeId);
+              if (assignee?.zalo_chat_id && assignee.id !== currentEmployeeId && assignee.zalo_chat_id !== actorZaloChatId) {
+                chatIdsToNotify.add(assignee.zalo_chat_id);
+              }
             }
           } else {
-            // Assignee commented on their own task -> Notify admin / other linked members
-            const otherLinked = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId);
+            // Employee commented -> Notify admin / managers with Zalo
+            // Never notify employee themselves
+            const otherLinked = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId && e.id !== currentEmployeeId);
             otherLinked.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
           }
 
