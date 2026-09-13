@@ -264,7 +264,9 @@ export const TaskService = {
             const assignee = targetEmployeeId ? employees.find(e => e.id === targetEmployeeId) : null;
 
             // Identify current updater (actor)
+            const currentEmployeeId = appState.activeMembership?.employeeId || (typeof window !== 'undefined' && window.__worktree_supabase_user?.employeeId);
             const currentEmp = employees.find(e => 
+              (currentEmployeeId && e.id === currentEmployeeId) ||
               (appState.user?.id && e.user_id === appState.user.id) ||
               (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
             );
@@ -274,14 +276,9 @@ export const TaskService = {
             const chatIdsToNotify = new Set();
 
             if (isAssigneeActor) {
-              // The assignee changed the status themselves -> Notify manager/owner, NEVER the actor themselves
-              const creatorEmp = canonical?.created_by ? employees.find(e => e.user_id === canonical.created_by) : null;
-              if (creatorEmp && creatorEmp.zalo_chat_id && creatorEmp.zalo_chat_id !== actorZaloChatId) {
-                chatIdsToNotify.add(creatorEmp.zalo_chat_id);
-              } else {
-                const managers = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId && (e.role === 'owner' || e.role === 'admin' || e.role === 'manager'));
-                managers.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
-              }
+              // The assignee changed the status themselves -> Notify manager/admin with Zalo, NEVER the actor themselves
+              const otherLinked = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId);
+              otherLinked.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
             } else {
               // A manager or coworker updated the task -> Notify the assignee
               if (assignee && assignee.zalo_chat_id && assignee.zalo_chat_id !== actorZaloChatId) {
@@ -360,7 +357,9 @@ export const TaskService = {
             const assignee = targetEmployeeId ? employees.find(e => e.id === targetEmployeeId) : null;
             
             // Identify current updater (actor)
+            const currentEmployeeId = appState.activeMembership?.employeeId || (typeof window !== 'undefined' && window.__worktree_supabase_user?.employeeId);
             const currentEmp = employees.find(e => 
+              (currentEmployeeId && e.id === currentEmployeeId) ||
               (appState.user?.id && e.user_id === appState.user.id) ||
               (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
             );
@@ -370,14 +369,9 @@ export const TaskService = {
             const chatIdsToNotify = new Set();
 
             if (isAssigneeActor) {
-              // The assignee changed the status themselves -> Notify manager/owner, NEVER the actor themselves
-              const creatorEmp = canonical?.created_by ? employees.find(e => e.user_id === canonical.created_by) : null;
-              if (creatorEmp && creatorEmp.zalo_chat_id && creatorEmp.zalo_chat_id !== actorZaloChatId) {
-                chatIdsToNotify.add(creatorEmp.zalo_chat_id);
-              } else {
-                const managers = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId && (e.role === 'owner' || e.role === 'admin' || e.role === 'manager'));
-                managers.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
-              }
+              // The assignee changed the status themselves -> Notify manager/admin with Zalo, NEVER the actor themselves
+              const otherLinked = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId);
+              otherLinked.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
             } else {
               // A manager or coworker updated the task -> Notify the assignee
               if (assignee && assignee.zalo_chat_id && assignee.zalo_chat_id !== actorZaloChatId) {

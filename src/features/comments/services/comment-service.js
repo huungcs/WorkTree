@@ -64,25 +64,44 @@ export const CommentService = {
           const assigneeId = task?.primary_assignee_id || task?.primaryAssigneeId || task?.owner || task?.assigneeId;
           const currentEmployeeId = appState.activeMembership?.employeeId;
 
-          // Do not send notification to the comment author themselves
-          if (assigneeId && assigneeId !== currentEmployeeId) {
-            const assignee = (appState.employees || []).find(e => e.id === assigneeId);
-            if (assignee && assignee.zalo_chat_id) {
-              const targetNodeId = task.node_id || task.nodeId || task.node;
-              const node = (appState.nodes || []).find(n => n.id === targetNodeId);
-              const nodeName = node ? node.name : 'Toàn công ty';
-              const authorName = appState.user?.user_metadata?.full_name || appState.user?.email || 'Thành viên nhóm';
+          const employees = (appState.employees && appState.employees.length) ? appState.employees : (typeof window !== 'undefined' && window.cloudEmployees ? window.cloudEmployees : []);
+          const currentEmp = employees.find(e => 
+            (currentEmployeeId && e.id === currentEmployeeId) ||
+            (appState.user?.id && e.user_id === appState.user.id) ||
+            (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
+          );
+          const actorZaloChatId = currentEmp?.zalo_chat_id;
 
+          const chatIdsToNotify = new Set();
+          if (assigneeId && assigneeId !== currentEmployeeId) {
+            // Manager/other commented -> Notify assignee
+            const assignee = employees.find(e => e.id === assigneeId);
+            if (assignee?.zalo_chat_id && assignee.zalo_chat_id !== actorZaloChatId) {
+              chatIdsToNotify.add(assignee.zalo_chat_id);
+            }
+          } else {
+            // Assignee commented on their own task -> Notify admin / other linked members
+            const otherLinked = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId);
+            otherLinked.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
+          }
+
+          if (chatIdsToNotify.size > 0) {
+            const targetNodeId = task.node_id || task.nodeId || task.node;
+            const node = (appState.nodes || []).find(n => n.id === targetNodeId);
+            const nodeName = node ? node.name : 'Toàn công ty';
+            const authorName = appState.user?.user_metadata?.full_name || appState.user?.email || 'Thành viên nhóm';
+
+            for (const cid of chatIdsToNotify) {
               await ZaloBotService.sendCommentNotification({
-                zaloChatId: assignee.zalo_chat_id,
+                zaloChatId: cid,
                 taskTitle: task.title || 'Công việc trên WorkTree X',
                 nodeName,
                 authorName,
                 commentBody: trimmed,
                 taskId
               });
-              console.info(`[ZaloBot] Đã gửi thông báo bình luận mới đến ${assignee.name || assignee.full_name} (${assignee.zalo_chat_id})`);
             }
+            console.info(`[ZaloBot] Đã gửi thông báo bình luận mới đến ${chatIdsToNotify.size} tài khoản Zalo`);
           }
         } catch (zaloErr) {
           console.warn('[ZaloBot] Gửi thông báo bình luận qua Zalo thất bại:', zaloErr);
