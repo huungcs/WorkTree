@@ -34,6 +34,32 @@ async function sendZaloMessage(chatId, text) {
   }
 }
 
+function extractPhoneNumber(event) {
+  const rawText = event?.message?.text || event?.text || event?.message?.body || '';
+  let cleaned = String(rawText).replace(/[\s\.\-\(\)]/g, '');
+  let match = cleaned.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
+  if (match) return match[0];
+
+  const contactPhone = event?.message?.contact?.phone_number ||
+    event?.message?.contact?.phone ||
+    event?.message?.attachments?.[0]?.payload?.phone ||
+    event?.message?.attachments?.[0]?.payload?.phone_number ||
+    event?.message?.attachments?.[0]?.payload?.text;
+  if (contactPhone) {
+    cleaned = String(contactPhone).replace(/[\s\.\-\(\)]/g, '');
+    match = cleaned.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
+    if (match) return match[0];
+  }
+
+  const jsonStr = JSON.stringify(event || {});
+  const allPhones = jsonStr.replace(/[\s\.\-\(\)]/g, '').match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/g);
+  if (allPhones && allPhones.length > 0) {
+    return allPhones.find(p => !p.includes('2266752785520432648') && !p.includes('222577520227790268')) || allPhones[0];
+  }
+
+  return null;
+}
+
 async function handleZaloEvent(event) {
   if (!event) return null;
   const chatId = event?.chat_id ||
@@ -43,13 +69,10 @@ async function handleZaloEvent(event) {
 
   if (!chatId) return null;
 
-  const rawText = event?.message?.text || event?.text || event?.message?.body || '';
-  const text = String(rawText).trim();
   const displayName = event?.sender?.display_name || event?.message?.from?.display_name || event?.display_name || '';
+  const rawPhone = extractPhoneNumber(event);
 
-  const phoneMatch = text.match(/(?:\+?84|0)[3|5|7|8|9][0-9]{8}/);
-  if (phoneMatch) {
-    const rawPhone = phoneMatch[0];
+  if (rawPhone) {
     const rpcRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/pair_employee_zalo_by_phone`, {
       method: 'POST',
       headers: {

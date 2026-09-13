@@ -210,12 +210,32 @@ export const ZaloBotService = {
 
     const sb = customSupabase || (await getSupabase());
 
-    // 1. Check if user input looks like a phone number
-    const phoneRegex = /(?:\+?84|0)[3|5|7|8|9][0-9]{8}/;
-    const match = text.match(phoneRegex);
+    // 1. Extract phone number (tolerates spaces, dashes, contact cards, etc.)
+    let rawPhone = null;
+    const cleanText = text.replace(/[\s\.\-\(\)]/g, '');
+    const textMatch = cleanText.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
+    if (textMatch) {
+      rawPhone = textMatch[0];
+    } else {
+      const contactPhone = eventData?.message?.contact?.phone_number ||
+        eventData?.message?.contact?.phone ||
+        eventData?.message?.attachments?.[0]?.payload?.phone ||
+        eventData?.message?.attachments?.[0]?.payload?.phone_number ||
+        eventData?.message?.attachments?.[0]?.payload?.text;
+      if (contactPhone) {
+        const contactMatch = String(contactPhone).replace(/[\s\.\-\(\)]/g, '').match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
+        if (contactMatch) rawPhone = contactMatch[0];
+      }
+      if (!rawPhone) {
+        const jsonStr = JSON.stringify(eventData || {});
+        const allPhones = jsonStr.replace(/[\s\.\-\(\)]/g, '').match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/g);
+        if (allPhones && allPhones.length > 0) {
+          rawPhone = allPhones.find(p => !p.includes('2266752785520432648') && !p.includes('222577520227790268')) || allPhones[0];
+        }
+      }
+    }
 
-    if (match) {
-      const rawPhone = match[0];
+    if (rawPhone) {
       try {
         // Call security definer RPC function to pair
         const { data: pairResult, error: rpcError } = await sb.rpc('pair_employee_zalo_by_phone', {
