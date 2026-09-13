@@ -45,7 +45,9 @@ export const PlatformAdminService = {
 
     const data = await res.json();
     if (!res.ok || !data.ok) {
-      throw new Error(data.error || `Yêu cầu thất bại với mã lỗi HTTP ${res.status}`);
+      throw new Error(res.status === 401 ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+        : res.status === 403 ? 'Tài khoản không có quyền thực hiện thao tác này.'
+          : 'Chưa thể hoàn tất yêu cầu. Vui lòng thử lại sau.');
     }
 
     return data;
@@ -103,7 +105,7 @@ export const PlatformAdminService = {
     if (status) params.append('status', status);
 
     const data = await this.request(`?${params.toString()}`);
-    return data.users || [];
+    return (data.users || []).map(user => ({ ...user, displayName: user.displayName || user.name || 'Người dùng', createdAt: user.createdAt || user.joinedDate }));
   },
 
   /**
@@ -171,7 +173,9 @@ export const PlatformAdminService = {
    */
   async getAuditLogs() {
     const data = await this.request('?action=audit-logs');
-    return data.logs || [];
+    return (data.logs || []).map(log => ({ ...log, created_at: log.created_at || log.timestamp,
+      actor_user_id: log.actor_user_id || log.actor,
+      metadata: { ...log.metadata, organization_name: log.metadata?.organization_name || log.tenant } }));
   },
 
   /**
@@ -179,7 +183,7 @@ export const PlatformAdminService = {
    */
   async getPlatformAdmins() {
     const data = await this.request('?action=admins');
-    return data.admins || [];
+    return (data.admins || []).map(admin => ({ ...admin, user_id: admin.user_id || admin.userId }));
   },
 
   /**

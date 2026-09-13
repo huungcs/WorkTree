@@ -106,4 +106,27 @@ test('Platform Admin Shell Architecture: Essential files exist and export requir
   assert.match(apiContent, /suspend-tenant/, 'API handler must support suspend-tenant');
   assert.match(apiContent, /unsuspend-tenant/, 'API handler must support unsuspend-tenant');
   assert.match(apiContent, /security_audit_logs/, 'API handler must audit platform mutations');
+
+  const organizationListBlock = apiContent.match(/ACTION: List Organizations[\s\S]*?ACTION: Tenant Detail/)?.[0] || '';
+  assert.doesNotMatch(
+    organizationListBlock,
+    /\.select\([^\n]*suspended_at/,
+    'Organization list must remain compatible before optional suspension columns are migrated'
+  );
+});
+
+test('Platform Admin UX contract: responsive, accessible, and honest operational states are present', () => {
+  const shellPath = path.join(__dirname, '..', 'src', 'features', 'platform-admin', 'ui', 'platform-admin-shell.js');
+  const shellContent = fs.readFileSync(shellPath, 'utf8');
+
+  assert.match(shellContent, /mobile-bottom-nav/, 'Mobile admin navigation must be available');
+  assert.match(shellContent, /env\(safe-area-inset-bottom\)/, 'Mobile navigation must respect the safe area');
+  assert.match(shellContent, /100dvh/, 'Admin shell must use the dynamic viewport height');
+  assert.match(shellContent, /prefers-reduced-motion:reduce/, 'Reduced-motion users must be supported');
+  assert.match(shellContent, /:focus-visible/, 'Keyboard focus must remain visible');
+  assert.match(shellContent, /aria-current/, 'Selected navigation state must be exposed to assistive technology');
+  assert.match(shellContent, /role="switch" aria-checked=/, 'Settings switches must expose semantic state');
+  assert.match(shellContent, /document\.body\.style\.overflow = 'hidden'/, 'Opening the portal must prevent background double-scroll');
+  assert.match(shellContent, /el\.inert = true/, 'The covered workspace must be removed from keyboard and screen-reader navigation');
+  assert.doesNotMatch(shellContent, /\balert\s*\(/, 'Production admin UX must not use browser alert dialogs');
 });
