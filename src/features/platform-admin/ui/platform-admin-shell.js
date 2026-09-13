@@ -11,6 +11,24 @@ let portalContainer = null;
 let currentView = 'overview';
 let isCollapsed = false;
 let selectedTenantTab = 'overview';
+let previousDocumentTitle = null;
+let previouslyFocusedElement = null;
+let portalContextSnapshot = null;
+let portalLoadPromise = null;
+
+const VIEW_TITLES = {
+  overview: 'Tổng quan nền tảng',
+  tenants: 'Doanh nghiệp',
+  users: 'Người dùng',
+  revenue: 'Doanh thu',
+  plans: 'Gói dịch vụ',
+  violations: 'Cảnh báo & vi phạm',
+  logs: 'Nhật ký hệ thống',
+  settings: 'Cấu hình nền tảng',
+  admins: 'Platform Admin'
+};
+
+const MOBILE_PRIMARY_VIEWS = ['overview', 'tenants', 'users', 'logs'];
 
 // Cached State
 let state = {
@@ -27,10 +45,122 @@ let state = {
   tenantSearchQuery: '',
   tenantFilterStatus: '',
   tenantFilterPlan: '',
+  tenantSort: 'newest',
   userSearchQuery: '',
   userFilterRole: '',
-  userFilterStatus: ''
+  userFilterStatus: '',
+  logSearchQuery: '',
+  logActionFilter: '',
+  resourceErrors: {}
 };
+
+function icon(name, className = 'icon') {
+  const paths = {
+    home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5M9 21v-7h6v7"/>',
+    building: '<path d="M4 21V4h11v17M15 9h5v12M8 8h3M8 12h3M8 16h3M3 21h18"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    trend: '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+    layers: '<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/>',
+    alert: '<path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15a1.7 1.7 0 0 0-1.54-1H3v-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63a1.7 1.7 0 0 0 1-1.54V3h4v.09A1.7 1.7 0 0 0 15 4.63a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.37 9a1.7 1.7 0 0 0 1.54 1H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
+    arrowLeft: '<path d="m15 18-6-6 6-6"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+    theme: '<path d="M12 3a9 9 0 1 0 9 9c0-.7-.08-1.37-.23-2A7 7 0 0 1 12 3Z"/>',
+    refresh: '<path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11M5.5 15A7 7 0 0 0 18 17.5l2-4.5"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+  };
+  return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths[name] || paths.more}</svg>`;
+}
+
+function syncThemeControl(container, theme) {
+  const toggle = container?.querySelector('#paThemeToggle');
+  if (!toggle) return;
+  const isDark = theme === 'dark';
+  toggle.setAttribute('aria-pressed', String(isDark));
+  toggle.setAttribute('aria-label', isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối');
+  toggle.setAttribute('title', isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối');
+}
+
+function showPortalToast(message, tone = 'info') {
+  const region = portalContainer?.querySelector('#paToastRegion');
+  if (!region) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${tone}`;
+  toast.textContent = message;
+  region.replaceChildren(toast);
+  window.setTimeout(() => {
+    if (toast.isConnected) toast.remove();
+  }, 4200);
+}
+
+function downloadCsv(filename, headers, rows) {
+  const quote = value => {
+    const text = String(value ?? '');
+    const safe = /^[\s]*[=+@-]/.test(text) ? `'${text}` : text;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+  const csv = `\uFEFF${[headers, ...rows].map(row => row.map(quote).join(',')).join('\r\n')}`;
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  portalContainer?.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showPortalToast('Đã chuẩn bị tệp CSV để tải xuống.', 'success');
+}
+
+function activatePortalContext(container) {
+  if (portalContextSnapshot) return;
+
+  previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  previousDocumentTitle = document.title;
+  portalContextSnapshot = {
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow,
+    backgroundElements: [...document.body.children]
+      .filter(el => el !== container && !['SCRIPT', 'STYLE', 'LINK'].includes(el.tagName))
+      .map(el => ({
+        el,
+        inert: el.inert,
+        ariaHidden: el.getAttribute('aria-hidden')
+      }))
+  };
+
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+  portalContextSnapshot.backgroundElements.forEach(({ el }) => {
+    el.inert = true;
+    el.setAttribute('aria-hidden', 'true');
+  });
+  container.setAttribute('aria-hidden', 'false');
+  container.focus({ preventScroll: true });
+}
+
+function deactivatePortalContext(container) {
+  const snapshot = portalContextSnapshot;
+  if (!snapshot) return;
+
+  document.body.style.overflow = snapshot.bodyOverflow;
+  document.documentElement.style.overflow = snapshot.htmlOverflow;
+  snapshot.backgroundElements.forEach(({ el, inert, ariaHidden }) => {
+    el.inert = inert;
+    if (ariaHidden === null) el.removeAttribute('aria-hidden');
+    else el.setAttribute('aria-hidden', ariaHidden);
+  });
+  container?.setAttribute('aria-hidden', 'true');
+  if (previousDocumentTitle !== null) document.title = previousDocumentTitle;
+  if (previouslyFocusedElement?.isConnected) previouslyFocusedElement.focus({ preventScroll: true });
+
+  portalContextSnapshot = null;
+  previouslyFocusedElement = null;
+  previousDocumentTitle = null;
+}
 
 function esc(str) {
   if (str === null || str === undefined) return '';
@@ -101,6 +231,11 @@ export function initPlatformAdminShell() {
   const container = document.createElement('div');
   container.id = 'platformAdminPortal';
   container.className = 'platform-admin-portal';
+  container.setAttribute('role', 'dialog');
+  container.setAttribute('aria-modal', 'true');
+  container.setAttribute('aria-label', 'Trung tâm quản trị nền tảng WorkTree X');
+  container.setAttribute('aria-hidden', 'true');
+  container.setAttribute('tabindex', '-1');
   container.style.cssText = `
     display: none;
     position: fixed;
@@ -139,14 +274,16 @@ export function initPlatformAdminShell() {
       .platform-admin-portal *{box-sizing:border-box}
       .platform-admin-portal button,.platform-admin-portal input,.platform-admin-portal select,.platform-admin-portal textarea{font:inherit;color:inherit}
       .platform-admin-portal button{cursor:pointer}
+      .platform-admin-portal button:disabled,.platform-admin-portal input:disabled,.platform-admin-portal select:disabled,.platform-admin-portal textarea:disabled{cursor:not-allowed;opacity:.58}
+      .platform-admin-portal :is(button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid var(--focus);outline-offset:2px}
       .platform-admin-portal svg{display:block}
       .platform-admin-portal .icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 
-      .platform-admin-portal .app{min-height:100vh;display:grid;grid-template-columns:var(--side-width) minmax(0,1fr);transition:grid-template-columns .2s var(--ease);height:100vh;overflow:hidden;}
+      .platform-admin-portal .app{min-height:100dvh;display:grid;grid-template-columns:var(--side-width) minmax(0,1fr);transition:grid-template-columns .2s var(--ease);height:100dvh;overflow:hidden;}
       .platform-admin-portal .app.collapsed{--side-width:76px}
-      .platform-admin-portal .main-shell{min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg);}
+      .platform-admin-portal .main-shell{min-width:0;display:flex;flex-direction:column;height:100dvh;overflow:hidden;background:var(--bg);}
       
-      .platform-admin-portal .sidebar{height:100vh;background:var(--sidebar);color:var(--sidebar-text);border-right:1px solid var(--sidebar-line);display:flex;flex-direction:column;overflow:hidden;z-index:30;flex:0 0 auto;}
+      .platform-admin-portal .sidebar{height:100dvh;background:var(--sidebar);color:var(--sidebar-text);border-right:1px solid var(--sidebar-line);display:flex;flex-direction:column;overflow:hidden;z-index:30;flex:0 0 auto;}
       .platform-admin-portal .brand{height:70px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--sidebar-line);white-space:nowrap;position:relative}
       .platform-admin-portal .brand-mark{width:36px;height:36px;border-radius:11px;background:#c1f0d6;color:#1c594b;display:grid;place-items:center;font-weight:900;font-size:17px;flex:0 0 auto}
       .platform-admin-portal .brand-title{font-size:17px;font-weight:800}
@@ -180,6 +317,7 @@ export function initPlatformAdminShell() {
 
       .platform-admin-portal .topbar{height:var(--topbar);background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 22px;gap:10px;flex:0 0 auto;z-index:20}
       .platform-admin-portal .mobile-menu{display:none}
+      .platform-admin-portal .mobile-bottom-nav{display:none}
       .platform-admin-portal .top-search{margin-left:auto;width:min(450px,42vw);height:40px;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;display:flex;align-items:center;gap:9px;padding:0 12px}
       .platform-admin-portal .top-search input{border:0;outline:0;background:transparent;width:100%;min-width:0}
       .platform-admin-portal .top-search kbd{border:1px solid var(--line);background:var(--surface);border-radius:5px;padding:1px 6px;color:var(--muted);font-size:11px}
@@ -193,6 +331,7 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .content{padding:22px 22px 32px;overflow-y:auto;flex:1;max-width:1720px;margin:0 auto;width:100%;}
       .platform-admin-portal .page-heading{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
       .platform-admin-portal .page-heading h1{font-size:26px;line-height:1.2;margin:0 0 5px;letter-spacing:-.025em;font-weight:800;}
+      .platform-admin-portal .page-heading h1:focus{outline:none}
       .platform-admin-portal .page-heading p{margin:0;color:var(--muted);font-size:13px;}
       .platform-admin-portal .heading-actions{display:flex;gap:8px;flex-wrap:wrap}
       
@@ -371,6 +510,14 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .callout.warn{background:var(--amber-soft);color:var(--amber)}
       .platform-admin-portal .callout.red{background:var(--red-soft);color:var(--red)}
       .platform-admin-portal .empty{padding:32px;text-align:center;color:var(--muted)}
+      .platform-admin-portal .data-status{margin:0 0 14px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--amber) 32%,transparent);border-radius:10px;background:var(--amber-soft);color:var(--amber);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}
+      .platform-admin-portal .data-status strong{display:block;margin-bottom:2px}
+      .platform-admin-portal .data-status .btn{flex:0 0 auto;background:var(--surface)}
+      .platform-admin-portal .toast-region{position:fixed;right:18px;top:calc(var(--topbar) + 14px);z-index:100001;display:grid;gap:8px;width:min(380px,calc(100vw - 24px));pointer-events:none}
+      .platform-admin-portal .toast{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);font-size:12.5px;font-weight:650;pointer-events:auto}
+      .platform-admin-portal .toast.error{border-color:var(--red);color:var(--red)}
+      .platform-admin-portal .toast.warn{border-color:var(--amber);color:var(--amber)}
+      .platform-admin-portal .toast.success{border-color:var(--green);color:var(--green)}
 
       .platform-admin-portal .scrim{display:none;position:fixed;inset:0;background:rgba(10,18,35,.45);z-index:39}
       .platform-admin-portal dialog{width:min(820px,calc(100vw - 28px));border:1px solid var(--line);border-radius:17px;background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);padding:0}
@@ -394,7 +541,8 @@ export function initPlatformAdminShell() {
       }
       @media(max-width:900px){
         .platform-admin-portal .app{display:block}
-        .platform-admin-portal .sidebar{position:fixed;left:0;top:0;width:min(390px,92vw);transform:translateX(-103%);transition:transform .2s var(--ease);box-shadow:var(--shadow-lg);z-index:50}
+        .platform-admin-portal .main-shell{height:100dvh}
+        .platform-admin-portal .sidebar{position:fixed;left:0;top:0;width:min(390px,92vw);height:100dvh;padding-bottom:env(safe-area-inset-bottom);transform:translateX(-103%);transition:transform .2s var(--ease);box-shadow:var(--shadow-lg);z-index:50}
         .platform-admin-portal .app.mobile-open .sidebar{transform:none}
         .platform-admin-portal .app.mobile-open .scrim{display:block}
         .platform-admin-portal .collapse-btn{display:none}
@@ -403,11 +551,18 @@ export function initPlatformAdminShell() {
         .platform-admin-portal .brand{justify-content:flex-start!important;padding:0 16px!important}
         .platform-admin-portal .back-app{justify-content:flex-start!important}
         .platform-admin-portal .mobile-menu{display:grid}
-        .platform-admin-portal .topbar{padding:0 12px;gap:6px}
+        .platform-admin-portal .topbar{height:calc(var(--topbar) + env(safe-area-inset-top));padding:env(safe-area-inset-top) 12px 0;gap:6px}
+        .platform-admin-portal .icon-btn{width:44px;height:44px}
         .platform-admin-portal .top-search{width:auto;flex:1;margin-left:0}
         .platform-admin-portal .profile{min-width:auto;padding-left:8px}
         .platform-admin-portal .profile div:last-child{display:none}
-        .platform-admin-portal .content{padding:16px 12px 92px}
+        .platform-admin-portal .content{padding:16px 12px calc(92px + env(safe-area-inset-bottom))}
+        .platform-admin-portal .mobile-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:35;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));height:calc(68px + env(safe-area-inset-bottom));padding:4px 6px env(safe-area-inset-bottom);border-top:1px solid var(--line);background:var(--surface);box-shadow:0 -8px 24px rgba(14,22,46,.08)}
+        .platform-admin-portal .mobile-nav-item{border:0;background:transparent;color:var(--muted);min-width:0;min-height:48px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:4px;font-size:10.5px;font-weight:700}
+        .platform-admin-portal .mobile-nav-item .icon{width:20px;height:20px}
+        .platform-admin-portal .mobile-nav-item span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .platform-admin-portal .mobile-nav-item.active{color:var(--primary);background:var(--primary-soft)}
+        .platform-admin-portal .toast-region{top:calc(var(--topbar) + env(safe-area-inset-top) + 10px);right:12px}
         .platform-admin-portal .page-heading h1{font-size:24px}
         .platform-admin-portal .toolbar,.platform-admin-portal .toolbar.two{grid-template-columns:1fr 1fr}
         .platform-admin-portal .toolbar .input-wrap,.platform-admin-portal .toolbar.two .input-wrap{grid-column:1/-1}
@@ -447,6 +602,87 @@ export function initPlatformAdminShell() {
         .platform-admin-portal .bar-label{font-size:10px}
         .platform-admin-portal .donut-wrap{flex-direction:column}
         .platform-admin-portal .legend{width:100%}
+        .platform-admin-portal .page-heading{align-items:flex-start;flex-direction:column}
+        .platform-admin-portal .heading-actions{width:100%}
+        .platform-admin-portal .heading-actions .btn{width:100%}
+      }
+      @media(prefers-reduced-motion:reduce){
+        .platform-admin-portal *,
+        .platform-admin-portal *::before,
+        .platform-admin-portal *::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+      }
+      /* Reset legacy workspace classes at the portal boundary. */
+      .platform-admin-portal{font-size:13px;line-height:1.5}
+      .platform-admin-portal .sidebar{padding:0;position:relative;top:auto}
+      .platform-admin-portal .brand{padding:0 18px;min-height:70px;flex-shrink:0}
+      .platform-admin-portal .brand-mark{border-radius:10px}
+      .platform-admin-portal .side-scroll{min-height:0}
+      .platform-admin-portal .panel-head{padding:0}
+      .platform-admin-portal .profile{width:auto;margin-left:auto;padding:0 0 0 14px;color:var(--text);max-width:270px}
+      .platform-admin-portal .profile>div:last-child{min-width:0}
+      .platform-admin-portal .profile strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .platform-admin-portal .top-search{margin-left:0;max-width:450px;width:100%}
+      .platform-admin-portal .topbar .mobile-menu{display:none}
+      .platform-admin-portal .content{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable}
+      .platform-admin-portal .page-heading h1{font-weight:700}
+      .platform-admin-portal .grid>*{min-width:0}
+      .platform-admin-portal .panel-title{font-weight:650}
+      .platform-admin-portal .avatar{background:var(--primary-soft);color:var(--primary-text)}
+      .platform-admin-portal .app.collapsed .brand-mark{display:none}
+      .platform-admin-portal .app.collapsed .collapse-btn{width:36px;height:36px;right:20px;top:17px}
+      .platform-admin-portal .btn{white-space:normal;min-height:38px;height:auto;line-height:1.4}
+      .platform-admin-portal .btn.primary{color:var(--surface)}
+      .platform-admin-portal .btn.ghost.pa-tenant-click{text-align:left;justify-content:flex-start;padding:4px 0;color:var(--text)}
+      .platform-admin-portal .tenant-logo,.platform-admin-portal .user-avatar{flex-shrink:0;background:var(--primary-soft);color:var(--primary-text)}
+      .platform-admin-portal .user-name>div{min-width:0;overflow-wrap:anywhere}
+      .platform-admin-portal .table-wrap{background:var(--surface)}
+      .platform-admin-portal .table-wrap td{overflow-wrap:anywhere}
+      .platform-admin-portal .bar{background:var(--primary)}
+      .platform-admin-portal .bar.green{background:var(--green)}
+      .platform-admin-portal .bar.blue{background:var(--blue)}
+      .platform-admin-portal .dot.b{background:var(--blue)}
+      .platform-admin-portal .dot.g{background:var(--green)}
+      .platform-admin-portal .dot.n{background:var(--line-strong)}
+      .platform-admin-portal .dialog-foot{padding-bottom:max(14px,env(safe-area-inset-bottom))}
+      .platform-admin-portal dialog[open]{display:flex;flex-direction:column;max-height:calc(100dvh - 24px)}
+      .platform-admin-portal .dialog-head,.platform-admin-portal .dialog-foot{flex-shrink:0}
+      .platform-admin-portal .dialog-body{min-height:0;overflow:auto;overscroll-behavior:contain}
+      .platform-admin-portal .drawer-dialog[open]{max-height:100dvh;margin-top:0;margin-bottom:0}
+      .platform-admin-portal .drawer-dialog .dialog-body{flex:1;max-height:none}
+      .platform-admin-portal .detail-item strong{overflow-wrap:anywhere}
+      .platform-admin-portal .data-status span{overflow-wrap:anywhere}
+      .platform-admin-portal .log-row{grid-template-columns:110px minmax(100px,.8fr) minmax(120px,1fr) minmax(160px,1.5fr) 95px;font-size:12px}
+      .platform-admin-portal .log-row>div{overflow-wrap:anywhere;min-width:0}
+      @media(max-width:1180px){
+        .platform-admin-portal .analytics-grid{grid-template-columns:minmax(0,1fr)}
+        .platform-admin-portal .log-row{grid-template-columns:100px 1fr 1fr}
+        .platform-admin-portal .log-row>div:nth-child(3),.platform-admin-portal .log-row>div:nth-child(5){display:none}
+      }
+      @media(max-width:900px){
+        .platform-admin-portal .sidebar{position:fixed;top:0;padding-bottom:env(safe-area-inset-bottom)}
+        .platform-admin-portal .app.collapsed .brand-mark{display:grid}
+        .platform-admin-portal .topbar .mobile-menu{display:grid}
+        .platform-admin-portal .profile{min-width:0;border:0;padding:0}
+        .platform-admin-portal .mobile-bottom-nav{height:calc(74px + env(safe-area-inset-bottom))}
+        .platform-admin-portal .btn,.platform-admin-portal .tab-btn,.platform-admin-portal .input-wrap,.platform-admin-portal .select,.platform-admin-portal .text-input{min-height:44px}
+        .platform-admin-portal .nav-item{min-height:48px}
+        .platform-admin-portal .input-wrap input,.platform-admin-portal .text-input,.platform-admin-portal .textarea{font-size:16px}
+        .platform-admin-portal .page-heading{flex-wrap:wrap}
+        .platform-admin-portal .data-status{align-items:flex-start;flex-wrap:wrap}
+        .platform-admin-portal table{min-width:0}
+        .platform-admin-portal .pa-responsive-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+        .platform-admin-portal .pa-responsive-table,.platform-admin-portal .pa-responsive-table tbody{display:block;width:100%}
+        .platform-admin-portal .pa-responsive-table tr{display:block;padding:12px;border-bottom:1px solid var(--line)}
+        .platform-admin-portal .pa-responsive-table td{display:flex;align-items:center;justify-content:space-between;gap:14px;border:0;padding:6px 0;width:100%;text-align:right;font-size:13px}
+        .platform-admin-portal .pa-responsive-table td::before{content:attr(data-label);color:var(--muted);font-size:12px;text-align:left;flex-shrink:0}
+        .platform-admin-portal .pa-responsive-table td:first-child{font-weight:650;justify-content:flex-start;text-align:left}
+        .platform-admin-portal .pa-responsive-table td:first-child::before,.platform-admin-portal .pa-responsive-table td[colspan]::before{display:none}
+        .platform-admin-portal .pa-responsive-table td[colspan]{display:block;text-align:center}
+        .platform-admin-portal .log-row.header{display:none}
+        .platform-admin-portal .log-row{grid-template-columns:1fr 1fr}
+        .platform-admin-portal .log-row>div:nth-child(4){grid-column:1/-1}
+        .platform-admin-portal .dialog-head{padding-top:max(18px,env(safe-area-inset-top))}
+        .platform-admin-portal .toast-region{z-index:100002}
       }
     </style>
 
@@ -459,59 +695,59 @@ export function initPlatformAdminShell() {
             <div class="brand-title">WorkTree <span style="color:var(--primary);">X</span></div>
             <div class="brand-sub">Platform Admin</div>
           </div>
-          <button class="collapse-btn" id="paCollapseBtn" aria-label="Thu gọn sidebar">
+          <button class="collapse-btn" id="paCollapseBtn" aria-label="Thu gọn sidebar" aria-expanded="true" title="Thu gọn sidebar">
             <svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
         </div>
 
         <div class="side-scroll">
-          <button class="nav-item active" data-view="overview">
-            <span class="nav-icon">⌂</span>
+          <button class="nav-item active" data-view="overview" aria-label="Tổng quan nền tảng" aria-current="page" title="Tổng quan nền tảng">
+            <span class="nav-icon">${icon('home')}</span>
             <span class="nav-label">Tổng quan nền tảng</span>
           </button>
-          <button class="nav-item" data-view="tenants">
-            <span class="nav-icon">▦</span>
+          <button class="nav-item" data-view="tenants" aria-label="Doanh nghiệp" title="Doanh nghiệp">
+            <span class="nav-icon">${icon('building')}</span>
             <span class="nav-label">Doanh nghiệp</span>
             <span class="nav-count" id="paTenantNavCount">—</span>
           </button>
-          <button class="nav-item" data-view="users">
-            <span class="nav-icon">♙</span>
+          <button class="nav-item" data-view="users" aria-label="Người dùng" title="Người dùng">
+            <span class="nav-icon">${icon('users')}</span>
             <span class="nav-label">Người dùng</span>
             <span class="nav-count" id="paUserNavCount">—</span>
           </button>
-          <button class="nav-item" data-view="revenue">
-            <span class="nav-icon">↗</span>
+          <button class="nav-item" data-view="revenue" aria-label="Doanh thu" title="Doanh thu">
+            <span class="nav-icon">${icon('trend')}</span>
             <span class="nav-label">Doanh thu</span>
           </button>
-          <button class="nav-item" data-view="plans">
-            <span class="nav-icon">◇</span>
+          <button class="nav-item" data-view="plans" aria-label="Gói dịch vụ" title="Gói dịch vụ">
+            <span class="nav-icon">${icon('layers')}</span>
             <span class="nav-label">Gói dịch vụ</span>
           </button>
-          <button class="nav-item" data-view="violations">
-            <span class="nav-icon">!</span>
+          <button class="nav-item" data-view="violations" aria-label="Cảnh báo và vi phạm" title="Cảnh báo & vi phạm">
+            <span class="nav-icon">${icon('alert')}</span>
             <span class="nav-label">Cảnh báo & vi phạm</span>
             <span class="nav-count" id="paViolationNavCount">0</span>
           </button>
-          <button class="nav-item" data-view="logs">
-            <span class="nav-icon">☷</span>
+          <button class="nav-item" data-view="logs" aria-label="Nhật ký hệ thống" title="Nhật ký hệ thống">
+            <span class="nav-icon">${icon('list')}</span>
             <span class="nav-label">Nhật ký hệ thống</span>
           </button>
           
           <div class="nav-title">Nền tảng</div>
-          <button class="nav-item" data-view="settings">
-            <span class="nav-icon">⚙</span>
+          <button class="nav-item" data-view="settings" aria-label="Cấu hình nền tảng" title="Cấu hình nền tảng">
+            <span class="nav-icon">${icon('settings')}</span>
             <span class="nav-label">Cấu hình nền tảng</span>
           </button>
-          <button class="nav-item" data-view="admins">
-            <span class="nav-icon">♜</span>
+          <button class="nav-item" data-view="admins" aria-label="Platform Admin" title="Platform Admin">
+            <span class="nav-icon">${icon('shield')}</span>
             <span class="nav-label">Platform Admin</span>
             <span class="nav-count" id="paAdminNavCount">1</span>
           </button>
         </div>
 
         <div class="side-footer">
-          <button type="button" class="back-app" id="paBackToApp">
-            <span style="font-size:16px;">←</span>
+          <button type="button" class="back-app" id="paBackToApp" aria-label="Quay về WorkTree" title="Quay về WorkTree">
+            <span>${icon('arrowLeft')}</span>
             <div>
               <strong style="display:block;font-size:12.5px;">Quay về WorkTree</strong>
               <small style="display:block;color:var(--sidebar-muted);font-size:10.5px;">Truy cập không gian làm việc</small>
@@ -527,14 +763,14 @@ export function initPlatformAdminShell() {
       <main class="main-shell">
         <!-- Topbar -->
         <header class="topbar">
-          <button class="icon-btn mobile-menu" id="paMobileMenu" aria-label="Mở menu">☰</button>
+          <button class="icon-btn mobile-menu" id="paMobileMenu" aria-label="Mở menu" aria-expanded="false" aria-controls="paSidebar">${icon('menu')}</button>
           <div class="top-search">
-            <span>⌕</span>
-            <input id="paGlobalSearch" placeholder="Tìm doanh nghiệp, người dùng, email...">
+            <span>${icon('search')}</span>
+            <input id="paGlobalSearch" aria-label="Tìm doanh nghiệp, người dùng hoặc email" placeholder="Tìm doanh nghiệp, người dùng, email...">
             <kbd>Ctrl K</kbd>
           </div>
-          <button class="icon-btn" id="paThemeToggle" aria-label="Đổi giao diện" title="Chuyển chế độ Sáng / Tối">◐</button>
-          <button class="icon-btn" id="paRefreshData" aria-label="Làm mới dữ liệu" title="Làm mới toàn bộ dữ liệu">↻</button>
+          <button class="icon-btn" id="paThemeToggle" aria-label="Đổi giao diện" aria-pressed="false" title="Chuyển chế độ Sáng / Tối">${icon('theme')}</button>
+          <button class="icon-btn" id="paRefreshData" aria-label="Làm mới dữ liệu" title="Làm mới toàn bộ dữ liệu">${icon('refresh')}</button>
           
           <div class="profile">
             <div class="avatar" id="paAvatarPill">PA</div>
@@ -546,27 +782,35 @@ export function initPlatformAdminShell() {
         </header>
 
         <!-- Dynamic Content Body -->
-        <div class="content" id="paContentArea">
+        <div class="content" id="paContentArea" role="region" aria-label="Nội dung quản trị" aria-live="polite" aria-busy="true">
           <div style="text-align:center;padding:48px;color:var(--muted);">Đang kết nối trung tâm điều hành...</div>
         </div>
       </main>
+
+      <nav class="mobile-bottom-nav" aria-label="Điều hướng quản trị trên thiết bị di động">
+        <button class="mobile-nav-item active" data-view="overview" aria-label="Tổng quan" aria-current="page">${icon('home')}<span>Tổng quan</span></button>
+        <button class="mobile-nav-item" data-view="tenants" aria-label="Doanh nghiệp">${icon('building')}<span>Doanh nghiệp</span></button>
+        <button class="mobile-nav-item" data-view="users" aria-label="Người dùng">${icon('users')}<span>Người dùng</span></button>
+        <button class="mobile-nav-item" data-view="logs" aria-label="Nhật ký">${icon('list')}<span>Nhật ký</span></button>
+        <button class="mobile-nav-item" id="paMobileMore" aria-label="Mở thêm mục quản trị" aria-expanded="false" aria-controls="paSidebar">${icon('more')}<span>Thêm</span></button>
+      </nav>
     </div>
 
     <!-- Tenant Detail Drawer -->
-    <dialog id="paTenantDrawer" class="drawer-dialog">
+    <dialog id="paTenantDrawer" class="drawer-dialog" aria-labelledby="paDrawerOrgName" aria-describedby="paDrawerOrgSlug">
       <div class="dialog-head">
         <div>
           <h2 id="paDrawerOrgName">Chi tiết Doanh nghiệp</h2>
           <p id="paDrawerOrgSlug"></p>
         </div>
-        <button type="button" class="icon-btn" id="paCloseDrawerBtn">✕</button>
+        <button type="button" class="icon-btn" id="paCloseDrawerBtn" aria-label="Đóng chi tiết doanh nghiệp">✕</button>
       </div>
       <div class="dialog-body">
-        <div class="tabbar" id="paDrawerTabs">
-          <button class="tab-btn active" data-tab="overview">Tổng quan</button>
-          <button class="tab-btn" data-tab="users">Người dùng</button>
-          <button class="tab-btn" data-tab="billing">Thanh toán</button>
-          <button class="tab-btn" data-tab="audit">Audit</button>
+        <div class="tabbar" id="paDrawerTabs" role="tablist" aria-label="Thông tin doanh nghiệp">
+          <button class="tab-btn active" data-tab="overview" role="tab" aria-selected="true">Tổng quan</button>
+          <button class="tab-btn" data-tab="users" role="tab" aria-selected="false">Người dùng</button>
+          <button class="tab-btn" data-tab="billing" role="tab" aria-selected="false">Thanh toán</button>
+          <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit</button>
         </div>
         <div id="paDrawerBody" style="margin-top:14px"></div>
       </div>
@@ -577,18 +821,18 @@ export function initPlatformAdminShell() {
     </dialog>
 
     <!-- Dangerous Action Confirmation Dialog -->
-    <dialog id="paConfirmDialog">
+    <dialog id="paConfirmDialog" aria-labelledby="paConfirmTitle" aria-describedby="paConfirmSub">
       <div class="dialog-head">
         <div>
           <h2 id="paConfirmTitle">Xác nhận thao tác quản trị</h2>
           <p id="paConfirmSub">Hành động này tác động trực tiếp đến quyền truy cập của tenant.</p>
         </div>
-        <button type="button" class="icon-btn" id="paCloseConfirmBtn">✕</button>
+        <button type="button" class="icon-btn" id="paCloseConfirmBtn" aria-label="Đóng hộp thoại xác nhận">✕</button>
       </div>
       <div class="dialog-body">
         <div class="callout red" id="paConfirmCallout"></div>
         <div class="field" style="margin-top:14px">
-          <label>Lý do thao tác (bắt buộc - ghi nhận vào Security Audit Log):</label>
+          <label for="paConfirmReason">Lý do thao tác (bắt buộc - ghi nhận vào Security Audit Log):</label>
           <textarea class="textarea" id="paConfirmReason" placeholder="Nhập lý do chi tiết..."></textarea>
         </div>
       </div>
@@ -597,6 +841,7 @@ export function initPlatformAdminShell() {
         <button class="btn danger" id="paProceedConfirmBtn">Xác nhận</button>
       </div>
     </dialog>
+    <div class="toast-region" id="paToastRegion" role="status" aria-live="polite" aria-atomic="true"></div>
   `;
 
   document.body.appendChild(container);
@@ -610,10 +855,10 @@ export function initPlatformAdminShell() {
 
 function bindShellEvents(container) {
   // Sidebar Nav Item clicks
-  container.querySelectorAll('.nav-item').forEach(btn => {
+  container.querySelectorAll('.nav-item, .mobile-nav-item[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
       const view = btn.dataset.view;
-      if (view) switchView(view);
+      if (view) switchView(view, true);
       closeMobileSidebar();
     });
   });
@@ -624,6 +869,9 @@ function bindShellEvents(container) {
   collapseBtn?.addEventListener('click', () => {
     isCollapsed = !isCollapsed;
     appEl.classList.toggle('collapsed', isCollapsed);
+    collapseBtn.setAttribute('aria-expanded', String(!isCollapsed));
+    collapseBtn.setAttribute('aria-label', isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar');
+    collapseBtn.setAttribute('title', isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar');
   });
 
   // Back to App button
@@ -639,6 +887,7 @@ function bindShellEvents(container) {
     document.documentElement.setAttribute('data-theme', nextTheme);
     container.setAttribute('data-theme', nextTheme);
     localStorage.setItem('worktree_theme', nextTheme);
+    syncThemeControl(container, nextTheme);
   });
 
   // Refresh Data
@@ -649,6 +898,15 @@ function bindShellEvents(container) {
   // Mobile Menu
   container.querySelector('#paMobileMenu')?.addEventListener('click', () => {
     container.querySelector('#paApp')?.classList.add('mobile-open');
+    container.querySelector('#paMobileMenu')?.setAttribute('aria-expanded', 'true');
+    container.querySelector('#paMobileMore')?.setAttribute('aria-expanded', 'true');
+    syncMobileAccess();
+  });
+  container.querySelector('#paMobileMore')?.addEventListener('click', () => {
+    container.querySelector('#paApp')?.classList.add('mobile-open');
+    container.querySelector('#paMobileMenu')?.setAttribute('aria-expanded', 'true');
+    container.querySelector('#paMobileMore')?.setAttribute('aria-expanded', 'true');
+    syncMobileAccess();
   });
   container.querySelector('#paScrim')?.addEventListener('click', () => {
     closeMobileSidebar();
@@ -657,37 +915,61 @@ function bindShellEvents(container) {
   // Global search keyboard shortcut Ctrl+K
   document.addEventListener('keydown', (e) => {
     if (portalContainer && portalContainer.style.display !== 'none') {
+      // Workspace shortcuts must not act on the covered tenant workspace.
+      e.stopImmediatePropagation();
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        container.querySelector('#paGlobalSearch')?.focus();
+        if (window.innerWidth <= 680) {
+          switchView('tenants');
+          container.querySelector('#tenantSearch')?.focus();
+        } else container.querySelector('#paGlobalSearch')?.focus();
+      }
+      if (e.key === 'Tab' && !container.querySelector('dialog[open]')) {
+        const scope = appEl.classList.contains('mobile-open') ? container.querySelector('#paSidebar') : container;
+        const targets = [...scope.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')]
+          .filter(el => !el.closest('[inert]') && el.getClientRects().length);
+        const first = targets[0];
+        const last = targets[targets.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !scope.contains(document.activeElement))) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
       }
       if (e.key === 'Escape') {
+        e.preventDefault();
         const drawer = container.querySelector('#paTenantDrawer');
         const confirmDialog = container.querySelector('#paConfirmDialog');
         if (confirmDialog?.open) {
           confirmDialog.close();
         } else if (drawer?.open) {
           drawer.close();
+        } else if (container.querySelector('#paApp')?.classList.contains('mobile-open')) {
+          closeMobileSidebar();
         } else {
           closePlatformAdminPortal();
         }
       }
     }
+  }, true);
+  window.matchMedia('(max-width: 900px)').addEventListener('change', () => {
+    closeMobileSidebar();
+    syncMobileAccess();
   });
 
   // Global search input
   container.querySelector('#paGlobalSearch')?.addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
-    if (!q) return;
-    if (currentView !== 'tenants' && currentView !== 'users') {
-      switchView('tenants');
+    if (currentView === 'users') {
+      state.userSearchQuery = q;
+      const userSearch = container.querySelector('#userSearch');
+      if (userSearch) userSearch.value = q;
+      filterAndRenderUsersTable();
+      return;
     }
+
+    if (currentView !== 'tenants') switchView('tenants');
+    state.tenantSearchQuery = q;
     const tenantSearch = container.querySelector('#tenantSearch');
-    if (tenantSearch) {
-      tenantSearch.value = q;
-      state.tenantSearchQuery = q;
-      filterAndRenderTenantsTable();
-    }
+    if (tenantSearch) tenantSearch.value = q;
+    filterAndRenderTenantsTable();
   });
 
   // Drawer Close
@@ -702,6 +984,11 @@ function bindShellEvents(container) {
   container.querySelectorAll('#paDrawerTabs .tab-btn').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
       selectedTenantTab = tabBtn.dataset.tab;
+      container.querySelectorAll('#paDrawerTabs .tab-btn').forEach(candidate => {
+        const isActive = candidate === tabBtn;
+        candidate.classList.toggle('active', isActive);
+        candidate.setAttribute('aria-selected', String(isActive));
+      });
       renderDrawerActiveTab();
     });
   });
@@ -717,66 +1004,106 @@ function bindShellEvents(container) {
 
 function closeMobileSidebar() {
   portalContainer?.querySelector('#paApp')?.classList.remove('mobile-open');
+  portalContainer?.querySelector('#paMobileMenu')?.setAttribute('aria-expanded', 'false');
+  portalContainer?.querySelector('#paMobileMore')?.setAttribute('aria-expanded', 'false');
+  syncMobileAccess();
 }
 
-function switchView(viewName) {
+function syncMobileAccess() {
+  if (!portalContainer) return;
+  const mobile = window.innerWidth <= 900;
+  const open = mobile && portalContainer.querySelector('#paApp').classList.contains('mobile-open');
+  portalContainer.querySelector('#paSidebar').inert = mobile && !open;
+  portalContainer.querySelector('.main-shell').inert = open;
+  portalContainer.querySelector('.mobile-bottom-nav').inert = open;
+  if (open) portalContainer.querySelector('#paSidebar .nav-item').focus();
+}
+
+function switchView(viewName, focusHeading = false) {
+  if (!VIEW_TITLES[viewName]) viewName = 'overview';
   currentView = viewName;
   if (!portalContainer) return;
 
-  portalContainer.querySelectorAll('.nav-item').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === viewName);
+  portalContainer.querySelectorAll('.nav-item, .mobile-nav-item[data-view]').forEach(btn => {
+    const isActive = btn.dataset.view === viewName;
+    btn.classList.toggle('active', isActive);
+    if (isActive) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
   });
+  portalContainer.querySelector('#paMobileMore')?.classList.toggle('active', !MOBILE_PRIMARY_VIEWS.includes(viewName));
+  document.title = `${VIEW_TITLES[viewName]} · Platform Admin · WorkTree X`;
 
   // Sync hash
   const targetHash = viewName === 'overview' ? '#admin' : `#admin/${viewName}`;
   if (window.location.hash !== targetHash && window.location.hash !== targetHash.replace('#admin', '#platform-admin')) {
-    window.location.hash = targetHash;
+    try {
+      window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}${targetHash}`);
+    } catch (_) {
+      window.location.hash = targetHash;
+    }
   }
 
   renderCurrentView();
+  if (focusHeading) window.requestAnimationFrame(() => {
+    const heading = portalContainer?.querySelector('#paContentArea h1');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+    }
+  });
 }
 
 /**
  * Tải toàn bộ dữ liệu điều hành từ serverless endpoint /api/platform-admin
  */
-async function loadPortalData() {
+function loadPortalData() {
+  if (!portalLoadPromise) portalLoadPromise = fetchPortalData().finally(() => { portalLoadPromise = null; });
+  return portalLoadPromise;
+}
+
+async function fetchPortalData() {
   state.isLoading = true;
+  state.error = null;
   renderCurrentView();
 
   try {
-    const [overview, orgs, users, violations, logs, admins, settings] = await Promise.all([
-      PlatformAdminService.getOverview().catch(() => null),
-      PlatformAdminService.getOrganizations().catch(() => []),
-      PlatformAdminService.getUsers().catch(() => []),
-      PlatformAdminService.getViolations().catch(() => []),
-      PlatformAdminService.getAuditLogs().catch(() => []),
-      PlatformAdminService.getPlatformAdmins().catch(() => []),
-      PlatformAdminService.getSettings().catch(() => null)
-    ]);
+    const resources = [
+      ['metrics', 'Tổng quan', () => PlatformAdminService.getOverview()],
+      ['organizations', 'Doanh nghiệp', () => PlatformAdminService.getOrganizations()],
+      ['users', 'Người dùng', () => PlatformAdminService.getUsers()],
+      ['violations', 'Cảnh báo', () => PlatformAdminService.getViolations()],
+      ['logs', 'Nhật ký', () => PlatformAdminService.getAuditLogs()],
+      ['admins', 'Platform Admin', () => PlatformAdminService.getPlatformAdmins()],
+      ['settings', 'Cấu hình', () => PlatformAdminService.getSettings()]
+    ];
+    const results = await Promise.allSettled(resources.map(([, , request]) => request()));
+    const resourceErrors = {};
 
-    state.metrics = overview;
-    state.organizations = orgs;
-    state.users = users;
-    state.violations = violations;
-    state.logs = logs;
-    state.admins = admins;
-    state.settings = settings;
+    results.forEach((result, index) => {
+      const [key, label] = resources[index];
+      if (result.status === 'fulfilled') {
+        state[key] = result.value;
+      } else {
+        resourceErrors[key] = `${label}: tạm thời chưa thể đồng bộ`;
+      }
+    });
+    state.resourceErrors = resourceErrors;
 
     // Update nav counters
     const tenantCountEl = portalContainer?.querySelector('#paTenantNavCount');
-    if (tenantCountEl) tenantCountEl.textContent = orgs.length;
+    if (tenantCountEl) tenantCountEl.textContent = resourceErrors.organizations ? '—' : state.organizations.length;
 
     const userCountEl = portalContainer?.querySelector('#paUserNavCount');
-    if (userCountEl) userCountEl.textContent = users.length;
+    if (userCountEl) userCountEl.textContent = resourceErrors.users ? '—' : state.users.length;
 
     const violationCountEl = portalContainer?.querySelector('#paViolationNavCount');
-    if (violationCountEl) violationCountEl.textContent = violations.length;
+    if (violationCountEl) violationCountEl.textContent = resourceErrors.violations ? '—' : state.violations.length;
 
     const adminCountEl = portalContainer?.querySelector('#paAdminNavCount');
-    if (adminCountEl) adminCountEl.textContent = admins.length;
+    if (adminCountEl) adminCountEl.textContent = resourceErrors.admins ? '—' : state.admins.length;
 
   } catch (err) {
-    state.error = err.message;
+    state.error = 'Chưa thể đồng bộ dữ liệu. Vui lòng thử lại.';
     console.error('[PlatformAdmin] Lỗi tải dữ liệu:', err);
   } finally {
     state.isLoading = false;
@@ -787,6 +1114,7 @@ async function loadPortalData() {
 function renderCurrentView() {
   const content = portalContainer?.querySelector('#paContentArea');
   if (!content) return;
+  content.setAttribute('aria-busy', String(state.isLoading));
 
   if (state.isLoading && !state.organizations.length && !state.metrics) {
     content.innerHTML = `
@@ -830,6 +1158,35 @@ function renderCurrentView() {
     default:
       renderOverview(content);
   }
+
+  renderResourceStatus(content);
+  enhanceTables(content);
+}
+
+function enhanceTables(root) {
+  root?.querySelectorAll('table').forEach(table => {
+    table.classList.add('pa-responsive-table');
+    const labels = [...table.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach(row => {
+      [...row.children].forEach((cell, index) => cell.setAttribute('data-label', labels[index] || ''));
+    });
+  });
+}
+
+function renderResourceStatus(content) {
+  const errors = Object.values(state.resourceErrors || {});
+  if (!errors.length && !state.error) return;
+  const messages = state.error ? [state.error, ...errors] : errors;
+  content.insertAdjacentHTML('afterbegin', `
+    <div class="data-status" role="status">
+      <div>
+        <strong>Một phần dữ liệu chưa được đồng bộ</strong>
+        <span>${esc(messages.join(' · '))}. Dữ liệu đã tải thành công vẫn được giữ nguyên.</span>
+      </div>
+      <button class="btn" type="button" id="paRetryPartialData">Thử lại</button>
+    </div>
+  `);
+  content.querySelector('#paRetryPartialData')?.addEventListener('click', () => loadPortalData());
 }
 
 // -----------------------------------------------------------------------------
@@ -846,6 +1203,26 @@ function renderOverview(container) {
   };
 
   const recentOrgs = (state.organizations || []).slice(0, 5);
+  const growth = Array.from({ length: 6 }, (_, index) => {
+    const start = new Date(new Date().getFullYear(), new Date().getMonth() - 5 + index, 1);
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
+    return { label: `T${start.getMonth() + 1}`, count: state.organizations.filter(org => {
+      const date = new Date(org.createdAt || org.created_at);
+      return date >= start && date < end;
+    }).length };
+  });
+  const maxGrowth = Math.max(1, ...growth.map(item => item.count));
+  const breakdown = m.plansBreakdown || {};
+  const counts = [breakdown.enterprise || 0, breakdown.business || 0, (breakdown.starter || 0) + (breakdown.pro || 0), (breakdown.free || 0) + (breakdown.trial || 0)];
+  const knownPlans = counts.reduce((sum, count) => sum + count, 0);
+  const unknownPlans = Math.max(0, (m.totalOrganizations || 0) - knownPlans);
+  const totalPlans = Math.max(1, knownPlans + unknownPlans);
+  let cursor = 0;
+  const slices = [...counts, unknownPlans].map((count, i) => {
+    const start = cursor;
+    cursor += count / totalPlans * 100;
+    return `${['var(--primary)', 'var(--blue)', 'var(--green)', 'var(--line-strong)', 'var(--surface-3)'][i]} ${start}% ${cursor}%`;
+  }).join(',');
 
   container.innerHTML = `
     <div class="page-heading">
@@ -854,32 +1231,32 @@ function renderOverview(container) {
         <p>Theo dõi hoạt động, doanh thu và sức khỏe hệ thống WorkTree X</p>
       </div>
       <div class="heading-actions">
-        <button class="btn" id="paOverviewSyncBtn">Đồng bộ tức thì ↻</button>
+        <button class="btn" id="paOverviewSyncBtn">Đồng bộ tức thì ${icon('refresh')}</button>
       </div>
     </div>
 
     <!-- 4 Key KPI Cards -->
     <div class="grid kpi-grid">
       <article class="card kpi">
-        <div class="kpi-icon purple">▦</div>
+        <div class="kpi-icon purple">${icon('building')}</div>
         <div>
           <div class="kpi-label">Doanh nghiệp đang hoạt động</div>
           <div class="kpi-value">${m.activeOrganizations}</div>
-          <div class="trend up">↑ 100% tenant sẵn sàng</div>
+          <div class="trend">Trong ${m.totalOrganizations} doanh nghiệp trên nền tảng</div>
         </div>
       </article>
 
       <article class="card kpi">
-        <div class="kpi-icon green">♙</div>
+        <div class="kpi-icon green">${icon('users')}</div>
         <div>
-          <div class="kpi-label">Người dùng đã kích hoạt</div>
+          <div class="kpi-label">Hồ sơ người dùng</div>
           <div class="kpi-value">${m.totalUsers}</div>
           <div class="trend up">Định danh xác thực qua Supabase</div>
         </div>
       </article>
 
       <article class="card kpi">
-        <div class="kpi-icon amber">$</div>
+        <div class="kpi-icon amber">${icon('trend')}</div>
         <div>
           <div class="kpi-label">Doanh thu tháng này</div>
           <div class="kpi-value" style="font-size:20px;margin:12px 0 6px;">Chưa đối soát</div>
@@ -888,11 +1265,11 @@ function renderOverview(container) {
       </article>
 
       <article class="card kpi">
-        <div class="kpi-icon red">!</div>
+        <div class="kpi-icon red">${icon('alert')}</div>
         <div>
           <div class="kpi-label">Doanh nghiệp bị khóa</div>
           <div class="kpi-value">${m.suspendedOrganizations}</div>
-          <div class="trend ${m.suspendedOrganizations > 0 ? 'bad' : 'up'}">${m.suspendedOrganizations > 0 ? 'Đã chặn truy cập' : 'Hoàn toàn an toàn'}</div>
+          <div class="trend ${m.suspendedOrganizations > 0 ? 'bad' : 'up'}">${m.suspendedOrganizations > 0 ? 'Đã chặn truy cập' : 'Chưa có doanh nghiệp bị khóa'}</div>
         </div>
       </article>
     </div>
@@ -903,19 +1280,12 @@ function renderOverview(container) {
       <article class="card panel">
         <div class="panel-head">
           <div>
-            <div class="panel-title">Tăng trưởng quy mô hệ thống</div>
-            <div class="panel-sub">Số lượng tổ chức theo chu kỳ gần nhất</div>
+            <div class="panel-title">Doanh nghiệp mới theo tháng</div>
+            <div class="panel-sub">6 tháng gần nhất · theo ngày tạo doanh nghiệp</div>
           </div>
-          <span class="pill business">Active</span>
+          <span class="pill business">${new Date().getFullYear()}</span>
         </div>
-        <div class="bars">
-          <div class="bar-col"><div class="bar" style="--h:42px"></div><div class="bar-label">T8</div></div>
-          <div class="bar-col"><div class="bar" style="--h:72px"></div><div class="bar-label">T9</div></div>
-          <div class="bar-col"><div class="bar" style="--h:96px"></div><div class="bar-label">T10</div></div>
-          <div class="bar-col"><div class="bar" style="--h:120px"></div><div class="bar-label">T11</div></div>
-          <div class="bar-col"><div class="bar" style="--h:145px"></div><div class="bar-label">T12</div></div>
-          <div class="bar-col"><div class="bar" style="--h:170px"></div><div class="bar-label">Hiện tại</div></div>
-        </div>
+        ${state.resourceErrors.organizations ? '<div class="empty">Chưa tải được dữ liệu tăng trưởng.</div>' : `<div class="bars">${growth.map(item => `<div class="bar-col"><strong>${item.count}</strong><div class="bar" style="--h:${Math.max(2, item.count / maxGrowth * 135)}px"></div><div class="bar-label">${item.label}</div></div>`).join('')}</div>`}
       </article>
 
       <!-- Plan Distribution Donut Chart -->
@@ -927,7 +1297,7 @@ function renderOverview(container) {
           </div>
         </div>
         <div class="donut-wrap">
-          <div class="donut">
+          <div class="donut" style="background:conic-gradient(${slices})" aria-hidden="true">
             <div class="donut-center">
               <strong>${m.totalOrganizations}</strong>
               <span>doanh nghiệp</span>
@@ -936,8 +1306,9 @@ function renderOverview(container) {
           <div class="legend">
             <div class="legend-row"><span class="dot p"></span><span>Enterprise</span><strong>${m.plansBreakdown.enterprise || 0}</strong></div>
             <div class="legend-row"><span class="dot b"></span><span>Business</span><strong>${m.plansBreakdown.business || 0}</strong></div>
-            <div class="legend-row"><span class="dot g"></span><span>Starter / Pro</span><strong>${m.plansBreakdown.starter || 0}</strong></div>
-            <div class="legend-row"><span class="dot n"></span><span>Free / Trial</span><strong>${m.plansBreakdown.free || 0}</strong></div>
+            <div class="legend-row"><span class="dot g"></span><span>Starter / Pro</span><strong>${counts[2]}</strong></div>
+            <div class="legend-row"><span class="dot n"></span><span>Free / Trial</span><strong>${counts[3]}</strong></div>
+            ${unknownPlans ? `<div class="legend-row"><span class="dot n"></span><span>Chưa có thông tin gói</span><strong>${unknownPlans}</strong></div>` : ''}
           </div>
         </div>
       </article>
@@ -946,17 +1317,13 @@ function renderOverview(container) {
       <article class="card panel health-card">
         <div class="panel-head">
           <div>
-            <div class="panel-title">Sức khỏe hệ thống</div>
-            <div class="panel-sub">Tình trạng dịch vụ đám mây</div>
+            <div class="panel-title">Đồng bộ dữ liệu</div>
+            <div class="panel-sub">Kết quả lần tải gần nhất</div>
           </div>
-          <span class="status-badge">Ổn định</span>
+          <span class="pill ${Object.keys(state.resourceErrors).length ? 'pending' : 'active'}">${Object.keys(state.resourceErrors).length ? 'Cần kiểm tra' : 'Đã tải'}</span>
         </div>
         <div class="health-list">
-          <div class="health-row"><div class="health-icon">⌘</div><div class="health-name">API & Serverless</div><span class="status-ok">Bình thường</span></div>
-          <div class="health-row"><div class="health-icon">▣</div><div class="health-name">Cơ sở dữ liệu PostgreSQL</div><span class="status-ok">Bình thường</span></div>
-          <div class="health-row"><div class="health-icon">◇</div><div class="health-name">Supabase Auth</div><span class="status-ok">Bình thường</span></div>
-          <div class="health-row"><div class="health-icon">↻</div><div class="health-name">Private Realtime</div><span class="status-ok">Bình thường</span></div>
-          <div class="health-row"><div class="health-icon">▤</div><div class="health-name">Storage Bucket</div><span class="status-ok">Bình thường</span></div>
+          ${[['metrics','Tổng quan','trend'],['organizations','Doanh nghiệp','building'],['users','Người dùng','users'],['logs','Nhật ký','list'],['violations','Cảnh báo','shield']].map(([key,label,symbol]) => `<div class="health-row"><div class="health-icon">${icon(symbol)}</div><div class="health-name">${label}</div><span class="pill ${state.resourceErrors[key] ? 'pending' : 'active'}">${state.resourceErrors[key] ? 'Chưa tải' : 'Đã tải'}</span></div>`).join('')}
         </div>
       </article>
     </div>
@@ -1018,7 +1385,7 @@ function renderOverview(container) {
           ${(state.logs || []).slice(0, 4).map(l => `
             <div class="activity">
               <div class="activity-icon ${l.action.includes('SUSPEND') ? 'red' : 'purple'}">
-                ${l.action.includes('SUSPEND') ? '🔒' : '🛡️'}
+                ${l.action.includes('SUSPEND') ? icon('alert') : icon('shield')}
               </div>
               <div>
                 <strong>${esc(l.action)}</strong>
@@ -1028,7 +1395,7 @@ function renderOverview(container) {
             </div>
           `).join('') || `
             <div class="activity">
-              <div class="activity-icon green">●</div>
+              <div class="activity-icon green">${icon('shield')}</div>
               <div><strong>Hệ thống khởi chạy</strong><small>Platform Super-Admin Console</small></div>
               <time>Vừa xong</time>
             </div>
@@ -1064,7 +1431,7 @@ function renderTenants(container) {
     <!-- Tenants KPI -->
     <div class="grid kpi-grid">
       <article class="card kpi">
-        <div class="kpi-icon purple">▦</div>
+        <div class="kpi-icon purple">${icon('building')}</div>
         <div>
           <div class="kpi-label">Tổng doanh nghiệp</div>
           <div class="kpi-value">${state.organizations.length}</div>
@@ -1072,7 +1439,7 @@ function renderTenants(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon green">✓</div>
+        <div class="kpi-icon green">${icon('shield')}</div>
         <div>
           <div class="kpi-label">Đang hoạt động</div>
           <div class="kpi-value">${state.organizations.filter(o => o.status === 'active').length}</div>
@@ -1080,7 +1447,7 @@ function renderTenants(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon amber">◷</div>
+        <div class="kpi-icon amber">${icon('refresh')}</div>
         <div>
           <div class="kpi-label">Gói Free / Trial</div>
           <div class="kpi-value">${state.organizations.filter(o => (o.subscription?.plan || 'free') === 'free').length}</div>
@@ -1088,7 +1455,7 @@ function renderTenants(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon red">!</div>
+        <div class="kpi-icon red">${icon('alert')}</div>
         <div>
           <div class="kpi-label">Đã khóa</div>
           <div class="kpi-value">${state.organizations.filter(o => o.status === 'suspended').length}</div>
@@ -1100,24 +1467,24 @@ function renderTenants(container) {
     <!-- Toolbar -->
     <div class="toolbar">
       <div class="input-wrap">
-        <span>⌕</span>
-        <input id="tenantSearch" placeholder="Tìm theo tên, domain, email..." value="${esc(state.tenantSearchQuery)}">
+        <span>${icon('search')}</span>
+        <input id="tenantSearch" aria-label="Tìm doanh nghiệp theo tên, domain hoặc email" placeholder="Tìm theo tên, domain, email..." value="${esc(state.tenantSearchQuery)}">
       </div>
-      <select class="select" id="tenantPlanFilter">
+      <select class="select" id="tenantPlanFilter" aria-label="Lọc doanh nghiệp theo gói dịch vụ">
         <option value="">Tất cả gói</option>
         <option value="enterprise" ${state.tenantFilterPlan === 'enterprise' ? 'selected' : ''}>Enterprise</option>
         <option value="business" ${state.tenantFilterPlan === 'business' ? 'selected' : ''}>Business</option>
         <option value="starter" ${state.tenantFilterPlan === 'starter' ? 'selected' : ''}>Starter</option>
         <option value="free" ${state.tenantFilterPlan === 'free' ? 'selected' : ''}>Free</option>
       </select>
-      <select class="select" id="tenantStatusFilter">
+      <select class="select" id="tenantStatusFilter" aria-label="Lọc doanh nghiệp theo trạng thái">
         <option value="">Tất cả trạng thái</option>
         <option value="active" ${state.tenantFilterStatus === 'active' ? 'selected' : ''}>Đang hoạt động</option>
         <option value="suspended" ${state.tenantFilterStatus === 'suspended' ? 'selected' : ''}>Đã khóa</option>
       </select>
-      <select class="select" id="tenantSortFilter">
-        <option value="newest">Sắp xếp: Mới nhất</option>
-        <option value="name">Tên A–Z</option>
+      <select class="select" id="tenantSortFilter" aria-label="Sắp xếp danh sách doanh nghiệp">
+        <option value="newest" ${state.tenantSort === 'newest' ? 'selected' : ''}>Sắp xếp: Mới nhất</option>
+        <option value="name" ${state.tenantSort === 'name' ? 'selected' : ''}>Tên A–Z</option>
       </select>
     </div>
 
@@ -1154,6 +1521,21 @@ function renderTenants(container) {
     state.tenantFilterStatus = e.target.value;
     filterAndRenderTenantsTable();
   });
+  container.querySelector('#tenantSortFilter')?.addEventListener('change', (e) => {
+    state.tenantSort = e.target.value;
+    filterAndRenderTenantsTable();
+  });
+  container.querySelector('#paExportTenantsBtn')?.addEventListener('click', () => {
+    downloadCsv('worktree-platform-tenants.csv', ['Doanh nghiệp', 'Domain', 'Gói', 'Người dùng', 'Ngày tạo', 'Trạng thái'],
+      state.organizations.map(org => [
+        org.name,
+        org.domain || `${org.slug || ''}.worktree.vn`,
+        org.subscription?.plan || 'Free',
+        org.activeMembersCount || 0,
+        formatDate(org.createdAt || org.created_at),
+        org.status || 'active'
+      ]));
+  });
 }
 
 function filterAndRenderTenantsTable() {
@@ -1169,7 +1551,9 @@ function filterAndRenderTenantsTable() {
     const matchesPlan = !p || (org.subscription?.plan || 'free').toLowerCase() === p;
     const matchesStatus = !s || org.status === s;
     return matchesSearch && matchesPlan && matchesStatus;
-  });
+  }).sort((a, b) => state.tenantSort === 'name'
+    ? String(a.name || '').localeCompare(String(b.name || ''), 'vi')
+    : new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
 
   if (!filtered.length) {
     tbody.innerHTML = `<tr><td colspan="7"><div class="empty">Không tìm thấy doanh nghiệp phù hợp.</div></td></tr>`;
@@ -1202,6 +1586,7 @@ function filterAndRenderTenantsTable() {
       </tr>
     `;
   }).join('');
+  enhanceTables(portalContainer);
 
   // Bind table action clicks
   tbody.querySelectorAll('.pa-tenant-click, .pa-detail-btn').forEach(b => {
@@ -1235,7 +1620,7 @@ function renderUsers(container) {
     <!-- Users KPI -->
     <div class="grid kpi-grid">
       <article class="card kpi">
-        <div class="kpi-icon blue">♙</div>
+        <div class="kpi-icon blue">${icon('users')}</div>
         <div>
           <div class="kpi-label">Tổng tài khoản</div>
           <div class="kpi-value">${state.users.length}</div>
@@ -1243,7 +1628,7 @@ function renderUsers(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon green">✓</div>
+        <div class="kpi-icon green">${icon('shield')}</div>
         <div>
           <div class="kpi-label">Đã kích hoạt</div>
           <div class="kpi-value">${state.users.filter(u => u.status === 'active').length}</div>
@@ -1251,7 +1636,7 @@ function renderUsers(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon amber">◷</div>
+        <div class="kpi-icon amber">${icon('refresh')}</div>
         <div>
           <div class="kpi-label">Chờ xác nhận</div>
           <div class="kpi-value">${state.users.filter(u => u.status === 'pending').length}</div>
@@ -1259,7 +1644,7 @@ function renderUsers(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon red">⊘</div>
+        <div class="kpi-icon red">${icon('alert')}</div>
         <div>
           <div class="kpi-label">Bị vô hiệu hóa</div>
           <div class="kpi-value">${state.users.filter(u => u.status === 'disabled').length}</div>
@@ -1271,10 +1656,10 @@ function renderUsers(container) {
     <!-- Toolbar -->
     <div class="toolbar two">
       <div class="input-wrap">
-        <span>⌕</span>
-        <input id="userSearch" placeholder="Tìm theo tên, email, tenant..." value="${esc(state.userSearchQuery)}">
+        <span>${icon('search')}</span>
+        <input id="userSearch" aria-label="Tìm người dùng theo tên, email hoặc doanh nghiệp" placeholder="Tìm theo tên, email, tenant..." value="${esc(state.userSearchQuery)}">
       </div>
-      <select class="select" id="userRoleFilter">
+      <select class="select" id="userRoleFilter" aria-label="Lọc người dùng theo vai trò">
         <option value="">Tất cả vai trò</option>
         <option value="owner" ${state.userFilterRole === 'owner' ? 'selected' : ''}>Owner</option>
         <option value="admin" ${state.userFilterRole === 'admin' ? 'selected' : ''}>Admin</option>
@@ -1282,7 +1667,7 @@ function renderUsers(container) {
         <option value="member" ${state.userFilterRole === 'member' ? 'selected' : ''}>Member</option>
         <option value="viewer" ${state.userFilterRole === 'viewer' ? 'selected' : ''}>Viewer</option>
       </select>
-      <select class="select" id="userStatusFilter">
+      <select class="select" id="userStatusFilter" aria-label="Lọc người dùng theo trạng thái">
         <option value="">Tất cả trạng thái</option>
         <option value="active" ${state.userFilterStatus === 'active' ? 'selected' : ''}>Đã kích hoạt</option>
         <option value="pending" ${state.userFilterStatus === 'pending' ? 'selected' : ''}>Chờ xác nhận</option>
@@ -1318,6 +1703,17 @@ function renderUsers(container) {
   container.querySelector('#userStatusFilter')?.addEventListener('change', (e) => {
     state.userFilterStatus = e.target.value;
     filterAndRenderUsersTable();
+  });
+  container.querySelector('#paExportUsersBtn')?.addEventListener('click', () => {
+    downloadCsv('worktree-platform-users.csv', ['Người dùng', 'Email', 'Doanh nghiệp', 'Vai trò', 'Trạng thái', 'Ngày tham gia'],
+      state.users.map(user => [
+        user.displayName,
+        user.email,
+        user.organizationName,
+        user.role || 'Member',
+        user.status || 'active',
+        formatDate(user.createdAt || user.created_at)
+      ]));
   });
 }
 
@@ -1362,6 +1758,7 @@ function filterAndRenderUsersTable() {
       </tr>
     `;
   }).join('');
+  enhanceTables(portalContainer);
 }
 
 // -----------------------------------------------------------------------------
@@ -1375,14 +1772,14 @@ function renderRevenue(container) {
         <p>Theo dõi MRR, ARR và hiệu quả tăng trưởng SaaS</p>
       </div>
       <div class="heading-actions">
-        <button class="btn">Xuất báo cáo</button>
+        <button class="btn" id="paExportRevenueBtn">Xuất báo cáo</button>
       </div>
     </div>
 
     <!-- KPI Cards -->
     <div class="grid kpi-grid">
       <article class="card kpi">
-        <div class="kpi-icon green">$</div>
+        <div class="kpi-icon green">${icon('trend')}</div>
         <div>
           <div class="kpi-label">MRR Ước tính</div>
           <div class="kpi-value" style="font-size:22px;margin:8px 0 4px;">Chưa đối soát</div>
@@ -1390,7 +1787,7 @@ function renderRevenue(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon purple">Σ</div>
+        <div class="kpi-icon purple">${icon('trend')}</div>
         <div>
           <div class="kpi-label">ARR Dự phóng</div>
           <div class="kpi-value" style="font-size:22px;margin:8px 0 4px;">Chưa đối soát</div>
@@ -1398,7 +1795,7 @@ function renderRevenue(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon blue">%</div>
+        <div class="kpi-icon blue">${icon('building')}</div>
         <div>
           <div class="kpi-label">Tổng thuê bao</div>
           <div class="kpi-value">${state.organizations.length}</div>
@@ -1406,7 +1803,7 @@ function renderRevenue(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon amber">↘</div>
+        <div class="kpi-icon amber">${icon('refresh')}</div>
         <div>
           <div class="kpi-label">Tỷ lệ duy trì</div>
           <div class="kpi-value">100%</div>
@@ -1484,6 +1881,16 @@ function renderRevenue(container) {
       </div>
     </div>
   `;
+
+  container.querySelector('#paExportRevenueBtn')?.addEventListener('click', () => {
+    downloadCsv('worktree-platform-subscriptions.csv', ['Doanh nghiệp', 'Gói', 'Trạng thái', 'Số ghế'],
+      state.organizations.map(org => [
+        org.name,
+        org.subscription?.plan || 'Free',
+        org.subscription?.status || org.status || 'active',
+        org.subscription?.seat_limit || org.subscription?.seatLimit || ''
+      ]));
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -1497,7 +1904,7 @@ function renderPlans(container) {
         <p>Quản lý cấu hình thương mại và giới hạn của từng gói</p>
       </div>
       <div class="heading-actions">
-        <button class="btn primary">＋ Cập nhật hạn mức</button>
+        <button class="btn primary" disabled title="Cần API cấu hình gói có kiểm tra quyền">Cập nhật hạn mức</button>
       </div>
     </div>
 
@@ -1512,7 +1919,7 @@ function renderPlans(container) {
           <div>1 GB dung lượng tệp</div>
           <div>Quản lý công việc cốt lõi</div>
         </div>
-        <button class="btn" style="width:100%">Đang áp dụng</button>
+        <span class="pill active" style="width:100%;justify-content:center;padding:8px">Đang áp dụng</span>
       </article>
 
       <article class="card plan-card">
@@ -1524,7 +1931,7 @@ function renderPlans(container) {
           <div>20 GB dung lượng lưu trữ</div>
           <div>Realtime đa thiết bị & Zalo bot</div>
         </div>
-        <button class="btn" style="width:100%">Đang áp dụng</button>
+        <span class="pill active" style="width:100%;justify-content:center;padding:8px">Đang áp dụng</span>
       </article>
 
       <article class="card plan-card recommended">
@@ -1537,7 +1944,7 @@ function renderPlans(container) {
           <div>100 GB lưu trữ</div>
           <div>Security Audit & Hỗ trợ ưu tiên</div>
         </div>
-        <button class="btn primary" style="width:100%">Đang áp dụng</button>
+        <span class="pill active" style="width:100%;justify-content:center;padding:8px">Đang áp dụng</span>
       </article>
 
       <article class="card plan-card">
@@ -1549,7 +1956,7 @@ function renderPlans(container) {
           <div>Không giới hạn lưu trữ</div>
           <div>Chuyên gia hỗ trợ 24/7 & SSO</div>
         </div>
-        <button class="btn" style="width:100%">Đang áp dụng</button>
+        <span class="pill active" style="width:100%;justify-content:center;padding:8px">Đang áp dụng</span>
       </article>
     </div>
 
@@ -1600,13 +2007,13 @@ function renderViolations(container) {
         <p>Theo dõi tenant có dấu hiệu vi phạm chính sách hoặc cần can thiệp vận hành</p>
       </div>
       <div class="heading-actions">
-        <button class="btn" id="paRefreshViolationsBtn">Quét lại vi phạm ↻</button>
+        <button class="btn" id="paRefreshViolationsBtn">Quét lại vi phạm ${icon('refresh')}</button>
       </div>
     </div>
 
     <div class="grid kpi-grid">
       <article class="card kpi">
-        <div class="kpi-icon red">!</div>
+        <div class="kpi-icon red">${icon('alert')}</div>
         <div>
           <div class="kpi-label">Vi phạm đang mở</div>
           <div class="kpi-value">${violations.filter(v => v.status === 'open').length}</div>
@@ -1614,7 +2021,7 @@ function renderViolations(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon amber">◷</div>
+        <div class="kpi-icon amber">${icon('refresh')}</div>
         <div>
           <div class="kpi-label">Đang xem xét</div>
           <div class="kpi-value">${violations.filter(v => v.status === 'reviewing').length}</div>
@@ -1622,7 +2029,7 @@ function renderViolations(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon green">✓</div>
+        <div class="kpi-icon green">${icon('shield')}</div>
         <div>
           <div class="kpi-label">Đã giải quyết</div>
           <div class="kpi-value">${violations.filter(v => v.status === 'resolved').length}</div>
@@ -1630,7 +2037,7 @@ function renderViolations(container) {
         </div>
       </article>
       <article class="card kpi">
-        <div class="kpi-icon blue">♢</div>
+        <div class="kpi-icon blue">${icon('building')}</div>
         <div>
           <div class="kpi-label">Tenant bị khóa</div>
           <div class="kpi-value">${state.organizations.filter(o => o.status === 'suspended').length}</div>
@@ -1644,7 +2051,7 @@ function renderViolations(container) {
         const isRed = v.severity === 'critical' || v.severity === 'high';
         return `
           <article class="card alert-card">
-            <div class="alert-icon ${isRed ? 'red' : 'amber'}">!</div>
+            <div class="alert-icon ${isRed ? 'red' : 'amber'}">${icon('alert')}</div>
             <div>
               <strong style="color:var(--text);">${esc(v.summary)}</strong>
               <div style="color:var(--muted);margin-top:2px;">${esc(v.details || 'Không có ghi chú thêm.')}</div>
@@ -1663,7 +2070,7 @@ function renderViolations(container) {
       }).join('') : `
         <article class="card panel">
           <div class="empty">
-            <div style="font-size:28px;margin-bottom:8px;">🛡️</div>
+            <div style="display:grid;place-items:center;margin-bottom:8px;color:var(--green);">${icon('shield')}</div>
             <strong style="display:block;color:var(--text);">Hệ thống đang an toàn</strong>
             <span style="font-size:12px;color:var(--muted);">Không có báo cáo vi phạm chính sách hoặc lạm dụng tài nguyên nào được ghi nhận.</span>
           </div>
@@ -1679,8 +2086,6 @@ function renderViolations(container) {
 // 7. LOGS VIEW
 // -----------------------------------------------------------------------------
 function renderLogs(container) {
-  const logs = state.logs || [];
-
   container.innerHTML = `
     <div class="page-heading">
       <div>
@@ -1688,21 +2093,21 @@ function renderLogs(container) {
         <p>Audit hoạt động của Platform Super-Admin và các sự kiện bảo mật toàn nền tảng</p>
       </div>
       <div class="heading-actions">
-        <button class="btn" id="paRefreshLogsBtn">Làm mới log ↻</button>
+        <button class="btn" id="paRefreshLogsBtn">Làm mới log ${icon('refresh')}</button>
       </div>
     </div>
 
     <div class="toolbar two">
       <div class="input-wrap">
-        <span>⌕</span>
-        <input placeholder="Tìm actor, tenant, hành động...">
+        <span>${icon('search')}</span>
+        <input id="paLogSearch" aria-label="Tìm nhật ký theo actor, doanh nghiệp hoặc hành động" placeholder="Tìm actor, tenant, hành động..." value="${esc(state.logSearchQuery)}">
       </div>
-      <select class="select">
-        <option>Tất cả hành động</option>
-        <option>TENANT_SUSPENDED</option>
-        <option>TENANT_UNSUSPENDED</option>
+      <select class="select" id="paLogActionFilter" aria-label="Lọc nhật ký theo loại hành động">
+        <option value="">Tất cả hành động</option>
+        <option value="TENANT_SUSPENDED" ${state.logActionFilter === 'TENANT_SUSPENDED' ? 'selected' : ''}>TENANT_SUSPENDED</option>
+        <option value="TENANT_UNSUSPENDED" ${state.logActionFilter === 'TENANT_UNSUSPENDED' ? 'selected' : ''}>TENANT_UNSUSPENDED</option>
       </select>
-      <select class="select">
+      <select class="select" aria-label="Lọc nhật ký theo khoảng thời gian" disabled title="API hiện trả dữ liệu trong 30 ngày gần nhất">
         <option>30 ngày gần nhất</option>
       </select>
     </div>
@@ -1715,23 +2120,41 @@ function renderLogs(container) {
         <div>Hành động</div>
         <div>Kết quả</div>
       </div>
-      <div>
-        ${logs.length ? logs.map(l => `
-          <div class="log-row">
-            <div style="color:var(--muted);font-size:11.5px;">${formatDate(l.created_at)}</div>
-            <div style="font-family:monospace;font-size:11px;">${esc((l.actor_user_id || 'System').slice(0, 8))}...</div>
-            <div>${esc(l.metadata?.organization_name || l.target_type || '—')}</div>
-            <div class="log-action" style="color:var(--primary);">${esc(l.action)}</div>
-            <div><span class="pill active">Thành công</span></div>
-          </div>
-        `).join('') : `
-          <div class="empty">Chưa có nhật ký bảo mật nào được ghi nhận.</div>
-        `}
-      </div>
+      <div id="paLogRows"></div>
     </div>
   `;
 
+  filterAndRenderLogs();
   container.querySelector('#paRefreshLogsBtn')?.addEventListener('click', () => loadPortalData());
+  container.querySelector('#paLogSearch')?.addEventListener('input', event => {
+    state.logSearchQuery = event.target.value.trim().toLowerCase();
+    filterAndRenderLogs();
+  });
+  container.querySelector('#paLogActionFilter')?.addEventListener('change', event => {
+    state.logActionFilter = event.target.value;
+    filterAndRenderLogs();
+  });
+}
+
+function filterAndRenderLogs() {
+  const target = portalContainer?.querySelector('#paLogRows');
+  if (!target) return;
+  const q = state.logSearchQuery;
+  const action = state.logActionFilter;
+  const filtered = (state.logs || []).filter(log => {
+    const haystack = `${log.actor_user_id || 'System'} ${log.metadata?.organization_name || ''} ${log.target_type || ''} ${log.action || ''}`.toLowerCase();
+    return (!q || haystack.includes(q)) && (!action || log.action === action);
+  });
+
+  target.innerHTML = filtered.length ? filtered.map(log => `
+    <div class="log-row">
+      <div style="color:var(--muted);font-size:11.5px;">${formatDate(log.created_at)}</div>
+      <div style="font-family:monospace;font-size:11px;">${esc((log.actor_user_id || 'System').slice(0, 8))}...</div>
+      <div>${esc(log.metadata?.organization_name || log.target_type || '—')}</div>
+      <div class="log-action" style="color:var(--primary);">${esc(log.action)}</div>
+      <div><span class="pill active">Thành công</span></div>
+    </div>
+  `).join('') : '<div class="empty">Không tìm thấy nhật ký phù hợp.</div>';
 }
 
 // -----------------------------------------------------------------------------
@@ -1749,6 +2172,11 @@ function renderSettings(container) {
       </div>
     </div>
 
+    <div class="callout warn" role="note" style="margin-bottom:14px">
+      <strong>Chế độ bản nháp an toàn</strong>
+      <span>Các thay đổi chỉ được lưu sau khi API cấu hình có kiểm tra quyền và Security Audit Log được triển khai.</span>
+    </div>
+
     <div class="grid settings-grid">
       <!-- Section 1 -->
       <article class="card settings-section">
@@ -1759,16 +2187,16 @@ function renderSettings(container) {
           </div>
         </div>
         <div class="field">
-          <label>Tên nền tảng</label>
-          <input class="text-input" value="WorkTree X" readonly>
+          <label for="paPlatformName">Tên nền tảng</label>
+          <input class="text-input" id="paPlatformName" value="WorkTree X" readonly>
         </div>
         <div class="field">
-          <label>Domain chính</label>
-          <input class="text-input" value="app.worktree.vn" readonly>
+          <label for="paPlatformDomain">Domain chính</label>
+          <input class="text-input" id="paPlatformDomain" value="app.worktree.vn" readonly>
         </div>
         <div class="field">
-          <label>Múi giờ mặc định</label>
-          <select class="select">
+          <label for="paDefaultTimezone">Múi giờ mặc định</label>
+          <select class="select" id="paDefaultTimezone">
             <option>Asia/Ho_Chi_Minh (GMT+7)</option>
             <option>UTC</option>
           </select>
@@ -1788,21 +2216,21 @@ function renderSettings(container) {
             <strong style="color:var(--text);">Cho phép đăng ký mới</strong>
             <small style="display:block;color:var(--muted)">Người dùng có thể tự tạo workspace tổ chức</small>
           </div>
-          <button class="switch on" type="button"><span></span></button>
+          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Cho phép đăng ký mới"><span></span></button>
         </div>
         <div class="toggle-row">
           <div>
             <strong style="color:var(--text);">Tự kích hoạt gói Free</strong>
             <small style="display:block;color:var(--muted)">Gán gói dùng thử miễn phí khi tạo workspace</small>
           </div>
-          <button class="switch on" type="button"><span></span></button>
+          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Tự kích hoạt gói Free"><span></span></button>
         </div>
         <div class="toggle-row">
           <div>
             <strong style="color:var(--text);">Yêu cầu xác minh tài khoản</strong>
             <small style="display:block;color:var(--muted)">Bắt buộc xác thực email qua Supabase Auth</small>
           </div>
-          <button class="switch on" type="button"><span></span></button>
+          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Yêu cầu xác minh tài khoản"><span></span></button>
         </div>
       </article>
 
@@ -1819,14 +2247,14 @@ function renderSettings(container) {
             <strong style="color:var(--text);">Ghi Security Audit bất biến</strong>
             <small style="display:block;color:var(--muted)">Lưu mọi hành động quản trị vào audit table</small>
           </div>
-          <button class="switch on" type="button"><span></span></button>
+          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Ghi Security Audit bất biến"><span></span></button>
         </div>
         <div class="toggle-row">
           <div>
             <strong style="color:var(--text);">Kiểm tra thẩm quyền phía Server</strong>
             <small style="display:block;color:var(--muted)">Xác thực JWT và public.platform_admins</small>
           </div>
-          <button class="switch on" type="button"><span></span></button>
+          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Kiểm tra thẩm quyền phía Server"><span></span></button>
         </div>
       </article>
 
@@ -1839,27 +2267,30 @@ function renderSettings(container) {
           </div>
         </div>
         <div class="field">
-          <label>Người dùng tối đa mặc định</label>
-          <input class="text-input" type="number" value="100">
+          <label for="paDefaultUsers">Người dùng tối đa mặc định</label>
+          <input class="text-input" id="paDefaultUsers" type="number" min="1" value="100">
         </div>
         <div class="field">
-          <label>Dung lượng lưu trữ mặc định (GB)</label>
-          <input class="text-input" type="number" value="20">
+          <label for="paDefaultStorage">Dung lượng lưu trữ mặc định (GB)</label>
+          <input class="text-input" id="paDefaultStorage" type="number" min="1" value="20">
         </div>
         <div class="field">
-          <label>Kích thước tệp tải lên tối đa (MB)</label>
-          <input class="text-input" type="number" value="50">
+          <label for="paDefaultUpload">Kích thước tệp tải lên tối đa (MB)</label>
+          <input class="text-input" id="paDefaultUpload" type="number" min="1" value="50">
         </div>
       </article>
     </div>
   `;
 
   container.querySelectorAll('.switch').forEach(sw => {
-    sw.addEventListener('click', () => sw.classList.toggle('on'));
+    sw.addEventListener('click', () => {
+      const isOn = sw.classList.toggle('on');
+      sw.setAttribute('aria-checked', String(isOn));
+    });
   });
 
   container.querySelector('#paSaveSettingsBtn')?.addEventListener('click', () => {
-    alert('Đã lưu cấu hình nền tảng thành công.');
+    showPortalToast('Chưa lưu: cần triển khai API cấu hình có kiểm tra quyền và ghi Security Audit Log.', 'warn');
   });
 }
 
@@ -1892,11 +2323,11 @@ function renderAdmins(container) {
           ${admins.length ? admins.map(a => `
             <div class="admin-card">
               <div class="avatar" style="background:linear-gradient(135deg,#7265e8,#478fee);">
-                ${getInitials(a.email || 'PA')}
+                ${esc(getInitials(a.displayName || a.email || 'PA'))}
               </div>
               <div class="meta">
-                <strong>${esc(a.email || a.user_id)}</strong>
-                <small>${a.email ? `User ID: ${a.user_id.slice(0, 8)}...` : 'Platform Super-Admin'}</small>
+                <strong>${esc(a.displayName || a.email || a.user_id)}</strong>
+                <small>${esc(a.role || 'Platform Admin')}</small>
               </div>
               <span class="pill owner">Super-Admin</span>
             </div>
@@ -1956,7 +2387,7 @@ function renderAdmins(container) {
   `;
 
   container.querySelector('#paAddAdminBtn')?.addEventListener('click', () => {
-    alert('Thao tác thêm Platform Admin yêu cầu xác thực máy chủ qua migration hoặc lệnh đáng tin cậy để bảo vệ hệ sinh thái.');
+    showPortalToast('Thêm Platform Admin phải thực hiện qua quy trình máy chủ đáng tin cậy có Security Audit Log.', 'warn');
   });
 }
 
@@ -1971,7 +2402,12 @@ async function openTenantDetailDrawer(orgId) {
   if (!drawer) return;
 
   selectedTenantTab = 'overview';
+  state.selectedTenant = null;
   drawer.showModal();
+  drawer.querySelectorAll('[role="tab"]').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.tab === 'overview');
+    tab.setAttribute('aria-selected', String(tab.dataset.tab === 'overview'));
+  });
 
   const cachedOrg = state.organizations.find(o => o.id === orgId);
   orgNameEl.textContent = cachedOrg ? cachedOrg.name : 'Đang tải thông tin...';
@@ -2000,7 +2436,7 @@ async function openTenantDetailDrawer(orgId) {
     state.selectedTenant = detail;
     renderDrawerActiveTab();
   } catch (err) {
-    body.innerHTML = `<div style="padding:32px;text-align:center;color:var(--red);">Lỗi nạp chi tiết: ${esc(err.message)}</div>`;
+    body.innerHTML = `<div class="empty" role="status">Chưa tải được thông tin doanh nghiệp. Hãy đóng và thử lại.</div>`;
   }
 }
 
@@ -2011,6 +2447,7 @@ function renderDrawerActiveTab() {
 
   tabs?.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === selectedTenantTab);
+    btn.setAttribute('aria-selected', String(btn.dataset.tab === selectedTenantTab));
   });
 
   const t = state.selectedTenant;
@@ -2044,7 +2481,7 @@ function renderDrawerActiveTab() {
         </div>
         <div class="detail-item">
           <span>Số lượng thành viên</span>
-          <strong>${t.stats?.memberCount || 1} tài khoản</strong>
+          <strong>${t.stats?.memberCount ?? 0} tài khoản</strong>
         </div>
         <div class="detail-item">
           <span>Tổng số công việc</span>
@@ -2158,7 +2595,7 @@ function confirmTenantSuspension(organizationId, action) {
   if (action === 'suspend') {
     title.textContent = `Tạm khóa doanh nghiệp: ${orgName}`;
     callout.innerHTML = `
-      <strong>⚠️ HÀNH ĐỘNG CÓ TÁC ĐỘNG CAO:</strong><br>
+      <strong>HÀNH ĐỘNG CÓ TÁC ĐỘNG CAO:</strong><br>
       Khóa doanh nghiệp này sẽ <strong>chặn toàn bộ quyền truy cập</strong> của mọi thành viên (Owner, Admin, Member) tại tầng Database/RLS.<br>
       Dữ liệu công việc và tài liệu sẽ <strong>không bị xóa</strong> và có thể phục hồi bất cứ lúc nào.
     `;
@@ -2182,11 +2619,12 @@ function confirmTenantSuspension(organizationId, action) {
   proceedBtn.onclick = async () => {
     const reason = reasonInput.value.trim();
     if (action === 'suspend' && !reason) {
-      alert('Vui lòng nhập lý do khóa doanh nghiệp để lưu vào Security Audit Log!');
+      showPortalToast('Vui lòng nhập lý do khóa doanh nghiệp để ghi vào Security Audit Log.', 'error');
       reasonInput.focus();
       return;
     }
 
+    const proceedLabel = proceedBtn.textContent;
     proceedBtn.disabled = true;
     proceedBtn.textContent = 'Đang xử lý...';
 
@@ -2200,9 +2638,10 @@ function confirmTenantSuspension(organizationId, action) {
       dialog.close();
       await loadPortalData();
     } catch (err) {
-      alert('Lỗi thực hiện: ' + err.message);
+      showPortalToast(`Không thể hoàn tất thao tác: ${err.message}`, 'error');
     } finally {
       proceedBtn.disabled = false;
+      proceedBtn.textContent = proceedLabel;
     }
   };
 }
@@ -2213,18 +2652,23 @@ function confirmTenantSuspension(organizationId, action) {
 export async function openPlatformAdminPortal(initialView = null) {
   const container = initPlatformAdminShell();
   container.style.display = 'block';
+  activatePortalContext(container);
+  syncMobileAccess();
 
   // Sync theme
   const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
   container.setAttribute('data-theme', currentTheme);
+  syncThemeControl(container, currentTheme);
 
   if (initialView) {
     switchView(initialView);
+  } else {
+    document.title = `${VIEW_TITLES[currentView]} · Platform Admin · WorkTree X`;
   }
 
   // Load authoritative admin email into profile pill
   try {
-    const sb = (await import('../../../lib/supabase/client.js')).getSupabase();
+    const sb = await (await import('../../../lib/supabase/client.js')).getSupabase();
     const { data: { user } } = await sb.auth.getUser();
     const emailEl = container.querySelector('#paAdminEmail');
     const avatarPill = container.querySelector('#paAvatarPill');
@@ -2235,6 +2679,15 @@ export async function openPlatformAdminPortal(initialView = null) {
   } catch (_) {}
 
   await loadPortalData();
+  window.requestAnimationFrame(() => {
+    const heading = container.querySelector('#paContentArea h1');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+    } else {
+      container.focus({ preventScroll: true });
+    }
+  });
 }
 
 /**
@@ -2243,9 +2696,15 @@ export async function openPlatformAdminPortal(initialView = null) {
 export function closePlatformAdminPortal() {
   if (portalContainer) {
     portalContainer.style.display = 'none';
+    closeMobileSidebar();
+    deactivatePortalContext(portalContainer);
   }
   const h = (window.location.hash || '').toLowerCase();
   if (h.startsWith('#admin') || h.startsWith('#platform-admin') || h.startsWith('#admon')) {
-    window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+    try {
+      window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+    } catch (_) {
+      window.location.hash = '';
+    }
   }
 }
