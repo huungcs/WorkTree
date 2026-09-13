@@ -253,6 +253,8 @@ export const TaskService = {
             console.warn('[ZaloBot] Gửi thông báo giao việc qua Zalo thất bại:', zaloErr);
           }
         })();
+      }
+
       // Asynchronously notify on status change via Zalo Bot
       if (updates.status && mappedUI) {
         (async () => {
