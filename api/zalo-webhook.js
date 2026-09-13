@@ -35,26 +35,37 @@ async function sendZaloMessage(chatId, text) {
 }
 
 function extractPhoneNumber(event) {
-  const rawText = event?.message?.text || event?.text || event?.message?.body || '';
-  let cleaned = String(rawText).replace(/[\s\.\-\(\)]/g, '');
-  let match = cleaned.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
-  if (match) return match[0];
+  if (!event) return null;
 
-  const contactPhone = event?.message?.contact?.phone_number ||
-    event?.message?.contact?.phone ||
-    event?.message?.attachments?.[0]?.payload?.phone ||
-    event?.message?.attachments?.[0]?.payload?.phone_number ||
-    event?.message?.attachments?.[0]?.payload?.text;
-  if (contactPhone) {
-    cleaned = String(contactPhone).replace(/[\s\.\-\(\)]/g, '');
-    match = cleaned.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
-    if (match) return match[0];
+  // 1. Check all candidate fields
+  const candidates = [
+    event?.message?.text,
+    event?.text,
+    event?.message?.body,
+    event?.message?.contact?.phone_number,
+    event?.message?.contact?.phone,
+    event?.message?.attachments?.[0]?.payload?.phone,
+    event?.message?.attachments?.[0]?.payload?.phone_number,
+    event?.message?.attachments?.[0]?.payload?.text,
+    event?.message?.attachments?.[0]?.payload?.title,
+    event?.message?.attachments?.[0]?.payload?.description
+  ];
+
+  for (const c of candidates) {
+    if (c) {
+      const clean = String(c).replace(/[\s\.\-\(\)]/g, '');
+      const match = clean.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
+      if (match) return match[0];
+    }
   }
 
+  // 2. Global fallback search across entire event JSON
   const jsonStr = JSON.stringify(event || {});
-  const allPhones = jsonStr.replace(/[\s\.\-\(\)]/g, '').match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/g);
-  if (allPhones && allPhones.length > 0) {
-    return allPhones.find(p => !p.includes('2266752785520432648') && !p.includes('222577520227790268')) || allPhones[0];
+  const cleanJson = jsonStr.replace(/[\s\.\-\(\)\"\:\,]/g, '');
+  const matches = cleanJson.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/g);
+  if (matches && matches.length > 0) {
+    const found = matches.find(p => !p.includes('2266752785520432648') && !p.includes('222577520227790268'));
+    if (found) return found;
   }
 
   return null;
@@ -64,10 +75,15 @@ async function handleZaloEvent(event) {
   if (!event) return null;
   const chatId = event?.chat_id ||
     event?.sender?.id ||
+    event?.from?.id ||
     event?.message?.chat?.id ||
-    event?.message?.from?.id;
+    event?.message?.from?.id ||
+    event?.message?.sender?.id;
 
-  if (!chatId) return null;
+  if (!chatId) {
+    console.warn('[ZaloBot] Missing chatId in event:', JSON.stringify(event));
+    return null;
+  }
 
   const displayName = event?.sender?.display_name || event?.message?.from?.display_name || event?.display_name || '';
   const rawPhone = extractPhoneNumber(event);
@@ -102,8 +118,8 @@ async function handleZaloEvent(event) {
         '━━━━━━━━━━━━━━━━━━━━━━━━━',
         'Chúc bạn một ngày làm việc hiệu quả! 🚀'
       ].join('\n');
-      await sendZaloMessage(chatId, successMsg);
-      return { handled: true, success: true, employee: pairResult };
+      const sendRes = await sendZaloMessage(chatId, successMsg);
+      return { handled: true, success: true, employee: pairResult, sendRes };
     } else {
       const notFoundMsg = [
         '**⚠️ CHƯA TÌM THẤY THÔNG TIN NHÂN VIÊN**',
@@ -115,8 +131,8 @@ async function handleZaloEvent(event) {
         '2. Nhờ Quản trị viên công ty cập nhật số điện thoại này vào mục **Hồ sơ nhân viên** trên WorkTree X.',
         '3. Sau đó quay lại đây nhắn lại số điện thoại để liên kết nhé!'
       ].join('\n');
-      await sendZaloMessage(chatId, notFoundMsg);
-      return { handled: true, success: false, error: pairResult?.message };
+      const sendRes = await sendZaloMessage(chatId, notFoundMsg);
+      return { handled: true, success: false, error: pairResult?.message, sendRes };
     }
   }
 
@@ -130,8 +146,8 @@ async function handleZaloEvent(event) {
     '',
     'Hệ thống sẽ tự động ghép nối và kích hoạt thông báo cho bạn ngay lập tức!'
   ].join('\n');
-  await sendZaloMessage(chatId, welcomeMsg);
-  return { handled: true, isGreeting: true };
+  const sendRes = await sendZaloMessage(chatId, welcomeMsg);
+  return { handled: true, isGreeting: true, sendRes };
 }
 
 module.exports = async function handler(req, res) {
@@ -160,7 +176,41 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const payload = req.body || {};
+      let payload = req.body;
+      if (typeof payload === 'string') {
+        try { payload = JSON.parse(payload); } catch (e) { payload = { text: payload }; }
+      }
+      if (!payload || (typeof payload === 'object' && Object.keys(payload).length === 0)) {
+        payload = await new Promise((resolve) => {
+          let chunks = '';
+          req.on('data', chunk => { chunks += chunk; });
+          req.on('end', () => {
+            try { resolve(JSON.parse(chunks || '{}')); }
+            catch (e) { resolve({ text: chunks }); }
+          });
+          req.on('error', () => resolve({}));
+        });
+      }
+
+      // Log into Supabase zalo_webhook_logs table
+      try {
+        await fetch(`${SUPABASE_CONFIG.url}/rest/v1/zalo_webhook_logs`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_CONFIG.publishableKey,
+            'Authorization': `Bearer ${SUPABASE_CONFIG.publishableKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            headers: req.headers,
+            body: payload,
+            raw_body: JSON.stringify(payload)
+          })
+        });
+      } catch (logErr) {
+        console.warn('Could not log webhook:', logErr);
+      }
+
       const result = await handleZaloEvent(payload);
       return res.status(200).json({ ok: true, result });
     } catch (err) {
