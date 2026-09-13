@@ -23,6 +23,10 @@ import { AttachmentService } from '../features/attachments/index.js';
 import { RealtimeService } from '../features/realtime/index.js';
 import { NotificationService, PushDeviceService } from '../features/notifications/index.js';
 import { ZaloBotService, ZALO_BOT_CONFIG } from '../features/integrations/index.js';
+import { initConsoleGuard } from '../lib/security/console-guard.js';
+
+// Activate Client Console Security Guard & Self-XSS Warning
+initConsoleGuard();
 
 if (typeof window !== 'undefined') {
   publishLegacyGlobals({
