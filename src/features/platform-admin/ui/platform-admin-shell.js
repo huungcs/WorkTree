@@ -317,25 +317,42 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .app.collapsed .nav-label,
       .platform-admin-portal .app.collapsed .nav-count,
       .platform-admin-portal .app.collapsed .nav-title,
-      .platform-admin-portal .app.collapsed .back-app div{display:none}
-      .platform-admin-portal .app.collapsed .brand{justify-content:center;padding:0}
-      .platform-admin-portal .app.collapsed .nav-item{justify-content:center;padding:0}
-      .platform-admin-portal .app.collapsed .back-app{justify-content:center}
-      .platform-admin-portal .app.collapsed .collapse-btn{right:24px}
-      .platform-admin-portal .app.collapsed .collapse-btn svg{transform:rotate(180deg)}
+      .platform-admin-portal .app.collapsed .back-app-copy,
+      .platform-admin-portal .app.collapsed .back-app div,
+      .platform-admin-portal .app.collapsed .back-app strong,
+      .platform-admin-portal .app.collapsed .back-app small{display:none!important}
+      .platform-admin-portal .app.collapsed .brand{justify-content:center;padding:0;position:relative}
+      .platform-admin-portal .app.collapsed .brand-mark{display:grid!important;margin:0 auto;cursor:pointer}
+      .platform-admin-portal .app.collapsed .nav-item{justify-content:center!important;padding:0!important;width:44px;height:44px;margin:4px auto;border-radius:10px}
+      .platform-admin-portal .app.collapsed .side-footer{display:flex;justify-content:center;padding:12px 10px}
+      .platform-admin-portal .app.collapsed .back-app{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:0!important;margin:0 auto;border-radius:10px;display:inline-flex!important;align-items:center;justify-content:center}
+      .platform-admin-portal .app.collapsed .collapse-btn{position:absolute;right:-11px;top:24px;width:22px;height:22px;border-radius:50%;background:var(--sidebar);border:1px solid var(--sidebar-line);color:var(--sidebar-text);display:grid;place-items:center;z-index:45;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);transition:background .15s,color .15s}
+      .platform-admin-portal .app.collapsed .collapse-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+      .platform-admin-portal .app.collapsed .collapse-btn svg{transform:rotate(180deg);width:12px;height:12px}
 
-      .platform-admin-portal .topbar{height:var(--topbar);background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 22px;gap:10px;flex:0 0 auto;z-index:20}
-      .platform-admin-portal .mobile-menu{display:none}
+      .platform-admin-portal .mobile-menu,
+      .platform-admin-portal .topbar .mobile-menu,
+      .platform-admin-portal .icon-btn.mobile-menu{display:none!important}
       .platform-admin-portal .mobile-bottom-nav{display:none}
-      .platform-admin-portal .top-search{margin-left:auto;width:min(450px,42vw);height:40px;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;display:flex;align-items:center;gap:9px;padding:0 12px}
-      .platform-admin-portal .top-search input{border:0;outline:0;background:transparent;width:100%;min-width:0}
-      .platform-admin-portal .top-search kbd{border:1px solid var(--line);background:var(--surface);border-radius:5px;padding:1px 6px;color:var(--muted);font-size:11px}
-      .platform-admin-portal .icon-btn{width:38px;height:38px;border:1px solid var(--line);background:var(--surface);border-radius:9px;display:grid;place-items:center;color:var(--text);cursor:pointer;}
-      .platform-admin-portal .icon-btn:hover{background:var(--surface-3)}
-      .platform-admin-portal .profile{display:flex;align-items:center;gap:10px;border-left:1px solid var(--line);padding-left:14px;min-width:180px}
-      .platform-admin-portal .avatar{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#7265e8,#478fee);color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px;}
-      .platform-admin-portal .profile strong{display:block;font-size:12.5px;color:var(--text);}
-      .platform-admin-portal .profile small{color:var(--primary);font-weight:600;font-size:10.5px;}
+      .platform-admin-portal .top-crumb{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--muted);min-width:0;white-space:nowrap}
+      .platform-admin-portal .top-crumb strong{font-weight:600;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+      .platform-admin-portal .crumb-divider{color:var(--line-strong);margin:0 3px}
+      .platform-admin-portal .top-search{display:flex;align-items:center;gap:9px;width:260px;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:11.5px;padding:0 10px;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}
+      .platform-admin-portal .top-search:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft);background:var(--surface)}
+      .platform-admin-portal .top-search .search-icon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;color:var(--muted);flex-shrink:0}
+      .platform-admin-portal .top-search .search-icon svg{width:15px;height:15px}
+      .platform-admin-portal .top-search input{border:0;outline:0;background:transparent;width:100%;min-width:0;color:var(--text);font-size:11.5px;font-family:inherit;padding:0}
+      .platform-admin-portal .top-search input::placeholder{color:var(--muted);font-size:11px}
+      .platform-admin-portal .top-search kbd{margin-left:auto;font-size:9.5px;font-weight:600;font-family:inherit;background:var(--surface);border:1px solid var(--line);border-radius:5px;color:var(--muted);padding:2px 7px;white-space:nowrap!important;word-break:keep-all!important;line-height:1.2;flex-shrink:0!important;letter-spacing:.2px;display:inline-flex!important;align-items:center;justify-content:center;min-width:max-content}
+      .platform-admin-portal .top-separator{height:23px;border-left:1px solid var(--line);margin:0 4px;flex-shrink:0}
+      .platform-admin-portal .icon-btn{width:36px;height:36px;border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--text);cursor:pointer;transition:background .15s,border-color .15s,color .15s;flex-shrink:0}
+      .platform-admin-portal .icon-btn:hover{background:var(--surface-2);border-color:var(--muted)}
+      .platform-admin-portal .icon-btn svg{width:15px;height:15px}
+      .platform-admin-portal .profile{display:flex;align-items:center;gap:9px;padding:0 4px;background:transparent;color:var(--text);margin-left:0;max-width:260px;flex-shrink:0}
+      .platform-admin-portal .profile .avatar{width:30px;height:30px;border-radius:50%;font-size:9.5px;font-weight:750;letter-spacing:-.3px;flex-shrink:0;background:var(--primary-soft);color:var(--primary-text);border:2px solid var(--surface);display:inline-flex;align-items:center;justify-content:center}
+      .platform-admin-portal .profile-text{min-width:0;text-align:left}
+      .platform-admin-portal .profile-text strong{display:block;font-size:11px;font-weight:600;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;color:var(--text);line-height:1.25}
+      .platform-admin-portal .profile-text small{display:block;font-size:9px;color:var(--primary);font-weight:600;margin-top:1px;white-space:nowrap}
 
       .platform-admin-portal .content{padding:22px 22px 32px;overflow-y:auto;flex:1;max-width:1720px;margin:0 auto;width:100%;}
       .platform-admin-portal .page-heading{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
@@ -555,16 +572,19 @@ export function initPlatformAdminShell() {
         .platform-admin-portal .app.mobile-open .sidebar{transform:none}
         .platform-admin-portal .app.mobile-open .scrim{display:block}
         .platform-admin-portal .collapse-btn{display:none}
-        .platform-admin-portal .brand-copy,.platform-admin-portal .nav-label,.platform-admin-portal .nav-count,.platform-admin-portal .nav-title,.platform-admin-portal .back-app div{display:block!important}
+        .platform-admin-portal .brand-copy,.platform-admin-portal .nav-label,.platform-admin-portal .nav-count,.platform-admin-portal .nav-title,.platform-admin-portal .back-app-copy,.platform-admin-portal .back-app div{display:block!important}
         .platform-admin-portal .nav-item{justify-content:flex-start!important;padding:0 12px!important}
         .platform-admin-portal .brand{justify-content:flex-start!important;padding:0 16px!important}
         .platform-admin-portal .back-app{justify-content:flex-start!important}
-        .platform-admin-portal .mobile-menu{display:grid}
-        .platform-admin-portal .topbar{height:calc(var(--topbar) + env(safe-area-inset-top));padding:env(safe-area-inset-top) 12px 0;gap:6px}
-        .platform-admin-portal .icon-btn{width:44px;height:44px}
+        .platform-admin-portal .mobile-menu,
+        .platform-admin-portal .topbar .mobile-menu,
+        .platform-admin-portal .icon-btn.mobile-menu{display:inline-flex!important}
+        .platform-admin-portal .topbar{height:calc(var(--topbar) + env(safe-area-inset-top));padding:env(safe-area-inset-top) 14px 0;gap:8px}
+        .platform-admin-portal .icon-btn{width:40px;height:40px}
+        .platform-admin-portal .top-separator{display:none}
         .platform-admin-portal .top-search{width:auto;flex:1;margin-left:0}
-        .platform-admin-portal .profile{min-width:auto;padding-left:8px}
-        .platform-admin-portal .profile div:last-child{display:none}
+        .platform-admin-portal .profile{min-width:auto;padding-left:4px}
+        .platform-admin-portal .profile .profile-text{display:none}
         .platform-admin-portal .content{padding:16px 12px calc(92px + env(safe-area-inset-bottom))}
         .platform-admin-portal .mobile-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:35;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));height:calc(68px + env(safe-area-inset-bottom));padding:4px 6px env(safe-area-inset-bottom);border-top:1px solid var(--line);background:var(--surface);box-shadow:0 -8px 24px rgba(14,22,46,.08)}
         .platform-admin-portal .mobile-nav-item{border:0;background:transparent;color:var(--muted);min-width:0;min-height:48px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:4px;font-size:10.5px;font-weight:700}
@@ -627,18 +647,12 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .brand-mark{border-radius:10px}
       .platform-admin-portal .side-scroll{min-height:0}
       .platform-admin-portal .panel-head{padding:0}
-      .platform-admin-portal .profile{width:auto;margin-left:auto;padding:0 0 0 14px;color:var(--text);max-width:270px}
-      .platform-admin-portal .profile>div:last-child{min-width:0}
       .platform-admin-portal .profile strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .platform-admin-portal .top-search{margin-left:0;max-width:450px;width:100%}
-      .platform-admin-portal .topbar .mobile-menu{display:none}
       .platform-admin-portal .content{min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable}
       .platform-admin-portal .page-heading h1{font-weight:700}
       .platform-admin-portal .grid>*{min-width:0}
       .platform-admin-portal .panel-title{font-weight:650}
       .platform-admin-portal .avatar{background:var(--primary-soft);color:var(--primary-text)}
-      .platform-admin-portal .app.collapsed .brand-mark{display:none}
-      .platform-admin-portal .app.collapsed .collapse-btn{width:36px;height:36px;right:20px;top:17px}
       .platform-admin-portal .btn{white-space:normal;min-height:38px;height:auto;line-height:1.4}
       .platform-admin-portal .btn.primary{color:var(--surface)}
       .platform-admin-portal .btn.ghost.pa-tenant-click{text-align:left;justify-content:flex-start;padding:4px 0;color:var(--text)}
@@ -669,8 +683,9 @@ export function initPlatformAdminShell() {
       }
       @media(max-width:900px){
         .platform-admin-portal .sidebar{position:fixed;top:0;padding-bottom:env(safe-area-inset-bottom)}
-        .platform-admin-portal .app.collapsed .brand-mark{display:grid}
-        .platform-admin-portal .topbar .mobile-menu{display:grid}
+        .platform-admin-portal .mobile-menu,
+        .platform-admin-portal .topbar .mobile-menu,
+        .platform-admin-portal .icon-btn.mobile-menu{display:inline-flex!important}
         .platform-admin-portal .profile{min-width:0;border:0;padding:0}
         .platform-admin-portal .mobile-bottom-nav{height:calc(74px + env(safe-area-inset-bottom))}
         .platform-admin-portal .btn,.platform-admin-portal .tab-btn,.platform-admin-portal .input-wrap,.platform-admin-portal .select,.platform-admin-portal .text-input{min-height:44px}
@@ -699,7 +714,7 @@ export function initPlatformAdminShell() {
       <!-- Sidebar -->
       <aside class="sidebar" id="paSidebar">
         <div class="brand">
-          <div class="brand-mark" aria-hidden="true">
+          <div class="brand-mark" id="paBrandMark" aria-hidden="true" title="WorkTree X Platform Admin - Nhấp để mở rộng (Ctrl+B)">
             <svg viewBox="0 0 32 32" fill="none" style="width:20px;height:20px;"><path d="M7 8v9a6 6 0 006 6h12M16 5v18M25 10v13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="7" cy="7" r="3" fill="currentColor"/><circle cx="16" cy="6" r="3" fill="currentColor"/><circle cx="25" cy="10" r="3" fill="currentColor"/></svg>
           </div>
           <div class="brand-copy">
@@ -757,12 +772,12 @@ export function initPlatformAdminShell() {
         </div>
 
         <div class="side-footer">
-          <button type="button" class="back-app" id="paBackToApp" aria-label="Quay về WorkTree" title="Quay về WorkTree">
-            <span>${icon('arrowLeft')}</span>
-            <div>
-              <strong style="display:block;font-size:12.5px;">Quay về WorkTree</strong>
-              <small style="display:block;color:var(--sidebar-muted);font-size:10.5px;">Truy cập không gian làm việc</small>
-            </div>
+          <button type="button" class="back-app" id="paBackToApp" aria-label="Quay về WorkTree" title="Quay về WorkTree (Không gian làm việc)">
+            <span class="back-icon" style="display:inline-flex;align-items:center;justify-content:center;color:#b7c3db;flex-shrink:0;">${icon('arrowLeft')}</span>
+            <span class="back-app-copy">
+              <strong style="display:block;font-size:12px;">Quay về WorkTree</strong>
+              <small style="display:block;color:var(--sidebar-muted);font-size:10px;">Truy cập không gian làm việc</small>
+            </span>
           </button>
         </div>
       </aside>
@@ -774,26 +789,31 @@ export function initPlatformAdminShell() {
       <main class="main-shell">
         <!-- Topbar -->
         <header class="topbar">
-          <button class="icon-btn mobile-menu" id="paMobileMenu" aria-label="Mở menu" aria-expanded="false" aria-controls="paSidebar">${icon('menu')}</button>
-          <div class="top-crumb" style="display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;">
-            <span class="icon" style="color:var(--primary);width:16px;height:16px;">${icon('shield')}</span>
-            <span style="color:var(--muted);font-weight:600;">WorkTree X</span>
-            <span class="crumb-divider" style="color:var(--muted);opacity:.4;">/</span>
-            <strong id="paTopBreadcrumbView" style="color:var(--text);font-weight:750;">Tổng quan nền tảng</strong>
+          <div class="topbar-left">
+            <button class="icon-btn mobile-menu" id="paMobileMenu" aria-label="Mở menu" aria-expanded="false" aria-controls="paSidebar">${icon('menu')}</button>
+            <div class="top-crumb">
+              <span class="icon" style="color:var(--primary);width:15px;height:15px;display:inline-flex;align-items:center;">${icon('shield')}</span>
+              <span>WorkTree X</span>
+              <span class="crumb-divider">/</span>
+              <strong id="paTopBreadcrumbView">Tổng quan nền tảng</strong>
+            </div>
           </div>
-          <div class="top-search">
-            <span>${icon('search')}</span>
-            <input id="paGlobalSearch" aria-label="Tìm doanh nghiệp, người dùng hoặc email" placeholder="Tìm doanh nghiệp, người dùng, email...">
-            <kbd>Ctrl K</kbd>
-          </div>
-          <button class="icon-btn" id="paThemeToggle" aria-label="Đổi giao diện" aria-pressed="false" title="Chuyển chế độ Sáng / Tối">${icon('theme')}</button>
-          <button class="icon-btn" id="paRefreshData" aria-label="Làm mới dữ liệu" title="Làm mới toàn bộ dữ liệu">${icon('refresh')}</button>
-          
-          <div class="profile">
-            <div class="avatar" id="paAvatarPill">PA</div>
-            <div>
-              <strong id="paAdminEmail">Platform Admin</strong>
-              <small>Super Admin Authority</small>
+          <div class="topbar-right">
+            <div class="top-search" role="search">
+              <span class="search-icon">${icon('search')}</span>
+              <input id="paGlobalSearch" type="search" aria-label="Tìm kiếm toàn hệ thống" placeholder="Tìm kiếm nhanh..." autocomplete="off">
+              <kbd>Ctrl&nbsp;K</kbd>
+            </div>
+            <span class="top-separator"></span>
+            <button class="icon-btn" id="paThemeToggle" aria-label="Đổi giao diện" aria-pressed="false" title="Chuyển chế độ Sáng / Tối">${icon('theme')}</button>
+            <button class="icon-btn" id="paRefreshData" aria-label="Làm mới dữ liệu" title="Làm mới toàn bộ dữ liệu">${icon('refresh')}</button>
+            <span class="top-separator"></span>
+            <div class="profile" id="paProfilePill">
+              <div class="avatar" id="paAvatarPill">PA</div>
+              <div class="profile-text">
+                <strong id="paAdminEmail">Platform Admin</strong>
+                <small>Super Admin Authority</small>
+              </div>
             </div>
           </div>
         </header>
@@ -880,15 +900,19 @@ function bindShellEvents(container) {
     });
   });
 
-  // Collapse Button
+  // Collapse Button & Brand Mark click to expand
   const collapseBtn = container.querySelector('#paCollapseBtn');
   const appEl = container.querySelector('#paApp');
-  collapseBtn?.addEventListener('click', () => {
+  const toggleCollapse = () => {
     isCollapsed = !isCollapsed;
     appEl.classList.toggle('collapsed', isCollapsed);
-    collapseBtn.setAttribute('aria-expanded', String(!isCollapsed));
-    collapseBtn.setAttribute('aria-label', isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar');
-    collapseBtn.setAttribute('title', isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar');
+    collapseBtn?.setAttribute('aria-expanded', String(!isCollapsed));
+    collapseBtn?.setAttribute('aria-label', isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar');
+    collapseBtn?.setAttribute('title', isCollapsed ? 'Mở rộng sidebar (Ctrl+B)' : 'Thu gọn sidebar (Ctrl+B)');
+  };
+  collapseBtn?.addEventListener('click', toggleCollapse);
+  container.querySelector('#paBrandMark')?.addEventListener('click', () => {
+    if (isCollapsed) toggleCollapse();
   });
 
   // Back to App button
@@ -979,6 +1003,14 @@ function bindShellEvents(container) {
       const userSearch = container.querySelector('#userSearch');
       if (userSearch) userSearch.value = q;
       filterAndRenderUsersTable();
+      return;
+    }
+
+    if (currentView === 'logs') {
+      state.logSearchQuery = q;
+      const logSearch = container.querySelector('#paLogSearch');
+      if (logSearch) logSearch.value = q;
+      filterAndRenderLogs();
       return;
     }
 
