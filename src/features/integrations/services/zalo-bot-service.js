@@ -7,10 +7,10 @@
 import { getSupabase } from '../../../lib/supabase/client.js';
 
 export const ZALO_BOT_CONFIG = {
-  BOT_ID: '222577520227790268',
-  BOT_ACCOUNT_NAME: 'bot.JgtmAepW',
-  BOT_NAME: 'Bot AI Assistant 1',
-  DEFAULT_TOKEN: '222577520227790268:zSIpDnuimIoojigHUyVHSlTINITBDPlypQdDUkARgQGSgHtChgODYgMwHDrkPLUJ',
+  BOT_ID: '2266752785520432648',
+  BOT_ACCOUNT_NAME: 'bot.vdxOmKTr',
+  BOT_NAME: 'Bot WorkTree X 🛎',
+  DEFAULT_TOKEN: '2266752785520432648:FWBqyZfsALXUJUEzYBIBPRYhgLjmQTHtbGFxGvgLoksAMBDfWkerxoAGlkvqCaQh',
   API_BASE: 'https://bot-api.zaloplatforms.com',
   MINI_APP_URL: 'https://zalo.me/s/botcreator/'
 };

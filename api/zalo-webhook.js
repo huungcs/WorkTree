@@ -10,8 +10,8 @@ const SUPABASE_CONFIG = {
 };
 
 const ZALO_BOT_CONFIG = {
-  botId: process.env.ZALO_BOT_ID || '222577520227790268',
-  defaultToken: process.env.ZALO_BOT_TOKEN || '222577520227790268:zSIpDnuimIoojigHUyVHSlTINITBDPlypQdDUkARgQGSgHtChgODYgMwHDrkPLUJ',
+  botId: process.env.ZALO_BOT_ID || '2266752785520432648',
+  defaultToken: process.env.ZALO_BOT_TOKEN || '2266752785520432648:FWBqyZfsALXUJUEzYBIBPRYhgLjmQTHtbGFxGvgLoksAMBDfWkerxoAGlkvqCaQh',
   apiBase: 'https://bot-api.zaloplatforms.com'
 };
 

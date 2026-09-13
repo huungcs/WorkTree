@@ -17,8 +17,8 @@ const SUPABASE_CONFIG = {
 };
 
 const ZALO_BOT_CONFIG = {
-  botId: '222577520227790268',
-  defaultToken: '222577520227790268:zSIpDnuimIoojigHUyVHSlTINITBDPlypQdDUkARgQGSgHtChgODYgMwHDrkPLUJ',
+  botId: '2266752785520432648',
+  defaultToken: '2266752785520432648:FWBqyZfsALXUJUEzYBIBPRYhgLjmQTHtbGFxGvgLoksAMBDfWkerxoAGlkvqCaQh',
   apiBase: 'https://bot-api.zaloplatforms.com'
 };
 
