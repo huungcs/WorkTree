@@ -253,6 +253,49 @@ export const TaskService = {
             console.warn('[ZaloBot] Gửi thông báo giao việc qua Zalo thất bại:', zaloErr);
           }
         })();
+      // Asynchronously notify on status change via Zalo Bot
+      if (updates.status && mappedUI) {
+        (async () => {
+          try {
+            const employees = (appState.employees && appState.employees.length) ? appState.employees : (typeof window !== 'undefined' && window.cloudEmployees ? window.cloudEmployees : []);
+            const targetEmployeeId = canonical?.primary_assignee_id || updates.primary_assignee_id;
+            const assignee = targetEmployeeId ? employees.find(e => e.id === targetEmployeeId) : null;
+            const chatIdsToNotify = new Set();
+            if (assignee && assignee.zalo_chat_id) chatIdsToNotify.add(assignee.zalo_chat_id);
+            const currentEmp = employees.find(e => 
+              (appState.user?.id && e.user_id === appState.user.id) ||
+              (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
+            );
+            if (currentEmp && currentEmp.zalo_chat_id) chatIdsToNotify.add(currentEmp.zalo_chat_id);
+            if (chatIdsToNotify.size === 0) {
+              const linkedEmp = employees.find(e => e.zalo_chat_id);
+              if (linkedEmp && linkedEmp.zalo_chat_id) chatIdsToNotify.add(linkedEmp.zalo_chat_id);
+            }
+
+            if (chatIdsToNotify.size > 0) {
+              const targetNodeId = canonical?.node_id || updates.node_id;
+              const nodes = (appState.nodes && appState.nodes.length) ? appState.nodes : (typeof window !== 'undefined' && window.appState?.nodes ? window.appState.nodes : []);
+              const node = nodes.find(n => n.id === targetNodeId);
+              const nodeName = node ? node.name : 'Nhóm / Dự án';
+              const updaterName = appState.user?.user_metadata?.full_name || appState.user?.email || (typeof window !== 'undefined' && typeof window.person === 'function' ? window.person().name : 'Đồng đội');
+              const uiStatus = DB_STATUS_TO_UI[updates.status] || STATUS_MAP.dbToUi[updates.status] || updates.status;
+
+              for (const cid of chatIdsToNotify) {
+                await ZaloBotService.sendStatusNotification({
+                  zaloChatId: cid,
+                  taskTitle: canonical?.title || updates.title || 'Công việc',
+                  nodeName,
+                  newStatus: uiStatus,
+                  updaterName,
+                  taskId
+                });
+              }
+              console.info(`[ZaloBot] Đã gửi thông báo cập nhật trạng thái (${uiStatus}) đến ${chatIdsToNotify.size} tài khoản Zalo`);
+            }
+          } catch (zaloErr) {
+            console.warn('[ZaloBot] Gửi thông báo cập nhật công việc thất bại:', zaloErr);
+          }
+        })();
       }
 
       return mappedUI;
@@ -290,6 +333,61 @@ export const TaskService = {
 
       const canonical = await TaskRepository.getTaskById(taskId);
       const mapped = mapCloudTaskToUI(canonical || updated);
+
+      // Asynchronously notify on status change via Zalo Bot
+      if (mapped) {
+        (async () => {
+          try {
+            const employees = (appState.employees && appState.employees.length) ? appState.employees : (typeof window !== 'undefined' && window.cloudEmployees ? window.cloudEmployees : []);
+            const targetEmployeeId = canonical?.primary_assignee_id || updated?.primary_assignee_id;
+            const assignee = targetEmployeeId ? employees.find(e => e.id === targetEmployeeId) : null;
+            
+            const chatIdsToNotify = new Set();
+            if (assignee && assignee.zalo_chat_id) {
+              chatIdsToNotify.add(assignee.zalo_chat_id);
+            }
+
+            const currentEmp = employees.find(e => 
+              (appState.user?.id && e.user_id === appState.user.id) ||
+              (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
+            );
+            if (currentEmp && currentEmp.zalo_chat_id) {
+              chatIdsToNotify.add(currentEmp.zalo_chat_id);
+            }
+
+            if (chatIdsToNotify.size === 0) {
+              const linkedEmp = employees.find(e => e.zalo_chat_id);
+              if (linkedEmp && linkedEmp.zalo_chat_id) {
+                chatIdsToNotify.add(linkedEmp.zalo_chat_id);
+              }
+            }
+
+            if (chatIdsToNotify.size > 0) {
+              const targetNodeId = canonical?.node_id || updated?.node_id;
+              const nodes = (appState.nodes && appState.nodes.length) ? appState.nodes : (typeof window !== 'undefined' && window.appState?.nodes ? window.appState.nodes : []);
+              const node = nodes.find(n => n.id === targetNodeId);
+              const nodeName = node ? node.name : 'Nhóm / Dự án';
+              const updaterName = appState.user?.user_metadata?.full_name || appState.user?.email || (typeof window !== 'undefined' && typeof window.person === 'function' ? window.person().name : 'Đồng đội');
+              const uiStatus = DB_STATUS_TO_UI[status] || STATUS_MAP.dbToUi[status] || status;
+
+              for (const cid of chatIdsToNotify) {
+                await ZaloBotService.sendStatusNotification({
+                  zaloChatId: cid,
+                  taskTitle: canonical?.title || updated?.title || 'Công việc',
+                  nodeName,
+                  newStatus: uiStatus,
+                  updaterName,
+                  taskId
+                });
+              }
+              console.info(`[ZaloBot] Đã gửi thông báo đổi trạng thái (${uiStatus}) đến ${chatIdsToNotify.size} tài khoản Zalo`);
+            }
+          } catch (zaloErr) {
+            console.warn('[ZaloBot] Gửi thông báo đổi trạng thái thất bại:', zaloErr);
+          }
+        })();
+      }
+
       return { isLatest: true, task: mapped };
     } catch (err) {
       console.error('[TaskService.updateStatus error]', err);

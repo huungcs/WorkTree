@@ -129,3 +129,36 @@ test('ZaloBotService.processIncomingMessage sends guide when input is non-phone 
     ZaloBotService.sendMessage = originalSendMessage;
   }
 });
+
+test('ZaloBotService.sendStatusNotification formats Vietnamese rich markdown notification', async () => {
+  const { ZaloBotService } = await import('../src/features/integrations/services/zalo-bot-service.js');
+
+  let sentPayload = null;
+  const originalSendMessage = ZaloBotService.sendMessage;
+  ZaloBotService.sendMessage = async (chatId, text, options) => {
+    sentPayload = { chatId, text, options };
+    return { ok: true, result: { message_id: 'msg_status_1' } };
+  };
+
+  try {
+    const res = await ZaloBotService.sendStatusNotification({
+      zaloChatId: 'chat_emp_002',
+      taskTitle: 'Thiết kế landing page sản phẩm mới',
+      nodeName: 'Nhóm Marketing',
+      oldStatus: 'Đang làm',
+      newStatus: 'Hoàn thành',
+      updaterName: 'Nguyễn Trọng Hữu',
+      taskId: 'task_456'
+    });
+
+    assert.equal(res.ok, true);
+    assert.equal(sentPayload.chatId, 'chat_emp_002');
+    assert.match(sentPayload.text, /CẬP NHẬT TRẠNG THÁI CÔNG VIỆC/);
+    assert.match(sentPayload.text, /Thiết kế landing page sản phẩm mới/);
+    assert.match(sentPayload.text, /Nhóm Marketing/);
+    assert.match(sentPayload.text, /🟢 Hoàn thành/);
+    assert.match(sentPayload.text, /Nguyễn Trọng Hữu/);
+  } finally {
+    ZaloBotService.sendMessage = originalSendMessage;
+  }
+});

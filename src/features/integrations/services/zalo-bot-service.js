@@ -93,6 +93,46 @@ export const ZaloBotService = {
   },
 
   /**
+   * Format and send a notification when a task's status changes
+   */
+  async sendStatusNotification({
+    zaloChatId,
+    taskTitle,
+    nodeName = 'Toàn công ty',
+    oldStatus = null,
+    newStatus = 'Đang làm',
+    updaterName = 'Đồng đội',
+    taskId = null
+  }) {
+    if (!zaloChatId) {
+      return { ok: false, description: 'Chưa liên kết Zalo' };
+    }
+
+    const statusBadge = newStatus === 'Hoàn thành' ? '🟢 Hoàn thành'
+      : newStatus === 'Chờ duyệt' ? '🟠 Chờ duyệt'
+      : newStatus === 'Đang làm' ? '🟡 Đang làm'
+      : '🔵 Chưa làm';
+
+    const statusChangeText = oldStatus && oldStatus !== newStatus
+      ? `${oldStatus} ➔ ${statusBadge}`
+      : statusBadge;
+
+    const message = [
+      '**🔄 WORKTREE X — CẬP NHẬT TRẠNG THÁI CÔNG VIỆC**',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━',
+      `📋 **Công việc:** ${taskTitle}`,
+      `🏢 **Đơn vị:** ${nodeName}`,
+      `📊 **Trạng thái:** ${statusChangeText}`,
+      `👤 **Người thực hiện:** ${updaterName}`,
+      '━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '👉 **Mở WorkTree X để xem chi tiết:**',
+      'https://worktree.nguyentronghuu.com'
+    ].join('\n');
+
+    return await this.sendMessage(zaloChatId, message, { parse_mode: 'markdown' });
+  },
+
+  /**
    * Format and send a reminder for an upcoming or overdue task
    */
   async sendReminderNotification({

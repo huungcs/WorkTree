@@ -534,8 +534,31 @@ function changeStatus(id,status){
  }
  if(!requireLogin()||!canUpdateTask(byTask.get(id)))return deny();
  const t=byTask.get(id);if(!t||t.status===status)return;
+ const prevStatus = t.status;
  const ok=commit(`Đổi trạng thái thành ${status}`,d=>{const map=new Map(d.tasks.map(t=>[t.id,t]));setTaskStatus(map.get(id),status,map);},{taskId:id});
  if(!ok){renderView();if($('drawer').open)refreshDrawer();}
+ else if(window.ZaloBotService && typeof window.ZaloBotService.sendStatusNotification === 'function') {
+  (async () => {
+   try {
+    const emps = window.cloudEmployees || [];
+    const linkedEmp = emps.find(e => e.zalo_chat_id);
+    if (linkedEmp && linkedEmp.zalo_chat_id) {
+     const node = byNode.get(t.node);
+     await window.ZaloBotService.sendStatusNotification({
+      zaloChatId: linkedEmp.zalo_chat_id,
+      taskTitle: t.title,
+      nodeName: node ? node.name : 'Nhóm / Dự án',
+      oldStatus: prevStatus,
+      newStatus: status,
+      updaterName: typeof person === 'function' ? person().name : 'Tôi',
+      taskId: id
+     });
+    }
+   } catch (e) {
+    console.warn('[ZaloBot Local] Failed to send status notification:', e);
+   }
+  })();
+ }
 }
 function toggleComplete(id){const t=byTask.get(id);if(!t)return;changeStatus(id,t.status==='Hoàn thành'?(t.resumeStatus||'Đang làm'):'Hoàn thành');}
 async function toggleFavorite(id){
