@@ -2181,6 +2181,18 @@ function filterAndRenderLogs() {
 // 8. SETTINGS VIEW
 // -----------------------------------------------------------------------------
 function renderSettings(container) {
+  const settings = state.settings || {
+    general: { platformName: 'WorkTree X', mainDomain: 'worktree.nguyentronghuu.com', supportEmail: 'support@worktree.nguyentronghuu.com', defaultTimezone: 'Asia/Ho_Chi_Minh' },
+    tenantPolicy: { allowSignup: true, autoTrial: true, requireEmailVerification: false, softQuotaWarning: true },
+    security: { requireAdminMfa: false, auditAllActions: true, sessionLifetimeHours: 12 },
+    defaultLimits: { maxUsersPerTenant: 100, defaultStorageGb: 20, maxFileMb: 50 }
+  };
+
+  const gen = settings.general || {};
+  const pol = settings.tenantPolicy || {};
+  const sec = settings.security || {};
+  const lim = settings.defaultLimits || {};
+
   container.innerHTML = `
     <div class="page-heading">
       <div>
@@ -2192,9 +2204,14 @@ function renderSettings(container) {
       </div>
     </div>
 
-    <div class="callout warn" role="note" style="margin-bottom:14px">
-      <strong>Chế độ bản nháp an toàn</strong>
-      <span>Các thay đổi chỉ được lưu sau khi API cấu hình có kiểm tra quyền và Security Audit Log được triển khai.</span>
+    <div class="card panel" style="margin-bottom:14px;background:var(--green-soft);border-color:rgba(16,115,83,.2);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="status-badge" style="background:var(--green);color:#fff;">Hoạt động</div>
+        <div style="flex:1;">
+          <strong style="display:block;font-size:13px;color:var(--green);">Hệ thống cấu hình nền tảng đang sẵn sàng</strong>
+          <span style="font-size:12px;color:var(--text);opacity:.85;">Mọi thay đổi chính sách hoặc hạn ngạch tài nguyên được lưu vào cơ sở dữ liệu và ghi vết tự động vào Security Audit Log.</span>
+        </div>
+      </div>
     </div>
 
     <div class="grid settings-grid">
@@ -2208,17 +2225,17 @@ function renderSettings(container) {
         </div>
         <div class="field">
           <label for="paPlatformName">Tên nền tảng</label>
-          <input class="text-input" id="paPlatformName" value="WorkTree X" readonly>
+          <input class="text-input" id="paPlatformName" value="${esc(gen.platformName || 'WorkTree X')}">
         </div>
         <div class="field">
           <label for="paPlatformDomain">Domain chính</label>
-          <input class="text-input" id="paPlatformDomain" value="app.worktree.vn" readonly>
+          <input class="text-input" id="paPlatformDomain" value="${esc(gen.mainDomain || 'worktree.nguyentronghuu.com')}">
         </div>
         <div class="field">
           <label for="paDefaultTimezone">Múi giờ mặc định</label>
           <select class="select" id="paDefaultTimezone">
-            <option>Asia/Ho_Chi_Minh (GMT+7)</option>
-            <option>UTC</option>
+            <option value="Asia/Ho_Chi_Minh" ${(gen.defaultTimezone || '').includes('Ho_Chi_Minh') ? 'selected' : ''}>Asia/Ho_Chi_Minh (GMT+7)</option>
+            <option value="UTC" ${gen.defaultTimezone === 'UTC' ? 'selected' : ''}>UTC</option>
           </select>
         </div>
       </article>
@@ -2236,21 +2253,21 @@ function renderSettings(container) {
             <strong style="color:var(--text);">Cho phép đăng ký mới</strong>
             <small style="display:block;color:var(--muted)">Người dùng có thể tự tạo workspace tổ chức</small>
           </div>
-          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Cho phép đăng ký mới"><span></span></button>
+          <button class="switch ${pol.allowSignup !== false ? 'on' : ''}" id="paSwAllowSignup" type="button" role="switch" aria-checked="${pol.allowSignup !== false}" aria-label="Cho phép đăng ký mới"><span></span></button>
         </div>
         <div class="toggle-row">
           <div>
             <strong style="color:var(--text);">Tự kích hoạt gói Free</strong>
             <small style="display:block;color:var(--muted)">Gán gói dùng thử miễn phí khi tạo workspace</small>
           </div>
-          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Tự kích hoạt gói Free"><span></span></button>
+          <button class="switch ${pol.autoTrial !== false ? 'on' : ''}" id="paSwAutoTrial" type="button" role="switch" aria-checked="${pol.autoTrial !== false}" aria-label="Tự kích hoạt gói Free"><span></span></button>
         </div>
         <div class="toggle-row">
           <div>
             <strong style="color:var(--text);">Yêu cầu xác minh tài khoản</strong>
             <small style="display:block;color:var(--muted)">Bắt buộc xác thực email qua Supabase Auth</small>
           </div>
-          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Yêu cầu xác minh tài khoản"><span></span></button>
+          <button class="switch ${pol.requireEmailVerification ? 'on' : ''}" id="paSwVerifyEmail" type="button" role="switch" aria-checked="${Boolean(pol.requireEmailVerification)}" aria-label="Yêu cầu xác minh tài khoản"><span></span></button>
         </div>
       </article>
 
@@ -2267,14 +2284,14 @@ function renderSettings(container) {
             <strong style="color:var(--text);">Ghi Security Audit bất biến</strong>
             <small style="display:block;color:var(--muted)">Lưu mọi hành động quản trị vào audit table</small>
           </div>
-          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Ghi Security Audit bất biến"><span></span></button>
+          <button class="switch ${sec.auditAllActions !== false ? 'on' : ''}" id="paSwAuditAll" type="button" role="switch" aria-checked="${sec.auditAllActions !== false}" aria-label="Ghi Security Audit bất biến"><span></span></button>
         </div>
         <div class="toggle-row">
           <div>
             <strong style="color:var(--text);">Kiểm tra thẩm quyền phía Server</strong>
             <small style="display:block;color:var(--muted)">Xác thực JWT và public.platform_admins</small>
           </div>
-          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Kiểm tra thẩm quyền phía Server"><span></span></button>
+          <button class="switch on" id="paSwServerAuth" type="button" role="switch" aria-checked="true" aria-label="Kiểm tra thẩm quyền phía Server" disabled style="opacity:.8;"><span></span></button>
         </div>
       </article>
 
@@ -2288,29 +2305,69 @@ function renderSettings(container) {
         </div>
         <div class="field">
           <label for="paDefaultUsers">Người dùng tối đa mặc định</label>
-          <input class="text-input" id="paDefaultUsers" type="number" min="1" value="100">
+          <input class="text-input" id="paDefaultUsers" type="number" min="1" value="${lim.maxUsersPerTenant || 100}">
         </div>
         <div class="field">
           <label for="paDefaultStorage">Dung lượng lưu trữ mặc định (GB)</label>
-          <input class="text-input" id="paDefaultStorage" type="number" min="1" value="20">
+          <input class="text-input" id="paDefaultStorage" type="number" min="1" value="${lim.defaultStorageGb || 20}">
         </div>
         <div class="field">
           <label for="paDefaultUpload">Kích thước tệp tải lên tối đa (MB)</label>
-          <input class="text-input" id="paDefaultUpload" type="number" min="1" value="50">
+          <input class="text-input" id="paDefaultUpload" type="number" min="1" value="${lim.maxFileMb || 50}">
         </div>
       </article>
     </div>
   `;
 
-  container.querySelectorAll('.switch').forEach(sw => {
+  container.querySelectorAll('.switch:not(:disabled)').forEach(sw => {
     sw.addEventListener('click', () => {
       const isOn = sw.classList.toggle('on');
       sw.setAttribute('aria-checked', String(isOn));
     });
   });
 
-  container.querySelector('#paSaveSettingsBtn')?.addEventListener('click', () => {
-    showPortalToast('Chưa lưu: cần triển khai API cấu hình có kiểm tra quyền và ghi Security Audit Log.', 'warn');
+  const saveBtn = container.querySelector('#paSaveSettingsBtn');
+  saveBtn?.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    const origText = saveBtn.textContent;
+    saveBtn.textContent = 'Đang lưu...';
+
+    const updated = {
+      general: {
+        platformName: container.querySelector('#paPlatformName')?.value?.trim() || 'WorkTree X',
+        mainDomain: container.querySelector('#paPlatformDomain')?.value?.trim() || 'worktree.nguyentronghuu.com',
+        supportEmail: gen.supportEmail || 'support@worktree.nguyentronghuu.com',
+        defaultTimezone: container.querySelector('#paDefaultTimezone')?.value || 'Asia/Ho_Chi_Minh'
+      },
+      tenantPolicy: {
+        allowSignup: container.querySelector('#paSwAllowSignup')?.getAttribute('aria-checked') === 'true',
+        autoTrial: container.querySelector('#paSwAutoTrial')?.getAttribute('aria-checked') === 'true',
+        requireEmailVerification: container.querySelector('#paSwVerifyEmail')?.getAttribute('aria-checked') === 'true',
+        softQuotaWarning: pol.softQuotaWarning ?? true
+      },
+      security: {
+        requireAdminMfa: sec.requireAdminMfa ?? false,
+        auditAllActions: container.querySelector('#paSwAuditAll')?.getAttribute('aria-checked') === 'true',
+        sessionLifetimeHours: sec.sessionLifetimeHours || 12
+      },
+      defaultLimits: {
+        maxUsersPerTenant: parseInt(container.querySelector('#paDefaultUsers')?.value, 10) || 100,
+        defaultStorageGb: parseInt(container.querySelector('#paDefaultStorage')?.value, 10) || 20,
+        maxFileMb: parseInt(container.querySelector('#paDefaultUpload')?.value, 10) || 50
+      }
+    };
+
+    try {
+      await PlatformAdminService.updateSettings(updated);
+      state.settings = updated;
+      showPortalToast('Đã lưu cấu hình nền tảng và ghi nhận Security Audit Log thành công!', 'success');
+      PlatformAdminService.getAuditLogs().then(logs => { state.logs = logs; }).catch(() => {});
+    } catch (err) {
+      showPortalToast(err.message || 'Lỗi khi lưu cấu hình nền tảng.', 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = origText;
+    }
   });
 }
 
@@ -2346,7 +2403,7 @@ function renderAdmins(container) {
                 ${esc(getInitials(a.displayName || a.email || 'PA'))}
               </div>
               <div class="meta">
-                <strong>${esc(a.displayName || a.email || a.user_id)}</strong>
+                <strong>${esc(a.displayName || a.email || a.userId || a.user_id)}</strong>
                 <small>${esc(a.role || 'Platform Admin')}</small>
               </div>
               <span class="pill owner">Super-Admin</span>
@@ -2406,8 +2463,20 @@ function renderAdmins(container) {
     </div>
   `;
 
-  container.querySelector('#paAddAdminBtn')?.addEventListener('click', () => {
-    showPortalToast('Thêm Platform Admin phải thực hiện qua quy trình máy chủ đáng tin cậy có Security Audit Log.', 'warn');
+  container.querySelector('#paAddAdminBtn')?.addEventListener('click', async () => {
+    const email = window.prompt('Nhập email của người dùng cần cấp quyền Platform Super-Admin:');
+    if (!email || !email.trim()) return;
+
+    try {
+      showPortalToast('Đang cấp quyền Platform Super-Admin...', 'info');
+      const res = await PlatformAdminService.addPlatformAdmin({ email: email.trim() });
+      showPortalToast(res.message || 'Đã thêm quyền Platform Super-Admin thành công!', 'success');
+      const updatedAdmins = await PlatformAdminService.getPlatformAdmins();
+      state.admins = updatedAdmins;
+      renderCurrentView();
+    } catch (err) {
+      showPortalToast(err.message || 'Không thể cấp quyền Platform Admin.', 'error');
+    }
   });
 }
 

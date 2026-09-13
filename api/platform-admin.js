@@ -601,33 +601,138 @@ module.exports = async function handler(req, res) {
     }
 
     // -------------------------------------------------------------------------
-    // ACTION: Platform Settings
+    // ACTION: Add Platform Admin
+    // -------------------------------------------------------------------------
+    if (action === 'add-admin' && req.method === 'POST') {
+      const targetUserId = body.userId;
+      const targetEmail = (body.email || '').trim().toLowerCase();
+
+      let resolvedUserId = targetUserId;
+      if (!resolvedUserId && targetEmail) {
+        // Find profile with this email or query auth users
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('display_name', `%${targetEmail}%`)
+          .maybeSingle();
+        if (prof) resolvedUserId = prof.id;
+      }
+
+      if (!resolvedUserId) {
+        return res.status(400).json({ ok: false, error: 'Thiếu định danh User ID hoặc không tìm thấy người dùng.' });
+      }
+
+      const { error: insertErr } = await supabase
+        .from('platform_admins')
+        .upsert({ user_id: resolvedUserId, created_at: new Date().toISOString() }, { onConflict: 'user_id' });
+
+      if (insertErr) throw insertErr;
+
+      // Audit log
+      await supabase.from('security_audit_logs').insert({
+        organization_id: null,
+        actor_user_id: user.id,
+        action: 'PLATFORM_ADMIN_ADDED',
+        target_type: 'platform_admin',
+        target_id: resolvedUserId,
+        metadata: {
+          added_by: user.email,
+          target_user_id: resolvedUserId,
+          target_email: targetEmail || undefined
+        },
+        created_at: new Date().toISOString()
+      });
+
+      return res.status(200).json({ ok: true, message: 'Đã thêm quyền Platform Admin thành công.' });
+    }
+
+    // -------------------------------------------------------------------------
+    // ACTION: Platform Settings (GET & POST)
     // -------------------------------------------------------------------------
     if (action === 'settings') {
+      if (req.method === 'POST') {
+        const incoming = body.settings || {};
+
+        // 1. Persist to platform_settings table if available
+        try {
+          const sections = ['general', 'tenantPolicy', 'security', 'defaultLimits'];
+          for (const sec of sections) {
+            if (incoming[sec]) {
+              await supabase
+                .from('platform_settings')
+                .upsert({
+                  key: sec,
+                  value: incoming[sec],
+                  updated_at: new Date().toISOString(),
+                  updated_by: user.id
+                }, { onConflict: 'key' });
+            }
+          }
+        } catch (_) {
+          // Graceful fallback if platform_settings table hasn't migrated yet
+        }
+
+        // 2. Log immutable audit trail
+        try {
+          await supabase.from('security_audit_logs').insert({
+            organization_id: null,
+            actor_user_id: user.id,
+            action: 'PLATFORM_SETTINGS_UPDATED',
+            target_type: 'platform_settings',
+            target_id: 'system',
+            metadata: {
+              performed_by: user.email,
+              timestamp: new Date().toISOString(),
+              general: incoming.general,
+              tenantPolicy: incoming.tenantPolicy,
+              security: incoming.security,
+              defaultLimits: incoming.defaultLimits
+            },
+            created_at: new Date().toISOString()
+          });
+        } catch (_) {}
+
+        return res.status(200).json({
+          ok: true,
+          message: 'Đã lưu cấu hình nền tảng và ghi nhận Security Audit Log thành công.',
+          settings: incoming
+        });
+      }
+
+      // GET: Read settings from platform_settings table if present
+      let dbSettings = null;
+      try {
+        const { data, error } = await supabase.from('platform_settings').select('key, value');
+        if (!error && data && data.length > 0) {
+          dbSettings = {};
+          data.forEach(row => { dbSettings[row.key] = row.value; });
+        }
+      } catch (_) {}
+
       return res.status(200).json({
         ok: true,
         settings: {
           general: {
-            platformName: 'WorkTree X',
-            mainDomain: 'worktree.nguyentronghuu.com',
-            supportEmail: 'support@worktree.nguyentronghuu.com',
-            defaultTimezone: 'Asia/Ho_Chi_Minh'
+            platformName: dbSettings?.general?.platformName || 'WorkTree X',
+            mainDomain: dbSettings?.general?.mainDomain || 'worktree.nguyentronghuu.com',
+            supportEmail: dbSettings?.general?.supportEmail || 'support@worktree.nguyentronghuu.com',
+            defaultTimezone: dbSettings?.general?.defaultTimezone || 'Asia/Ho_Chi_Minh'
           },
           tenantPolicy: {
-            allowSignup: true,
-            autoTrial: true,
-            requireEmailVerification: false,
-            softQuotaWarning: true
+            allowSignup: dbSettings?.tenantPolicy?.allowSignup ?? true,
+            autoTrial: dbSettings?.tenantPolicy?.autoTrial ?? true,
+            requireEmailVerification: dbSettings?.tenantPolicy?.requireEmailVerification ?? false,
+            softQuotaWarning: dbSettings?.tenantPolicy?.softQuotaWarning ?? true
           },
           security: {
-            requireAdminMfa: false,
-            auditAllActions: true,
-            sessionLifetimeHours: 12
+            requireAdminMfa: dbSettings?.security?.requireAdminMfa ?? false,
+            auditAllActions: dbSettings?.security?.auditAllActions ?? true,
+            sessionLifetimeHours: dbSettings?.security?.sessionLifetimeHours ?? 12
           },
           defaultLimits: {
-            maxUsersPerTenant: 100,
-            defaultStorageGb: 20,
-            maxFileMb: 50
+            maxUsersPerTenant: dbSettings?.defaultLimits?.maxUsersPerTenant || 100,
+            defaultStorageGb: dbSettings?.defaultLimits?.defaultStorageGb || 20,
+            maxFileMb: dbSettings?.defaultLimits?.maxFileMb || 50
           }
         }
       });

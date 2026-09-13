@@ -192,5 +192,27 @@ export const PlatformAdminService = {
   async getSettings() {
     const data = await this.request('?action=settings');
     return data.settings;
+  },
+
+  /**
+   * Cập nhật cấu hình nền tảng và lưu vết Security Audit Log
+   */
+  async updateSettings(settings) {
+    const data = await this.request('?action=settings', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'settings', settings })
+    });
+    return data;
+  },
+
+  /**
+   * Thêm Platform Super-Admin
+   */
+  async addPlatformAdmin({ userId, email }) {
+    const data = await this.request('?action=add-admin', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'add-admin', userId, email })
+    });
+    return data;
   }
 };
