@@ -9,35 +9,42 @@ const SUPABASE_CONFIG = {
   publishableKey: process.env.SUPABASE_ANON_KEY || 'sb_publishable_U_sRQahpts_YouuXX5xbJQ_wpohAq4t'
 };
 
-const ZALO_BOT_CONFIG = {
-  botId: process.env.ZALO_BOT_ID || '2266752785520432648',
-  defaultToken: process.env.ZALO_BOT_TOKEN || '2266752785520432648:FWBqyZfsALXUJUEzYBIBPRYhgLjmQTHtbGFxGvgLoksAMBDfWkerxoAGlkvqCaQh',
-  apiBase: 'https://bot-api.zaloplatforms.com'
-};
+const BOT_TOKENS = [
+  // Bot WorkTree X 🛎 (Active primary bot)
+  '2266752785520432648:FWBqyZfsALXUJUEzYBIBPRYhgLjmQTHtbGFxGvgLoksAMBDfWkerxoAGlkvqCaQh',
+  // Bot AI Assistant 1 (Backup bot)
+  '222577520227790268:zSIpDnuimIoojigHUyVHSlTINITBDPlypQdDUkARgQGSgHtChgODYgMwHDrkPLUJ'
+];
 
 async function sendZaloMessage(chatId, text) {
-  const token = process.env.ZALO_BOT_TOKEN || ZALO_BOT_CONFIG.defaultToken;
-  try {
-    const res = await fetch(`${ZALO_BOT_CONFIG.apiBase}/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: String(chatId),
-        text: text.trim(),
-        parse_mode: 'markdown'
-      })
-    });
-    return await res.json();
-  } catch (err) {
-    console.error('[ZaloBot] Error sending message:', err.message);
-    return { ok: false, error: err.message };
+  let lastError = null;
+  for (const token of BOT_TOKENS) {
+    try {
+      const res = await fetch(`https://bot-api.zaloplatforms.com/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: String(chatId),
+          text: text.trim(),
+          parse_mode: 'markdown'
+        })
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        return data;
+      }
+      lastError = data;
+    } catch (err) {
+      lastError = { ok: false, error: err.message };
+    }
   }
+  return lastError || { ok: false, error: 'Unknown send failure' };
 }
 
 function extractPhoneNumber(event) {
   if (!event) return null;
 
-  // 1. Check all candidate fields
+  // 1. Candidate fields
   const candidates = [
     event?.message?.text,
     event?.text,
@@ -56,6 +63,9 @@ function extractPhoneNumber(event) {
       const clean = String(c).replace(/[\s\.\-\(\)]/g, '');
       const match = clean.match(/(?:\+?84|0)(?:3|5|7|8|9)[0-9]{8}/);
       if (match) return match[0];
+
+      const generalMatch = clean.match(/0[1-9][0-9]{8,9}/);
+      if (generalMatch) return generalMatch[0];
     }
   }
 
@@ -86,8 +96,10 @@ async function handleZaloEvent(event) {
   }
 
   const displayName = event?.sender?.display_name || event?.message?.from?.display_name || event?.display_name || '';
+  const eventName = event?.event_name || '';
   const rawPhone = extractPhoneNumber(event);
 
+  // 1. If phone number is found -> execute pair RPC
   if (rawPhone) {
     const rpcRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/rpc/pair_employee_zalo_by_phone`, {
       method: 'POST',
@@ -109,7 +121,7 @@ async function handleZaloEvent(event) {
         '**🎉 LIÊN KẾT THÀNH CÔNG!**',
         '━━━━━━━━━━━━━━━━━━━━━━━━━',
         `Xin chào **${pairResult.full_name}**,`,
-        `Tài khoản Zalo của bạn đã được liên kết thành công với **${pairResult.organization_name}** trên hệ thống **WorkTree X**.`,
+        `Tài khoản Zalo của bạn đã được kết nối trực tiếp với **${pairResult.organization_name}** trên hệ thống **WorkTree X**.`,
         '',
         '✅ Từ bây giờ, bạn sẽ tự động nhận được thông báo khi:',
         '• Được giao công việc mới',
@@ -136,7 +148,23 @@ async function handleZaloEvent(event) {
     }
   }
 
-  // Greeting if not a phone number
+  // 2. If user sent a Zalo Contact Card ("Danh thiếp Zalo") or unsupported attachment
+  if (eventName === 'message.unsupported.received' || eventName.includes('unsupported')) {
+    const cardExplanationMsg = [
+      `👋 Chào **${displayName || 'bạn'}**,`,
+      '',
+      '⚠️ **Zalo không chia sẻ số điện thoại từ "Danh thiếp Zalo"** do chính sách bảo vệ quyền riêng tư của nền tảng Zalo Bot.',
+      '',
+      '👉 **Cách liên kết cực kỳ đơn giản:**',
+      'Bạn chỉ cần **gõ hoặc dán trực tiếp số điện thoại** của mình (ví dụ: `0845555851` hoặc `0912345678`) vào khung chat này.',
+      '',
+      'Hệ thống WorkTree X sẽ tự động kích hoạt thông báo cho bạn ngay sau 1 giây! 🚀'
+    ].join('\n');
+    const sendRes = await sendZaloMessage(chatId, cardExplanationMsg);
+    return { handled: true, isCardNotice: true, sendRes };
+  }
+
+  // 3. Greeting / Help if not a phone number
   const welcomeMsg = [
     `**👋 Xin chào ${displayName || 'bạn'}!**`,
     'Tôi là **Trợ lý Thông báo Tự động** của nền tảng **WorkTree X**.',
@@ -161,17 +189,11 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const token = process.env.ZALO_BOT_TOKEN || ZALO_BOT_CONFIG.defaultToken;
-    try {
-      const info = await fetch(`${ZALO_BOT_CONFIG.apiBase}/bot${token}/getWebhookInfo`).then(r => r.json());
-      return res.status(200).json({
-        status: 'online',
-        service: 'WorkTree X Zalo Webhook Handler',
-        webhookInfo: info
-      });
-    } catch (err) {
-      return res.status(500).json({ status: 'error', error: err.message });
-    }
+    return res.status(200).json({
+      status: 'online',
+      service: 'WorkTree X Zalo Webhook Handler',
+      active_bots: ['Bot WorkTree X (2266752785520432648)', 'Bot AI Assistant 1 (222577520227790268)']
+    });
   }
 
   if (req.method === 'POST') {
