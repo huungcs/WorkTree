@@ -7232,6 +7232,12 @@ function currentPerson(){
  return {id:byNode.has(a.personId)?a.personId:null,name:a.name};
 }
 function isAdmin(){const r=currentAccount()?.role;return r==='admin'||r==='owner';}
+function canInviteScopedMembers(){return !!(window.__worktree_is_cloud_workspace&&currentAccount()?.role==='manager');}
+function canOpenPeopleAccess(){return isAdmin()||canInviteScopedMembers();}
+function inManagerInviteScope(nodeId,a=currentAccount()){
+ if(!a||a.role!=='manager'||!Array.isArray(a.scopes)||!a.scopes.length)return false;
+ return a.scopes.some(root=>byNode.has(root)&&subtree(root).has(nodeId));
+}
 function inScope(nodeId,a=currentAccount()){
  if(!a)return false;if(a.role==='admin'||a.role==='owner')return byNode.has(nodeId);
  if(window.__worktree_is_cloud_workspace && (!Array.isArray(a.scopes) || a.scopes.length === 0)) return byNode.has(nodeId);
@@ -7455,7 +7461,7 @@ function roleDescription(r){
  const descriptions = {
   owner: 'Toàn quyền điều hành tổ chức, quản lý thành viên, cơ cấu và dữ liệu.',
   admin: 'Điều hành toàn bộ, cấp tài khoản, sửa cây và sao lưu.',
-  manager: 'Xem, tạo, giao và chỉnh sửa công việc trong nhánh được cấp.',
+  manager: 'Xem, tạo, giao, chỉnh sửa công việc và mời member/viewer trong nhánh được cấp.',
   member: T.memberHint || 'Cập nhật trạng thái, checklist, ghi giờ và bình luận trên công việc được giao.',
   viewer: 'Xem công việc trong phạm vi được cấp. Không thay đổi dữ liệu.'
  };
@@ -7463,7 +7469,7 @@ function roleDescription(r){
 }
 function accessAuditHTML(){return `<p class="view-note">${T.local} · Đây không phải nhật ký chống chỉnh sửa.</p><div class="access-audit">${identity.audit.slice().reverse().map(a=>`<div><span class="access-audit-icon">${icon('shield')}</span><p><strong>${esc(a.actor)}</strong> ${esc(a.action)}<small>${esc(a.target)} · ${esc(timeAgo(a.at))}</small></p></div>`).join('')||T.noAudit}</div>`;}
 function matrixHTML(){
- const rows=[['Xem công việc','Toàn bộ','Trong nhánh','Việc được giao','Trong nhánh'],['Tạo, giao, sửa kế hoạch','yes','yes','no','no'],['Cập nhật, checklist, ghi giờ','yes','yes','Việc được giao','no'],['Xóa công việc','yes','Trong nhánh*','no','no'],['Sửa cây, cấp tài khoản','yes','no','no','no'],['Nhập / sao lưu JSON','yes','no','no','no'],['Xuất CSV theo bộ lọc','yes','yes','no','no'],[T.pins+' · '+T.personal,'yes','yes','yes','yes']];
+ const rows=[['Xem công việc','Toàn bộ','Trong nhánh','Việc được giao','Trong nhánh'],['Tạo, giao, sửa kế hoạch','yes','yes','no','no'],['Cập nhật, checklist, ghi giờ','yes','yes','Việc được giao','no'],['Xóa công việc','yes','Trong nhánh*','no','no'],['Mời tài khoản mới','yes','member/viewer trong nhánh','no','no'],['Sửa cây, quản trị tài khoản','yes','no','no','no'],['Nhập / sao lưu JSON','yes','no','no','no'],['Xuất CSV theo bộ lọc','yes','yes','no','no'],[T.pins+' · '+T.personal,'yes','yes','yes','yes']];
  return `<div class="role-cards">${ROLES.map(r=>`<article><span class="role-badge role-${r}">${icon(r==='admin'?'shield':r==='viewer'?'eye':'user')}${T[r]}</span><p>${roleDescription(r)}</p></article>`).join('')}</div><div class="access-table-scroll"><table class="access-matrix"><thead><tr><th>Thao tác</th>${ROLES.map(r=>`<th>${T[r]}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i===0?`<th>${v}</th>`:`<td>${v==='yes'?`<span class="matrix-yes" aria-label="Có">${icon('check')}</span>`:v==='no'?'<span class="muted" aria-label="Không">—</span>':v}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="view-note">* Không xóa nếu thao tác đó làm thay đổi liên kết của công việc ngoài phạm vi. Cần quản trị viên xử lý.</p>`;
 }
 function getAccountsList(){
@@ -7511,6 +7517,7 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
 
  const q = fold(accountQuery);
  const filtered = cloudEmployeesWithStatus.filter(emp => {
+  if(canInviteScopedMembers()&&!inManagerInviteScope(emp.home_node_id))return false;
   const text = `${emp.full_name||''} ${emp.email||''} ${emp.employee_code||''} ${emp.job_title||''} ${nodeName(emp.home_node_id)||''}`;
   return fold(text).includes(q);
  });
@@ -7522,6 +7529,7 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
 
  const curMember = window.appState?.activeMembership;
  const curEmployeeId = curMember?.employeeId;
+ const scopedManager = canInviteScopedMembers();
 
  container.innerHTML = filtered.map(emp => {
   const isYou = curEmployeeId && emp.id === curEmployeeId;
@@ -7533,21 +7541,21 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
 
   if(emp.accountStatus === 'linked'){
    statusBadge = `<span class="badge" style="background:var(--green-soft);color:var(--green);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('check')} Tài khoản: Đã liên kết</span> <small class="muted" style="margin-left:6px">${esc(emp.accountEmail || emp.email || '')}</small>`;
-   opsHTML = `
+   opsHTML = scopedManager ? '' : `
       <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết tài khoản">${icon('eye')} Chi tiết</button>
       <button class="btn btn-sm" data-v8="employee-edit" data-employee-id="${emp.id}" title="Chỉnh sửa hồ sơ nhân sự">${icon('edit')} Sửa</button>
       ${(!isYou && emp.role !== 'owner') ? `<button class="btn btn-sm" data-v8="employee-suspend" data-employee-id="${emp.id}" title="Tạm ngừng tài khoản" style="color:var(--red);border-color:var(--line);">${icon('lock')} Tạm ngừng</button>` : `<span class="access-status active">Hoạt động</span>`}
     `;
   } else if(emp.accountStatus === 'suspended'){
    statusBadge = `<span class="badge" style="background:var(--red-soft);color:var(--red);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('lock')} Tài khoản: Đã tạm ngừng</span> <small class="muted" style="margin-left:6px">${esc(emp.accountEmail || emp.email || '')}</small>`;
-   opsHTML = `
+   opsHTML = scopedManager ? '' : `
       <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết tài khoản">${icon('eye')} Chi tiết</button>
       <button class="btn btn-sm" data-v8="employee-edit" data-employee-id="${emp.id}" title="Chỉnh sửa hồ sơ nhân sự">${icon('edit')} Sửa</button>
       <button class="btn btn-sm primary" data-v8="employee-reactivate" data-employee-id="${emp.id}" title="Kích hoạt lại tài khoản">${icon('check-circle')} Kích hoạt lại</button>
     `;
   } else if(emp.accountStatus === 'pending'){
    statusBadge = `<span class="badge" style="background:var(--amber-soft);color:var(--amber);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('clock')} Tài khoản: Đang chờ chấp nhận</span> <small class="muted" style="margin-left:6px">${esc(emp.accountEmail || emp.email || '')}</small>`;
-   opsHTML = `
+   opsHTML = scopedManager ? '' : `
       <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết">${icon('eye')} Chi tiết</button>
       <button class="btn btn-sm" data-v8="employee-edit" data-employee-id="${emp.id}" title="Chỉnh sửa hồ sơ nhân sự">${icon('edit')} Sửa</button>
       <button class="btn btn-sm" data-v8="employee-resend" data-employee-id="${emp.id}" title="Lấy lại liên kết mời">${icon('link')} Lấy link</button>
@@ -7555,11 +7563,13 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
     `;
   } else {
    statusBadge = `<span class="badge" style="background:var(--surface-3);color:var(--muted);font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">${icon('user')} Tài khoản: Chưa mời</span>`;
-   opsHTML = `
-      <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết">${icon('eye')} Chi tiết</button>
-      <button class="btn btn-sm" data-v8="employee-edit" data-employee-id="${emp.id}" title="Chỉnh sửa hồ sơ nhân sự">${icon('edit')} Sửa</button>
-      <button class="btn btn-sm secondary" data-v8="employee-invite" data-employee-id="${emp.id}">${icon('mail')} Mời WorkTree</button>
-    `;
+   opsHTML = scopedManager
+    ? `<button class="btn btn-sm secondary" data-v8="employee-invite" data-employee-id="${emp.id}">${icon('mail')} Mời vào nhánh</button>`
+    : `
+       <button class="btn btn-sm" data-v8="employee-detail" data-employee-id="${emp.id}" title="Xem chi tiết">${icon('eye')} Chi tiết</button>
+       <button class="btn btn-sm" data-v8="employee-edit" data-employee-id="${emp.id}" title="Chỉnh sửa hồ sơ nhân sự">${icon('edit')} Sửa</button>
+       <button class="btn btn-sm secondary" data-v8="employee-invite" data-employee-id="${emp.id}">${icon('mail')} Mời WorkTree</button>
+     `;
   }
 
   const roleBadge = emp.role ? `<span class="role-badge role-${emp.role}">${T[emp.role] || emp.role}</span>` : '';
@@ -7587,7 +7597,8 @@ async function renderCloudEmployeeDirectory(forceReload = false) {
 
 function buildScopeTreeOptions(selectedIds = [], inputName = 'empScope') {
  const selectedSet = new Set((selectedIds || []).map(String));
- const rawNodes = (typeof data !== 'undefined' && Array.isArray(data?.nodes)) ? data.nodes : (window.appState?.nodes || []);
+ const availableNodes = (typeof data !== 'undefined' && Array.isArray(data?.nodes)) ? data.nodes : (window.appState?.nodes || []);
+ const rawNodes = canInviteScopedMembers() ? availableNodes.filter(n=>inManagerInviteScope(n.id)) : availableNodes;
  if (!rawNodes.length) return '<div class="scope-empty muted" style="padding:12px;text-align:center;font-size:12px">Chưa có dữ liệu cơ cấu tổ chức.</div>';
 
  const nodeMap = new Map(rawNodes.map(n => [n.id, n]));
@@ -8045,10 +8056,77 @@ async function submitEditEmployee(e, employeeId){
  }
 }
 
+function openScopedInviteDialog(){
+ if(!requireLogin()||!canInviteScopedMembers())return deny();
+ const scopedNodes=(data?.nodes||[]).filter(n=>inManagerInviteScope(n.id));
+ if(!scopedNodes.length)return toast('Bạn chưa được cấp phạm vi để mời thành viên.','error');
+ const preferred=scopedNodes.find(n=>String(n.id)===String(state.selected))||scopedNodes[0];
+ const homeOptions=scopedNodes.map(n=>`<option value="${n.id}" ${n.id===preferred.id?'selected':''}>${esc(pathName(n.id))}</option>`).join('');
+ const scopePickerHTML=buildScopeTreeOptions([preferred.id],'scopedInviteScope');
+
+ $('accountContent').innerHTML=`
+  <form id="scopedInviteForm">
+   ${dialogHead('Mời thành viên vào phạm vi','accountTitle','accountDialog')}
+   <div class="dialog-scroll">
+    <div class="form-error" id="scopedInviteError" role="alert" tabindex="-1" hidden></div>
+    <p class="view-note">Bạn chỉ có thể mời Nhân viên hoặc Chỉ xem vào các nhánh đang quản lý.</p>
+    <div class="form-grid">
+     ${field('Họ và tên *','scopedInviteName','text','','required maxlength="180" autocomplete="name"')}
+     ${field('Email đăng nhập *','scopedInviteEmail','email','','required maxlength="180" placeholder="email@congty.com" autocomplete="email"')}
+     <label class="field">Vai trò *<select id="scopedInviteRole"><option value="member">Nhân viên</option><option value="viewer">Chỉ xem</option></select></label>
+     <label class="field">Phòng ban / dự án trực thuộc *<select id="scopedInviteHome">${homeOptions}</select></label>
+     <div class="field full">
+      <div class="scope-label"><strong>Phạm vi được cấp</strong><small id="scopedInviteScopeCount"></small></div>
+      <p class="field-hint">Mọi nhánh được chọn phải nằm trong phạm vi bạn đang quản lý.</p>
+      <input type="search" id="scopedInviteScopeSearch" placeholder="Tìm nhánh..." aria-label="Tìm nhánh phân quyền">
+      <div class="scope-picker">${scopePickerHTML}</div>
+     </div>
+     <div class="role-explanation full" id="scopedInviteRoleExplanation"></div>
+    </div>
+   </div>
+   <div class="dialog-foot"><button type="button" class="btn" data-action="close" data-dialog="accountDialog">Hủy</button><button type="submit" class="btn primary" id="scopedInviteSubmit">Tạo lời mời</button></div>
+  </form>`;
+
+ const refreshHint=()=>{
+  const role=$('scopedInviteRole').value;
+  $('scopedInviteRoleExplanation').innerHTML=`<span class="role-badge role-${role}">${T[role]}</span><p>${roleDescription(role)}</p>`;
+  $('scopedInviteScopeCount').textContent=$$('#scopedInviteForm [name="scopedInviteScope"]:checked').length+' nhánh';
+ };
+ $('scopedInviteRole').addEventListener('change',refreshHint);
+ $('scopedInviteScopeSearch').addEventListener('input',e=>{const q=fold(e.target.value);$$('#scopedInviteForm .scope-option').forEach(el=>el.hidden=!el.dataset.scopeName.includes(q));});
+ $$('#scopedInviteForm [name="scopedInviteScope"]').forEach(el=>el.addEventListener('change',refreshHint));
+ $('scopedInviteHome').addEventListener('change',e=>{
+  const checked=$$('#scopedInviteForm [name="scopedInviteScope"]:checked');
+  if(!checked.length){const cb=$(`#scopedInviteForm [name="scopedInviteScope"][value="${e.target.value}"]`);if(cb)cb.checked=true;refreshHint();}
+ });
+ refreshHint();
+
+ $('scopedInviteForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const btn=$('scopedInviteSubmit'),err=$('scopedInviteError');
+  if(btn.disabled)return;btn.disabled=true;err.hidden=true;
+  try{
+   const organizationId=window.appState?.activeOrganizationId;
+   const fullName=$('scopedInviteName').value.trim();
+   const email=$('scopedInviteEmail').value.trim().toLowerCase();
+   const homeNodeId=$('scopedInviteHome').value;
+   const role=$('scopedInviteRole').value;
+   const scopeNodeIds=$$('#scopedInviteForm [name="scopedInviteScope"]:checked').map(el=>el.value);
+   const token=await window.EmployeeService.inviteScopedMember({organizationId,email,fullName,homeNodeId,role,scopeNodeIds:scopeNodeIds.length?scopeNodeIds:[homeNodeId]});
+   closeDialog('accountDialog',true);$('accountContent').innerHTML='';await renderCloudEmployeeDirectory(true);
+   openInviteLinkDialog({token,email,fullName,role,homeNodeName:nodeName(homeNodeId)});
+  }catch(error){err.textContent=error.message||'Không thể tạo lời mời.';err.hidden=false;err.focus({preventScroll:true});}
+  finally{btn.disabled=false;}
+ });
+ showDialog('accountDialog','#scopedInviteName');
+}
+
 function openInviteExistingEmployeeDialog(employeeId){
- if(!requireAdmin()) return;
+ if(!requireLogin()||!canOpenPeopleAccess()) return deny();
+ const scopedManager=canInviteScopedMembers();
  const emp = cloudEmployeesWithStatus.find(e => e.id === employeeId);
  if(!emp) return toast('Không tìm thấy nhân sự.', 'error');
+ if(scopedManager&&!inManagerInviteScope(emp.home_node_id))return deny();
  if(emp.accountStatus === 'linked'){
   return toast('Nhân sự này đã được liên kết tài khoản.', 'warning');
  }
@@ -8081,9 +8159,8 @@ function openInviteExistingEmployeeDialog(employeeId){
       Vai trò *
       <select id="inviteExistRole">
        <option value="member" selected>Nhân viên</option>
-       <option value="manager">Quản lý</option>
-       <option value="admin">Quản trị viên</option>
        <option value="viewer">Chỉ xem</option>
+       ${scopedManager?'':'<option value="manager">Quản lý</option><option value="admin">Quản trị viên</option>'}
       </select>
      </label>
      <div class="field full" id="inviteExistScopeSection">
@@ -8144,10 +8221,12 @@ function openInviteExistingEmployeeDialog(employeeId){
 
    const r = roleSelect.value;
    if(r === 'owner') throw new Error('Không thể chọn vai trò Chủ sở hữu.');
+   if(scopedManager&&!['member','viewer'].includes(r)) throw new Error('Quản lý chỉ có thể mời Nhân viên hoặc Chỉ xem.');
 
    const scopes = r === 'admin' ? [] : $$('#inviteExistingForm [name="inviteExistScope"]:checked').map(el => el.value);
 
-   const token = await window.EmployeeService.inviteExistingEmployee({
+   const inviteMethod=scopedManager?'inviteScopedMember':'inviteExistingEmployee';
+   const token = await window.EmployeeService[inviteMethod]({
     organizationId: orgId,
     employeeId: emp.id,
     email,
@@ -8679,11 +8758,18 @@ async function confirmRevokeInvitation(employeeId){
 }
 
 function openAccess(tab=accessTab){
- if(!requireAdmin())return;accessTab=tab;$('accessTitle').textContent=window.__worktree_is_cloud_workspace ? 'Nhân sự & tài khoản' : T.accounts;
+ if(!requireLogin()||!canOpenPeopleAccess())return deny();
+ const scopedManager=canInviteScopedMembers();
+ if(scopedManager&&tab==='audit')tab='accounts';
+ accessTab=tab;$('accessTitle').textContent=scopedManager?'Thành viên trong phạm vi':(window.__worktree_is_cloud_workspace ? 'Nhân sự & tài khoản' : T.accounts);
  const isCloud = !!window.__worktree_is_cloud_workspace;
  const count = isCloud ? (cloudEmployeesWithStatus.length || window.cloudEmployees?.length || 1) : getAccountsList().filter(a=>a.active).length;
+ const tabs=scopedManager?[['accounts','Thành viên'],['matrix',T.matrix]]:[['accounts',isCloud ? 'Nhân sự' : T.accounts],['matrix',T.matrix],['audit',T.audit]];
+ const primaryAction=scopedManager
+  ? `<button class="btn primary" data-v8="employee-invite-new">${icon('mail')}Mời thành viên</button>`
+  : `<button class="btn primary" data-v8="${isCloud ? 'employee-new' : 'account-new'}">${icon('plus')}${isCloud ? 'Thêm nhân viên' : T.create}</button>`;
  
- $('accessContent').innerHTML=`<div class="access-banner"><div><span class="access-banner-icon">${icon('shield')}</span><h3>Rõ vai trò. Đúng phạm vi.</h3><p>${isCloud ? 'Quản lý nhân sự và phân quyền truy cập không gian làm việc.' : 'Cấp quyền theo công việc thực tế, không chia sẻ một tài khoản chung.'}</p></div><div class="access-stat"><strong>${count}</strong><span>${isCloud ? 'Nhân sự' : T.active}</span></div></div><div class="access-tabs" role="tablist">${[['accounts',isCloud ? 'Nhân sự' : T.accounts],['matrix',T.matrix],['audit',T.audit]].map(([key,label])=>`<button role="tab" aria-selected="${key===tab}" data-v8="access-tab" data-tab="${key}">${label}</button>`).join('')}</div><div id="accessPanel" role="tabpanel">${tab==='matrix'?matrixHTML():tab==='audit'?accessAuditHTML():`<div class="access-toolbar"><label class="access-search">${icon('search')}<input id="accountSearch" type="search" value="${esc(accountQuery)}" placeholder="${isCloud ? 'Tìm nhân sự, chức danh...' : T.searchAccounts}" aria-label="${isCloud ? 'Tìm nhân sự' : T.searchAccounts}"></label><button class="btn primary" data-v8="${isCloud ? 'employee-new' : 'account-new'}">${icon('plus')}${isCloud ? 'Thêm nhân viên' : T.create}</button></div><div id="accountList"></div><p class="view-note">${isCloud ? 'Tài khoản được bảo vệ bởi Supabase Auth & Row-Level Security đa tổ chức.' : T.credentialsHint}</p>`}</div>${isCloud ? '' : `<details class="access-limits"><summary>${icon('info')}${T.local}</summary><p>${T.localWarning}</p></details>`}`;
+ $('accessContent').innerHTML=`<div class="access-banner"><div><span class="access-banner-icon">${icon('shield')}</span><h3>Rõ vai trò. Đúng phạm vi.</h3><p>${scopedManager?'Mời Nhân viên hoặc Chỉ xem vào đúng nhánh bạn đang quản lý.':isCloud ? 'Quản lý nhân sự và phân quyền truy cập không gian làm việc.' : 'Cấp quyền theo công việc thực tế, không chia sẻ một tài khoản chung.'}</p></div><div class="access-stat"><strong>${count}</strong><span>${scopedManager?'Trong phạm vi':isCloud ? 'Nhân sự' : T.active}</span></div></div><div class="access-tabs" role="tablist">${tabs.map(([key,label])=>`<button role="tab" aria-selected="${key===tab}" data-v8="access-tab" data-tab="${key}">${label}</button>`).join('')}</div><div id="accessPanel" role="tabpanel">${tab==='matrix'?matrixHTML():tab==='audit'?accessAuditHTML():`<div class="access-toolbar"><label class="access-search">${icon('search')}<input id="accountSearch" type="search" value="${esc(accountQuery)}" placeholder="${isCloud ? 'Tìm nhân sự, chức danh...' : T.searchAccounts}" aria-label="${isCloud ? 'Tìm nhân sự' : T.searchAccounts}"></label>${primaryAction}</div><div id="accountList"></div><p class="view-note">${scopedManager?'Lời mời và phạm vi được kiểm tra lại tại cơ sở dữ liệu. Bạn không thể cấp quyền cao hơn hoặc vượt khỏi nhánh quản lý.':isCloud ? 'Tài khoản được bảo vệ bởi Supabase Auth & Row-Level Security đa tổ chức.' : T.credentialsHint}</p>`}</div>${isCloud ? '' : `<details class="access-limits"><summary>${icon('info')}${T.local}</summary><p>${T.localWarning}</p></details>`}`;
 
  if(tab==='accounts'){
   if(isCloud){
@@ -9159,7 +9245,8 @@ function safeSnapshot(){
 }
 function permissionForAction(action,id){
  if(['notif-tab','mark-read-cloud-notif','delete-cloud-notif','clear-read-notifs','mark-all-read','open-cloud-notif','notif-settings','nav-attention-from-notif','close','set-badge-style','test-sound','test-device-notification','notif-pref-toggle','notif-quiet-toggle','reminder-create','reminder-cancel','reminder-delete','cancel-manual-reminder','delete-manual-reminder','ignore'].includes(action))return true;
- if(['access','new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery'].includes(action))return isAdmin();
+ if(action==='access')return canOpenPeopleAccess();
+ if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery'].includes(action))return isAdmin();
  if(action==='new-task')return canCreateTask();
  if(['edit-task','delete-task','duplicate-task'].includes(action))return canManageTask(byTask.get(id));
  if(['complete','favorite','delete-check','timer-toggle'].includes(action))return canUpdateTask(byTask.get(id));
@@ -9171,7 +9258,7 @@ function permissionForAction(action,id){
 function applyPermissionUI(){
  const a=currentAccount();if(!a)return;
  $('profileRole').textContent=T[a.role];$('topAvatar').setAttribute('aria-label',T.account+': '+a.name);
- $('accessNav').hidden=!isAdmin();
+ $('accessNav').hidden=!canOpenPeopleAccess();
  if(!isAdmin()&&state.selected===rootNode().id){$('topScope').textContent=T.allowedScope;$('pageEyebrow').textContent=T.allowedScope.toUpperCase();}
  $$('[data-action]',$('app')).concat($$('[data-action]',$('drawer'))).forEach(b=>{
   const action=b.dataset.action, rawId=b.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
@@ -9209,6 +9296,7 @@ function handleV8Click(e){
     case 'help':openHelp();break;
     case 'access-tab':openAccess(v.dataset.tab);break;
     case 'employee-new':openAddEmployeeDialog();break;
+    case 'employee-invite-new':openScopedInviteDialog();break;
     case 'employee-edit':openEditEmployeeDialog(v.dataset.employeeId);break;
     case 'employee-invite':openInviteExistingEmployeeDialog(v.dataset.employeeId);break;
     case 'employee-resend':await resendEmployeeInvitation(v.dataset.employeeId);break;

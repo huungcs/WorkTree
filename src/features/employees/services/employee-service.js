@@ -124,6 +124,47 @@ export const EmployeeService = {
   },
 
   /**
+   * Manager-safe invitation flow. The database remains authoritative and
+   * enforces that home/scope nodes are inside the manager's granted subtree.
+   */
+  async inviteScopedMember({
+    organizationId,
+    email,
+    fullName,
+    homeNodeId,
+    role = 'member',
+    scopeNodeIds = [],
+    employeeId = null
+  }) {
+    if (!organizationId) throw new Error('Missing active organizationId');
+    if (!fullName || !fullName.trim()) throw new Error('Họ và tên thành viên là bắt buộc');
+    if (!homeNodeId) throw new Error('Phòng ban hoặc dự án trực thuộc là bắt buộc');
+    if (!['member', 'viewer'].includes(role)) {
+      throw new Error('Quản lý chỉ có thể mời vai trò Nhân viên hoặc Chỉ xem');
+    }
+
+    const cleanEmail = email && email.trim().toLowerCase();
+    const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      throw new Error('Định dạng email đăng nhập không hợp lệ');
+    }
+
+    const scopes = Array.isArray(scopeNodeIds) && scopeNodeIds.length
+      ? scopeNodeIds
+      : [homeNodeId];
+
+    return await InvitationRepository.createInvitation({
+      organizationId,
+      email: cleanEmail,
+      fullName: fullName.trim(),
+      homeNodeId,
+      role,
+      scopeNodeIds: scopes,
+      employeeId
+    });
+  },
+
+  /**
    * Suspend an employee account and personnel status.
    */
   async suspendAccount({ organizationId, employeeId, membershipId }) {
@@ -213,4 +254,3 @@ export const EmployeeService = {
     return await EmployeeRepository.unlinkZalo(employeeId);
   }
 };
-

@@ -865,6 +865,66 @@ BEGIN
   v_passed := v_passed + 1;
   RAISE NOTICE 'T51 PASS: create_invitation by Member A => Admin Permission Required';
 
+  -- Test 51a: scoped Manager A may invite a member into Marketing
+  v_err_caught := false;
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', c_u_a_manager::text, true);
+    PERFORM public.create_invitation(
+      c_org_a, 'manager-scope@test.local', 'Scoped Invite', c_node_a_m1,
+      'member', array[c_node_a_m1]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_err_caught := true;
+  END;
+  ASSERT v_err_caught = false, 'T51a FAIL: Manager A could not invite member inside granted scope';
+  v_passed := v_passed + 1;
+  RAISE NOTICE 'T51a PASS: Manager A invited member inside Marketing scope';
+
+  -- Test 51b: Manager A cannot place an invite in out-of-scope Sales
+  v_err_caught := false;
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', c_u_a_manager::text, true);
+    PERFORM public.create_invitation(
+      c_org_a, 'manager-outside@test.local', 'Outside Invite', c_node_a_s1,
+      'member', array[c_node_a_s1]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_err_caught := true;
+  END;
+  ASSERT v_err_caught = true, 'T51b FAIL: Manager A invited member outside granted scope';
+  v_passed := v_passed + 1;
+  RAISE NOTICE 'T51b PASS: Manager A out-of-scope invitation denied';
+
+  -- Test 51c: Manager A cannot grant another manager role
+  v_err_caught := false;
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', c_u_a_manager::text, true);
+    PERFORM public.create_invitation(
+      c_org_a, 'manager-escalation@test.local', 'Escalated Invite', c_node_a_m1,
+      'manager', array[c_node_a_m1]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_err_caught := true;
+  END;
+  ASSERT v_err_caught = true, 'T51c FAIL: Manager A granted manager role';
+  v_passed := v_passed + 1;
+  RAISE NOTICE 'T51c PASS: Manager A elevated-role invitation denied';
+
+  -- Test 51d: Manager A cannot attach an out-of-scope node to an in-scope invite
+  v_err_caught := false;
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', c_u_a_manager::text, true);
+    PERFORM public.create_invitation(
+      c_org_a, 'manager-mixed-scope@test.local', 'Mixed Scope Invite', c_node_a_m1,
+      'viewer', array[c_node_a_m1, c_node_a_s1]
+    );
+  EXCEPTION WHEN OTHERS THEN
+    v_err_caught := true;
+  END;
+  ASSERT v_err_caught = true, 'T51d FAIL: Manager A attached an out-of-scope node';
+  v_passed := v_passed + 1;
+  RAISE NOTICE 'T51d PASS: Manager A mixed-scope invitation denied';
+
   -- Test 52: create_invitation by Admin A for Org B -> MUST FAIL
   v_err_caught := false;
   BEGIN
