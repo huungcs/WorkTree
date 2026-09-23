@@ -8,6 +8,7 @@ import { ChecklistRepository, TaskRepository } from '../../../lib/supabase/repos
 import { appState } from '../../../app/state.js';
 
 const submittingItems = new Set();
+const updatingItems = new Set();
 
 export function formatChecklistErrorMessage(error) {
   if (!error) return 'Đã xảy ra lỗi không xác định.';
@@ -77,6 +78,30 @@ export const ChecklistService = {
       return updated;
     } catch (err) {
       throw new Error(formatChecklistErrorMessage(err));
+    }
+  },
+
+  async updateItem({ itemId, taskId, content, organizationId = null }) {
+    if (!itemId) throw new Error('Thiếu itemId.');
+    const orgId = organizationId || appState.activeOrganizationId;
+    const trimmed = (content || '').trim();
+    if (!trimmed) throw new Error('Nội dung checklist không được để trống.');
+    if (trimmed.length > 400) throw new Error('Nội dung checklist tối đa 400 ký tự.');
+
+    const lockKey = String(itemId);
+    if (updatingItems.has(lockKey)) {
+      throw new Error('Đang lưu nội dung checklist, vui lòng đợi...');
+    }
+    updatingItems.add(lockKey);
+
+    try {
+      const updated = await ChecklistRepository.updateChecklistItem(itemId, { content: trimmed });
+      if (taskId) await this.syncTaskRollup(taskId, orgId);
+      return updated;
+    } catch (err) {
+      throw new Error(formatChecklistErrorMessage(err));
+    } finally {
+      updatingItems.delete(lockKey);
     }
   },
 

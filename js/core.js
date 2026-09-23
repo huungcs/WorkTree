@@ -225,7 +225,7 @@ function validateData(input){
 }
 let data,byNode=new Map(),byTask=new Map(),byParent=new Map(),subtreeCache=new Map();
 let storageIssue='',storageProtected=false,lastRaw=null,externalRaw=null;
-let migrationMessage='',pendingImport=null,editingTask=null,editingNode=null,drawerId=null,dirtyTask=false,dirtyNode=false;
+let migrationMessage='',pendingImport=null,editingTask=null,editingNode=null,drawerId=null,dirtyTask=false,dirtyNode=false,editingChecklistItem=null;
 let history=[],future=[],confirmResolver=null,commandOptions=[],commandIndex=0,returnFocus=new Map();
 let state={
  selected:1,view:'overview',includeChildren:true,collapsed:false,mobileOpen:false,filterOpen:false,filters:blankFilters(),sort:'smart',page:1,pageSize:15,
@@ -414,7 +414,7 @@ function closeDialog(id,force=false){
  if(!force&&((id==='taskDialog'&&dirtyTask)||(id==='nodeDialog'&&dirtyNode))){
   ask('Bỏ thay đổi chưa lưu?','Nội dung đang nhập sẽ không được lưu. Công việc và dữ liệu đã lưu trước đó vẫn giữ nguyên.','Bỏ thay đổi',true).then(ok=>{if(ok)closeDialog(id,true);});return;
  }
- const el=$(id);if(!el?.open)return;el.close();if(id==='drawer'){drawerId=null;if(window.RealtimeService)window.RealtimeService.unsubscribeTaskDetail();}
+ const el=$(id);if(!el?.open)return;el.close();if(id==='drawer'){drawerId=null;editingChecklistItem=null;if(window.RealtimeService)window.RealtimeService.unsubscribeTaskDetail();}
  if(id==='taskDialog')dirtyTask=false;if(id==='nodeDialog')dirtyNode=false;
  const prev=returnFocus.get(id);if(prev?.isConnected&&!prev.closest('[inert]'))prev.focus({preventScroll:true});
 }
@@ -1353,23 +1353,43 @@ function renderDrawer(){
  }else if(isCloud&&detail.errors?.checklist){
   checklistHTML=`<div class="drawer-error" style="padding:8px 0;font-size:11px;color:var(--red)"><p>${esc(detail.errors.checklist)}</p><button class="btn small" type="button" data-action="retry-child" data-child="checklist" data-id="${t.id}">Thử lại</button></div>`;
  }else if(isCloud&&detail.checklist?.length){
-  checklistHTML=detail.checklist.map((c,i)=>`
-   <div class="checklist-row ${c.done?'completed':''}">
-    <label>
+  checklistHTML=detail.checklist.map((c,i)=>{
+   const editing=editingChecklistItem?.taskId===t.id&&editingChecklistItem?.itemId===c.id;
+   return `
+   <div class="checklist-row ${c.done?'completed':''}" data-checklist-row data-task-id="${t.id}" data-index="${i}" data-item-id="${c.id}">
+    <label class="checklist-toggle">
      <input type="checkbox" data-check-task="${t.id}" data-check-index="${i}" data-item-id="${c.id}" ${c.done?'checked':''}>
-     <span>${esc(c.text)}</span>
+     <span class="sr-only">${esc((c.done?'Bỏ hoàn thành ':'Hoàn thành ')+c.text)}</span>
     </label>
-    <button class="icon-btn" data-action="delete-check" data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" title="Xóa mục checklist" aria-label="${esc('Xóa '+c.text)}">${icon('x')}</button>
-   </div>`).join('');
+    ${editing
+      ? `<input class="checklist-edit-input" data-check-edit-input data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" maxlength="400" value="${esc(c.text)}" aria-label="Chỉnh sửa nội dung checklist">`
+      : `<span class="checklist-content" data-check-content data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" tabindex="0" role="button" title="Nhấp đúp hoặc nhấn Enter để chỉnh sửa">${esc(c.text)}</span>`}
+    <div class="checklist-actions">
+     ${editing
+       ? `<button class="icon-btn" data-action="save-check" data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" title="Lưu nội dung" aria-label="Lưu nội dung checklist">${icon('check')}</button><button class="icon-btn" data-action="cancel-check" data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" title="Hủy chỉnh sửa" aria-label="Hủy chỉnh sửa checklist">${icon('x')}</button>`
+       : `<button class="icon-btn" data-action="edit-check" data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" title="Chỉnh sửa nội dung" aria-label="${esc('Chỉnh sửa '+c.text)}">${icon('edit')}</button><button class="icon-btn" data-action="delete-check" data-id="${t.id}" data-index="${i}" data-item-id="${c.id}" title="Xóa mục checklist" aria-label="${esc('Xóa '+c.text)}">${icon('x')}</button>`}
+    </div>
+   </div>`;
+  }).join('');
  }else if(!isCloud&&t.checklist.length){
-  checklistHTML=t.checklist.map((c,i)=>`
-   <div class="checklist-row ${c[1]?'completed':''}">
-    <label>
+  checklistHTML=t.checklist.map((c,i)=>{
+   const editing=editingChecklistItem?.taskId===t.id&&editingChecklistItem?.index===i;
+   return `
+   <div class="checklist-row ${c[1]?'completed':''}" data-checklist-row data-task-id="${t.id}" data-index="${i}">
+    <label class="checklist-toggle">
      <input type="checkbox" data-check-task="${t.id}" data-check-index="${i}" ${c[1]?'checked':''}>
-     <span>${esc(c[0])}</span>
+     <span class="sr-only">${esc((c[1]?'Bỏ hoàn thành ':'Hoàn thành ')+c[0])}</span>
     </label>
-    <button class="icon-btn" data-action="delete-check" data-id="${t.id}" data-index="${i}" title="Xóa mục checklist" aria-label="${esc('Xóa '+c[0])}">${icon('x')}</button>
-   </div>`).join('');
+    ${editing
+      ? `<input class="checklist-edit-input" data-check-edit-input data-id="${t.id}" data-index="${i}" maxlength="400" value="${esc(c[0])}" aria-label="Chỉnh sửa nội dung checklist">`
+      : `<span class="checklist-content" data-check-content data-id="${t.id}" data-index="${i}" tabindex="0" role="button" title="Nhấp đúp hoặc nhấn Enter để chỉnh sửa">${esc(c[0])}</span>`}
+    <div class="checklist-actions">
+     ${editing
+       ? `<button class="icon-btn" data-action="save-check" data-id="${t.id}" data-index="${i}" title="Lưu nội dung" aria-label="Lưu nội dung checklist">${icon('check')}</button><button class="icon-btn" data-action="cancel-check" data-id="${t.id}" data-index="${i}" title="Hủy chỉnh sửa" aria-label="Hủy chỉnh sửa checklist">${icon('x')}</button>`
+       : `<button class="icon-btn" data-action="edit-check" data-id="${t.id}" data-index="${i}" title="Chỉnh sửa nội dung" aria-label="${esc('Chỉnh sửa '+c[0])}">${icon('edit')}</button><button class="icon-btn" data-action="delete-check" data-id="${t.id}" data-index="${i}" title="Xóa mục checklist" aria-label="${esc('Xóa '+c[0])}">${icon('x')}</button>`}
+    </div>
+   </div>`;
+  }).join('');
  }else{
   checklistHTML='<p class="muted" style="font-size:11px">Chia đầu việc lớn thành các bước nhỏ, dễ hoàn thành.</p>';
  }
@@ -1577,6 +1597,72 @@ async function changeChecklist(id,index,checked,itemId){
  }
 
  commit('Đã cập nhật checklist',d=>{const t=d.tasks.find(t=>t.id===id);if(!t.checklist[index])throw Error('Mục checklist không tồn tại.');t.checklist[index][1]=checked;syncChecklist(t);touch(t);},{taskId:id,quiet:true});
+}
+
+function beginChecklistEdit(id,index,itemId=null){
+ const t=byTask.get(id);
+ if(!requireLogin()||!canUpdateTask(t))return deny();
+ const isCloud=window.__worktree_is_cloud_workspace===true;
+ const cloudItem=isCloud?(window.__taskDetailData?.checklist||[]).find(c=>String(c.id)===String(itemId)):null;
+ const currentText=isCloud?cloudItem?.text:t?.checklist?.[index]?.[0];
+ if(currentText===undefined)return toast('Không tìm thấy mục checklist.','error');
+ editingChecklistItem={taskId:id,index,itemId:itemId||null,originalText:String(currentText)};
+ renderDrawer();
+ requestAnimationFrame(()=>{const input=$('drawerContent')?.querySelector('[data-check-edit-input]');if(input){input.focus();input.select();}});
+}
+
+function cancelChecklistEdit({restoreFocus=true}={}){
+ const previous=editingChecklistItem;
+ if(!previous)return;
+ editingChecklistItem=null;
+ renderDrawer();
+ if(restoreFocus)requestAnimationFrame(()=>{
+  const target=$$('[data-check-content]',$('drawerContent')).find(el=>String(el.dataset.id)===String(previous.taskId)&&Number(el.dataset.index)===previous.index);
+  target?.focus({preventScroll:true});
+ });
+}
+
+async function saveChecklistEdit(id,index,itemId=null,contentOverride=null){
+ const active=editingChecklistItem;
+ if(!active||active.taskId!==id||active.index!==index)return;
+ const input=$('drawerContent')?.querySelector('[data-check-edit-input]');
+ if(!input&&contentOverride===null)return;
+ const content=String(contentOverride??input.value).trim();
+ if(!content){if(input){input.setCustomValidity('Nội dung checklist không được để trống.');input.reportValidity();input.focus();}else{renderDrawer();toast('Nội dung checklist không được để trống.','error');}return;}
+ if(content.length>400){if(input){input.setCustomValidity('Nội dung checklist tối đa 400 ký tự.');input.reportValidity();input.focus();}else{renderDrawer();toast('Nội dung checklist tối đa 400 ký tự.','error');}return;}
+ if(input)input.setCustomValidity('');
+ if(content===active.originalText.trim()){cancelChecklistEdit();return;}
+ if(!requireLogin()||!canUpdateTask(byTask.get(id)))return deny();
+
+ if(window.__worktree_is_cloud_workspace){
+  const resolvedItemId=itemId||active.itemId;
+  if(!resolvedItemId)return toast('Không xác định được mục checklist cần cập nhật.','error');
+  if(input)input.disabled=true;
+  try{
+   const updated=await window.ChecklistService.updateItem({itemId:resolvedItemId,taskId:id,content});
+   const savedText=updated?.content||content;
+   const detailItem=(window.__taskDetailData?.checklist||[]).find(c=>String(c.id)===String(resolvedItemId));
+   if(detailItem)detailItem.text=savedText;
+   const t=byTask.get(id);
+   if(t?.checklist?.[index])t.checklist[index][0]=savedText;
+   editingChecklistItem=null;
+   renderDrawer();
+   toast('Đã cập nhật nội dung checklist.','success',true);
+  }catch(err){
+   if(input)input.disabled=false;
+   toast(err.message||'Không thể cập nhật nội dung checklist.','error');
+   if(input){input.focus();input.select();}else{renderDrawer();requestAnimationFrame(()=>{$('drawerContent')?.querySelector('[data-check-edit-input]')?.focus();});}
+  }
+  return;
+ }
+
+ editingChecklistItem=null;
+ const saved=commit('Đã sửa nội dung checklist',d=>{
+  const task=d.tasks.find(task=>task.id===id);
+  if(!task?.checklist?.[index])throw Error('Mục checklist không tồn tại.');
+  task.checklist[index][0]=content;touch(task);
+ },{taskId:id});
+ if(!saved){editingChecklistItem=active;renderDrawer();requestAnimationFrame(()=>$('drawerContent')?.querySelector('[data-check-edit-input]')?.focus());}
 }
 
 async function deleteChecklist(id,index,itemId){
@@ -3517,6 +3603,9 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'accept-recovery':await acceptRecovery();break;
    case 'load-external':await loadExternal();break;
    case 'close':if(el.dataset.dialog==='drawer')storeDrawerDraft();closeDialog(el.dataset.dialog);break;
+   case 'edit-check':beginChecklistEdit(id,Number(el.dataset.index),el.dataset.itemId);break;
+   case 'save-check':await saveChecklistEdit(id,Number(el.dataset.index),el.dataset.itemId);break;
+   case 'cancel-check':cancelChecklistEdit();break;
    case 'delete-check':await deleteChecklist(id,Number(el.dataset.index),el.dataset.itemId);break;
    case 'delete-comment':await deleteComment(id,el.dataset.comment);break;
    case 'delete-dependency':await deleteDependencyInline(el.dataset.taskId,el.dataset.depId);break;
@@ -3668,6 +3757,19 @@ $('nodeForm').addEventListener('change',()=>{dirtyNode=true;});
 $('savedViewName').addEventListener('input',()=>{$('savedViewName').setCustomValidity('');});
 $('taskForm').addEventListener('submit',saveTask);$('nodeForm').addEventListener('submit',saveNode);$('nameForm').addEventListener('submit',saveView);
 document.addEventListener('submit',e=>{if(e.target.id==='checklistForm')addChecklist(e);if(e.target.id==='commentForm')addComment(e);if(e.target.id==='logForm')logHours(e);if(e.target.id==='dependencyForm')addDependencyForm(e);});
+document.addEventListener('dblclick',e=>{
+ const target=e.target.closest('[data-check-content]');if(!target)return;
+ e.preventDefault();
+ const rawId=target.dataset.id,id=rawId&&!isNaN(rawId)?Number(rawId):rawId;
+ beginChecklistEdit(id,Number(target.dataset.index),target.dataset.itemId);
+});
+document.addEventListener('focusout',e=>{
+ const input=e.target.closest('[data-check-edit-input]');if(!input)return;
+ if(e.relatedTarget?.closest('[data-action="save-check"],[data-action="cancel-check"]'))return;
+ const rawId=input.dataset.id,id=rawId&&!isNaN(rawId)?Number(rawId):rawId,index=Number(input.dataset.index),itemId=input.dataset.itemId;
+ const draft=input.value;
+ setTimeout(()=>{if(editingChecklistItem)saveChecklistEdit(id,index,itemId,draft);},0);
+});
 $('importFile').addEventListener('change',importJSON);
 $('confirmOk').addEventListener('click',()=>resolveConfirm(true));$('confirmCancel').addEventListener('click',()=>resolveConfirm(false));
 $$('dialog').forEach(dialog=>{
@@ -3687,6 +3789,18 @@ $('viewTabs').addEventListener('keydown',e=>{
 function isEditing(el){return !!el?.closest('input,textarea,select,[contenteditable="true"]');}
 document.addEventListener('keydown',e=>{
  if(!currentAccount())return;
+ const checklistInput=e.target.closest?.('[data-check-edit-input]');
+ if(checklistInput){
+  const rawId=checklistInput.dataset.id,id=rawId&&!isNaN(rawId)?Number(rawId):rawId,index=Number(checklistInput.dataset.index),itemId=checklistInput.dataset.itemId;
+  if(e.key==='Enter'){e.preventDefault();saveChecklistEdit(id,index,itemId);}
+  else if(e.key==='Escape'){e.preventDefault();cancelChecklistEdit();}
+  return;
+ }
+ const checklistContent=e.target.closest?.('[data-check-content]');
+ if(checklistContent&&e.key==='Enter'){
+  e.preventDefault();const rawId=checklistContent.dataset.id,id=rawId&&!isNaN(rawId)?Number(rawId):rawId;
+  beginChecklistEdit(id,Number(checklistContent.dataset.index),checklistContent.dataset.itemId);return;
+ }
  if(e.isComposing||e.altKey||!e.key)return;const key=e.key.toLowerCase(),editing=isEditing(e.target),modal=!!document.querySelector('dialog[open]');
  if((e.ctrlKey||e.metaKey)&&key==='k'){
   e.preventDefault();if($('commandDialog').open)closeDialog('commandDialog',true);else openCommand();return;

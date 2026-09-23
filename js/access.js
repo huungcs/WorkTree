@@ -2081,7 +2081,8 @@ function permissionForAction(action,id){
  if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery'].includes(action))return isAdmin();
  if(action==='new-task')return canCreateTask();
  if(['edit-task','delete-task','duplicate-task'].includes(action))return canManageTask(byTask.get(id));
- if(['complete','favorite','delete-check','timer-toggle'].includes(action))return canUpdateTask(byTask.get(id));
+ if(['complete','favorite','edit-check','save-check','delete-check','timer-toggle'].includes(action))return canUpdateTask(byTask.get(id));
+ if(action==='cancel-check')return true;
  if(action==='open-task')return canReadTask(byTask.get(id));
  if(action==='export-csv')return canReport();
  if(action==='delete-comment')return canUpdateTask(byTask.get(id));
@@ -2095,7 +2096,7 @@ function applyPermissionUI(){
  $$('[data-action]',$('app')).concat($$('[data-action]',$('drawer'))).forEach(b=>{
   const action=b.dataset.action, rawId=b.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
   if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,id);
-  else if(['complete','favorite','delete-check','timer-toggle','delete-comment'].includes(action)){b.disabled=!permissionForAction(action,id);}
+  else if(['complete','favorite','edit-check','save-check','delete-check','timer-toggle','delete-comment'].includes(action)){b.disabled=!permissionForAction(action,id);}
  });
  $$('[data-status-task],[data-owner-task],[data-priority-task],[data-check-task]').forEach(el=>{
   const rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask;
