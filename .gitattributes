@@ -1,0 +1,22 @@
+# Chuẩn hóa line-ending: lưu vào repo dạng LF, checkout tự theo OS
+* text=auto
+
+# File script luôn dùng LF
+*.sh    text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+
+# File nhị phân không đổi
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ico   binary
+*.gif   binary
+*.woff  binary
+*.woff2 binary
+*.pdf   binary
