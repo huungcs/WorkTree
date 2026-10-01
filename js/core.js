@@ -503,7 +503,7 @@ function changeStatus(id,status){
   (async()=>{
    try{
     if(window.TaskService){
-     const res=await window.TaskService.updateStatus(id,status);
+     const res=await window.TaskService.updateStatus(id,status,t?.updatedAt||null);
      if(res&&res.isLatest&&res.task){
       const idx=data.tasks.findIndex(x=>x.id===id);
       if(idx!==-1)data.tasks[idx]=res.task;
@@ -2356,7 +2356,8 @@ function bulkStatus(status){
    let successCount=0,failCount=0,lastErr='';
    for(const tid of ids){
     try{
-     const res=await window.TaskService.updateStatus(tid,status);
+     const _bt=byTask.get(tid)||data.tasks.find(x=>x.id===tid);
+     const res=await window.TaskService.updateStatus(tid,status,_bt?.updatedAt||null);
      if(res&&res.isLatest&&res.task){
       const idx=data.tasks.findIndex(x=>x.id===tid);
       if(idx!==-1)data.tasks[idx]=res.task;

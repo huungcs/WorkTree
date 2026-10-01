@@ -809,29 +809,40 @@ export const TaskRepository = {
     };
   },
 
-  async updateTaskStatus(taskId, status) {
+  async updateTaskStatus(taskId, status, expectedUpdatedAt = null) {
     if (!taskId) throw new Error('Missing taskId for updateTaskStatus');
     const sb = await getSupabase();
     const dbStatus = normalizeDbStatus(status);
     const completedAt = dbStatus === 'done' ? new Date().toISOString() : null;
 
-    const { data, error } = await sb
+    let query = sb
       .from('tasks')
       .update({
         status: dbStatus,
         completed_at: completedAt
       })
-      .eq('id', taskId)
-      .select()
-      .single();
+      .eq('id', taskId);
+
+    // Optimistic concurrency: chỉ ghi nếu bản ghi chưa bị client khác đổi
+    if (expectedUpdatedAt) {
+      query = query.eq('updated_at', expectedUpdatedAt);
+    }
+
+    const { data, error } = await query.select().maybeSingle();
 
     if (error) throw error;
+    if (expectedUpdatedAt && !data) {
+      const conflictErr = new Error('Dữ liệu đã được thay đổi ở nơi khác. Đã tải lại phiên bản mới nhất.');
+      conflictErr.code = 'CONCURRENCY_CONFLICT';
+      throw conflictErr;
+    }
+
     return {
       ...data,
-      assignee_id: data.primary_assignee_id,
-      assigneeId: data.primary_assignee_id,
-      uiStatus: STATUS_MAP.dbToUi[data.status] || data.status,
-      uiPriority: PRIORITY_MAP.dbToUi[data.priority] || data.priority
+      assignee_id: data?.primary_assignee_id,
+      assigneeId: data?.primary_assignee_id,
+      uiStatus: STATUS_MAP.dbToUi[data?.status] || data?.status,
+      uiPriority: PRIORITY_MAP.dbToUi[data?.priority] || data?.priority
     };
   },
 

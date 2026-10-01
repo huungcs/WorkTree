@@ -126,6 +126,68 @@ export function formatTaskErrorMessage(error) {
   return msg;
 }
 
+/**
+ * Xác định ai sẽ nhận thông báo Zalo khi trạng thái task đổi.
+ * Trả về { chatIds:Set<string>, assignee, currentEmp, actorZaloChatId }.
+ * Quy tắc:
+ *  - Admin/Owner đổi  -> chỉ notify assignee (không notify chính admin).
+ *  - Nhân viên tự đổi -> notify các manager/admin/owner có Zalo (không notify chính mình,
+ *                        không spam member thường khác).
+ *  - Người khác đổi   -> notify assignee (nếu khác actor).
+ */
+function resolveStatusNotifyRecipients({ assigneeId }) {
+  const employees = (appState.employees && appState.employees.length)
+    ? appState.employees
+    : (typeof window !== 'undefined' && window.cloudEmployees ? window.cloudEmployees : []);
+  const assignee = assigneeId ? employees.find(e => e.id === assigneeId) : null;
+
+  const actorRole = appState.activeMembership?.role
+    || (typeof window !== 'undefined' && window.__worktree_supabase_user?.role);
+  const isAdminActor = actorRole === 'owner' || actorRole === 'admin';
+
+  const currentEmployeeId = appState.activeMembership?.employeeId
+    || (typeof window !== 'undefined' && (window.__worktree_supabase_user?.personId || window.__worktree_supabase_user?.employeeId));
+  const currentEmp = employees.find(e =>
+    (currentEmployeeId && e.id === currentEmployeeId) ||
+    (appState.user?.id && e.user_id === appState.user.id) ||
+    (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
+  );
+  const actorZaloChatId = currentEmp?.zalo_chat_id;
+  const isAssigneeActor = currentEmp && assignee && currentEmp.id === assignee.id;
+
+  const chatIds = new Set();
+  const isManagerial = (e) => ['owner', 'admin', 'manager'].includes(e.role);
+
+  if (isAdminActor) {
+    if (assignee && assignee.zalo_chat_id && assignee.id !== currentEmployeeId && assignee.zalo_chat_id !== actorZaloChatId) {
+      chatIds.add(assignee.zalo_chat_id);
+    }
+  } else if (isAssigneeActor) {
+    // Chỉ gửi cho cấp quản lý — tránh spam nhân viên thường vô can.
+    const managers = employees.filter(e =>
+      e.zalo_chat_id &&
+      e.id !== currentEmployeeId &&
+      e.zalo_chat_id !== actorZaloChatId &&
+      isManagerial(e)
+    );
+    if (managers.length === 0) {
+      // Fallback: nếu employee không mang role, giữ behavior cũ (gửi cho mọi người có Zalo trừ actor).
+      console.warn('[ZaloBot] Không tìm thấy manager/admin có Zalo trong danh sách — fallback gửi cho mọi người có Zalo.');
+      employees
+        .filter(e => e.zalo_chat_id && e.id !== currentEmployeeId && e.zalo_chat_id !== actorZaloChatId)
+        .forEach(m => chatIds.add(m.zalo_chat_id));
+    } else {
+      managers.forEach(m => chatIds.add(m.zalo_chat_id));
+    }
+  } else {
+    if (assignee && assignee.zalo_chat_id && assignee.id !== currentEmployeeId && assignee.zalo_chat_id !== actorZaloChatId) {
+      chatIds.add(assignee.zalo_chat_id);
+    }
+  }
+
+  return { chatIds, assignee, currentEmp, actorZaloChatId, employees };
+}
+
 export const TaskService = {
   async loadTasks(organizationId, filter = {}) {
     return await TaskRepository.getTasks(organizationId, filter);
@@ -259,44 +321,10 @@ export const TaskService = {
       if (updates.status && mappedUI) {
         (async () => {
           try {
-            const employees = (appState.employees && appState.employees.length) ? appState.employees : (typeof window !== 'undefined' && window.cloudEmployees ? window.cloudEmployees : []);
             const targetEmployeeId = canonical?.primary_assignee_id || updates.primary_assignee_id;
-            const assignee = targetEmployeeId ? employees.find(e => e.id === targetEmployeeId) : null;
+            const { chatIds } = resolveStatusNotifyRecipients({ assigneeId: targetEmployeeId });
 
-            // Identify current updater (actor)
-            const actorRole = appState.activeMembership?.role || (typeof window !== 'undefined' && window.__worktree_supabase_user?.role);
-            const isAdminActor = actorRole === 'owner' || actorRole === 'admin';
-
-            const currentEmployeeId = appState.activeMembership?.employeeId || (typeof window !== 'undefined' && (window.__worktree_supabase_user?.personId || window.__worktree_supabase_user?.employeeId));
-            const currentEmp = employees.find(e => 
-              (currentEmployeeId && e.id === currentEmployeeId) ||
-              (appState.user?.id && e.user_id === appState.user.id) ||
-              (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
-            );
-            const actorZaloChatId = currentEmp?.zalo_chat_id;
-            const isAssigneeActor = currentEmp && assignee && currentEmp.id === assignee.id;
-
-            const chatIdsToNotify = new Set();
-
-            if (isAdminActor) {
-              // Admin/Owner updated the task -> Notify ONLY the assignee (if not the admin themselves)
-              // NEVER notify admin of their own changes
-              if (assignee && assignee.zalo_chat_id && assignee.id !== currentEmployeeId && assignee.zalo_chat_id !== actorZaloChatId) {
-                chatIdsToNotify.add(assignee.zalo_chat_id);
-              }
-            } else if (isAssigneeActor) {
-              // Employee updated their own task (e.g. completes or requests review) -> Notify managers/admin with Zalo
-              // NEVER notify the employee actor themselves
-              const otherLinked = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId && e.id !== currentEmployeeId);
-              otherLinked.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
-            } else {
-              // Coworker/other member updated the task -> Notify the assignee
-              if (assignee && assignee.zalo_chat_id && assignee.id !== currentEmployeeId && assignee.zalo_chat_id !== actorZaloChatId) {
-                chatIdsToNotify.add(assignee.zalo_chat_id);
-              }
-            }
-
-            if (chatIdsToNotify.size > 0) {
+            if (chatIds.size > 0) {
               const targetNodeId = canonical?.node_id || updates.node_id;
               const nodes = (appState.nodes && appState.nodes.length) ? appState.nodes : (typeof window !== 'undefined' && window.appState?.nodes ? window.appState.nodes : []);
               const node = nodes.find(n => n.id === targetNodeId);
@@ -304,7 +332,7 @@ export const TaskService = {
               const updaterName = appState.user?.user_metadata?.full_name || appState.user?.email || (typeof window !== 'undefined' && typeof window.person === 'function' ? window.person().name : 'Đồng đội');
               const uiStatus = DB_STATUS_TO_UI[updates.status] || STATUS_MAP.dbToUi[updates.status] || updates.status;
 
-              for (const cid of chatIdsToNotify) {
+              for (const cid of chatIds) {
                 await ZaloBotService.sendStatusNotification({
                   zaloChatId: cid,
                   taskTitle: canonical?.title || updates.title || 'Công việc',
@@ -314,7 +342,7 @@ export const TaskService = {
                   taskId
                 });
               }
-              console.info(`[ZaloBot] Đã gửi thông báo cập nhật trạng thái (${uiStatus}) đến ${chatIdsToNotify.size} tài khoản Zalo`);
+              console.info(`[ZaloBot] Đã gửi thông báo cập nhật trạng thái (${uiStatus}) đến ${chatIds.size} tài khoản Zalo`);
             }
           } catch (zaloErr) {
             console.warn('[ZaloBot] Gửi thông báo cập nhật công việc thất bại:', zaloErr);
@@ -331,8 +359,11 @@ export const TaskService = {
 
   /**
    * Cập nhật trạng thái công việc kèm theo generation counter guard
+   * @param {string} taskId
+   * @param {string} status
+   * @param {string|null} expectedUpdatedAt - updated_at lần đọc gần nhất, để chặn ghi đè
    */
-  async updateStatus(taskId, status) {
+  async updateStatus(taskId, status, expectedUpdatedAt = null) {
     if (!taskId) throw new Error('Thiếu taskId để đổi trạng thái.');
     const activeOrg = appState.activeOrganizationId;
 
@@ -341,7 +372,7 @@ export const TaskService = {
     taskMutationVersions.set(taskId, nextVersion);
 
     try {
-      const updated = await TaskRepository.updateTaskStatus(taskId, status);
+      const updated = await TaskRepository.updateTaskStatus(taskId, status, expectedUpdatedAt);
 
       // Check if another rapid status change occurred while this request was in flight
       if (taskMutationVersions.get(taskId) !== nextVersion) {
@@ -362,44 +393,10 @@ export const TaskService = {
       if (mapped) {
         (async () => {
           try {
-            const employees = (appState.employees && appState.employees.length) ? appState.employees : (typeof window !== 'undefined' && window.cloudEmployees ? window.cloudEmployees : []);
             const targetEmployeeId = canonical?.primary_assignee_id || updated?.primary_assignee_id;
-            const assignee = targetEmployeeId ? employees.find(e => e.id === targetEmployeeId) : null;
-            
-            // Identify current updater (actor)
-            const actorRole = appState.activeMembership?.role || (typeof window !== 'undefined' && window.__worktree_supabase_user?.role);
-            const isAdminActor = actorRole === 'owner' || actorRole === 'admin';
+            const { chatIds } = resolveStatusNotifyRecipients({ assigneeId: targetEmployeeId });
 
-            const currentEmployeeId = appState.activeMembership?.employeeId || (typeof window !== 'undefined' && (window.__worktree_supabase_user?.personId || window.__worktree_supabase_user?.employeeId));
-            const currentEmp = employees.find(e => 
-              (currentEmployeeId && e.id === currentEmployeeId) ||
-              (appState.user?.id && e.user_id === appState.user.id) ||
-              (e.email && appState.user?.email && e.email.toLowerCase() === appState.user.email.toLowerCase())
-            );
-            const actorZaloChatId = currentEmp?.zalo_chat_id;
-            const isAssigneeActor = currentEmp && assignee && currentEmp.id === assignee.id;
-
-            const chatIdsToNotify = new Set();
-
-            if (isAdminActor) {
-              // Admin/Owner updated the task -> Notify ONLY the assignee (if not the admin themselves)
-              // NEVER notify admin of their own changes
-              if (assignee && assignee.zalo_chat_id && assignee.id !== currentEmployeeId && assignee.zalo_chat_id !== actorZaloChatId) {
-                chatIdsToNotify.add(assignee.zalo_chat_id);
-              }
-            } else if (isAssigneeActor) {
-              // Employee updated their own task (e.g. completes or requests review) -> Notify managers/admin with Zalo
-              // NEVER notify the employee actor themselves
-              const otherLinked = employees.filter(e => e.zalo_chat_id && e.zalo_chat_id !== actorZaloChatId && e.id !== currentEmployeeId);
-              otherLinked.forEach(m => chatIdsToNotify.add(m.zalo_chat_id));
-            } else {
-              // Coworker/other member updated the task -> Notify the assignee
-              if (assignee && assignee.zalo_chat_id && assignee.id !== currentEmployeeId && assignee.zalo_chat_id !== actorZaloChatId) {
-                chatIdsToNotify.add(assignee.zalo_chat_id);
-              }
-            }
-
-            if (chatIdsToNotify.size > 0) {
+            if (chatIds.size > 0) {
               const targetNodeId = canonical?.node_id || updated?.node_id;
               const nodes = (appState.nodes && appState.nodes.length) ? appState.nodes : (typeof window !== 'undefined' && window.appState?.nodes ? window.appState.nodes : []);
               const node = nodes.find(n => n.id === targetNodeId);
@@ -407,7 +404,7 @@ export const TaskService = {
               const updaterName = appState.user?.user_metadata?.full_name || appState.user?.email || (typeof window !== 'undefined' && typeof window.person === 'function' ? window.person().name : 'Đồng đội');
               const uiStatus = DB_STATUS_TO_UI[status] || STATUS_MAP.dbToUi[status] || status;
 
-              for (const cid of chatIdsToNotify) {
+              for (const cid of chatIds) {
                 await ZaloBotService.sendStatusNotification({
                   zaloChatId: cid,
                   taskTitle: canonical?.title || updated?.title || 'Công việc',
@@ -417,7 +414,7 @@ export const TaskService = {
                   taskId
                 });
               }
-              console.info(`[ZaloBot] Đã gửi thông báo đổi trạng thái (${uiStatus}) đến ${chatIdsToNotify.size} tài khoản Zalo`);
+              console.info(`[ZaloBot] Đã gửi thông báo đổi trạng thái (${uiStatus}) đến ${chatIds.size} tài khoản Zalo`);
             }
           } catch (zaloErr) {
             console.warn('[ZaloBot] Gửi thông báo đổi trạng thái thất bại:', zaloErr);
