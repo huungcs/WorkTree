@@ -66,7 +66,8 @@ function createMockSupabase() {
     task_dependencies: [],
     task_comments: [],
     task_time_entries: [],
-    activity_logs: []
+    activity_logs: [],
+    platform_ai_settings: []
   };
 
   function makeQuery(table) {
@@ -444,10 +445,172 @@ test('AI rich-text renderer parses safe worktree:// action links and neutralizes
   assert.equal(html.includes('href="javascript:'), false);
 });
 
+test('AI endpoint loads settings directly from Supabase platform_ai_settings without AI_* env vars', async () => {
+  const dbMock = createMockSupabase();
+  dbMock.db.platform_ai_settings.push({
+    id: 'default',
+    provider: 'xpiki',
+    api_base_url: 'https://mock-db-ai.local/v1/chat/completions',
+    api_key: 'db-secret-provider-key-xyz',
+    model: 'claude-opus-5',
+    fallback_model: 'claude-opus-4-6',
+    is_enabled: true,
+    timeout_ms: 18000
+  });
+
+  let seenAuth = '';
+  let seenSystemPrompt = '';
+  const dbFetch = async (_url, options) => {
+    seenAuth = options.headers.Authorization;
+    const body = JSON.parse(options.body);
+    seenSystemPrompt = body.messages?.[0]?.content || '';
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: `Đã đọc từ snapshot: [${'Chốt hợp đồng Q4'}](worktree://task/${TASK_A1})`
+        }
+      }]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  const dbHandler = createAiHandler({
+    supabase: dbMock,
+    fetchFn: dbFetch,
+    env: {}
+  });
+  const dbServer = createServer({ aiHandler: dbHandler });
+  await new Promise(resolve => dbServer.listen(0, '127.0.0.1', resolve));
+  const dbOrigin = `http://127.0.0.1:${dbServer.address().port}`;
+
+  try {
+    const statusRes = await fetch(`${dbOrigin}/api/ai?action=status&organizationId=${ORG_A}`, {
+      headers: { Authorization: 'Bearer token-owner-a' }
+    }).then(r => r.json());
+    assert.equal(statusRes.ok, true);
+    assert.equal(statusRes.configured, true);
+    assert.equal(statusRes.configSource, 'database');
+    assert.equal(statusRes.model, 'claude-opus-5');
+    assert.equal(JSON.stringify(statusRes).includes('db-secret-provider-key-xyz'), false);
+
+    const chatRes = await fetch(`${dbOrigin}/api/ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token-owner-a'
+      },
+      body: JSON.stringify({
+        action: 'chat',
+        organizationId: ORG_A,
+        messages: [{ role: 'user', content: 'Tóm tắt nhanh các việc đang mở' }]
+      })
+    }).then(r => r.json());
+
+    assert.equal(chatRes.ok, true);
+    assert.equal(seenAuth, 'Bearer db-secret-provider-key-xyz');
+    assert.equal(seenSystemPrompt.includes(TASK_A1), true, 'Snapshot should preload scoped task IDs for 1-turn response');
+    assert.equal(seenSystemPrompt.includes('Bí mật Beta'), false, 'Snapshot must preserve strict tenant isolation');
+    assert.ok(chatRes.quickLinks.some(l => l.href === `worktree://task/${TASK_A1}`));
+
+    // Disabling AI in database must block chat cleanly with 503
+    dbMock.db.platform_ai_settings[0].is_enabled = false;
+    const disabledRes = await fetch(`${dbOrigin}/api/ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token-owner-a'
+      },
+      body: JSON.stringify({
+        action: 'chat',
+        organizationId: ORG_A,
+        messages: [{ role: 'user', content: 'Thử lại khi đã tắt' }]
+      })
+    });
+    assert.equal(disabledRes.status, 503);
+  } finally {
+    await new Promise(resolve => dbServer.close(resolve));
+  }
+});
+
+test('AI engine deduplicates/parallelizes read tools on shared cache and recovers cleanly from upstream timeout', async () => {
+  const dbMock = createMockSupabase();
+  let rollupQueries = 0;
+  let employeeQueries = 0;
+  const origFrom = dbMock.from.bind(dbMock);
+  dbMock.from = (table) => {
+    if (table === 'task_rollups') rollupQueries += 1;
+    if (table === 'employees') employeeQueries += 1;
+    return origFrom(table);
+  };
+
+  let callCount = 0;
+  const cacheTestFetch = async () => {
+    callCount += 1;
+    if (callCount === 1) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              { id: 'c1', type: 'function', function: { name: 'worktree_get_report', arguments: '{}' } },
+              { id: 'c2', type: 'function', function: { name: 'worktree_list_tasks', arguments: '{"status":"in_progress"}' } },
+              { id: 'c3', type: 'function', function: { name: 'worktree_get_report', arguments: '{}' } }
+            ]
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    const abortErr = new Error('The operation was aborted');
+    abortErr.name = 'AbortError';
+    throw abortErr;
+  };
+
+  const cacheHandler = createAiHandler({
+    supabase: dbMock,
+    fetchFn: cacheTestFetch,
+    env: {
+      AI_API_BASE_URL: 'https://mock-ai.local/v1/chat/completions',
+      AI_API_KEY: 'mock-server-only-key',
+      AI_MODEL: 'claude-opus-5'
+    }
+  });
+  const cacheServer = createServer({ aiHandler: cacheHandler });
+  await new Promise(resolve => cacheServer.listen(0, '127.0.0.1', resolve));
+  const cacheOrigin = `http://127.0.0.1:${cacheServer.address().port}`;
+
+  try {
+    const res = await fetch(`${cacheOrigin}/api/ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token-owner-a'
+      },
+      body: JSON.stringify({
+        action: 'chat',
+        organizationId: ORG_A,
+        messages: [{ role: 'user', content: 'Kiểm tra song song báo cáo và danh sách việc' }]
+      })
+    }).then(r => r.json());
+
+    assert.equal(res.ok, true, 'Timeout after loading verified data should return deterministic fallback reply instead of 504 error');
+    assert.equal(res.executedTools.length, 3);
+    assert.equal(rollupQueries, 1, 'Shared execution cache must coalesce snapshot + 3 parallel/duplicate tool calls into 1 DB query');
+    assert.equal(employeeQueries, 1, 'Shared execution cache must query employees only once');
+    assert.match(res.reply, /Chốt hợp đồng Q4/);
+    assert.match(res.reply, new RegExp(`worktree://task/${TASK_A1}`));
+  } finally {
+    await new Promise(resolve => cacheServer.close(resolve));
+  }
+});
+
 test('AI UI feature and tracked code adhere to AGENTS.md architecture and zero-secret rules', () => {
   const aiFiles = [
     path.join(__dirname, '..', 'api', 'ai.js'),
+    path.join(__dirname, '..', 'api', 'platform-admin.js'),
     path.join(__dirname, '..', 'api', 'zalo-webhook.js'),
+    path.join(__dirname, '..', 'scripts', 'sync-ai-config-to-db.js'),
+    path.join(__dirname, '..', 'supabase', 'migrations', '20261119021000_add_platform_ai_settings.sql'),
     path.join(__dirname, '..', 'src', 'features', 'ai', 'index.js'),
     path.join(__dirname, '..', 'src', 'features', 'ai', 'services', 'ai-client-service.js'),
     path.join(__dirname, '..', 'src', 'features', 'ai', 'ui', 'ai-assistant-dialog.js'),

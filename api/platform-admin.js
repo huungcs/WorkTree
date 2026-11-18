@@ -766,6 +766,98 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ ok: true, violations: violationsList });
     }
 
+    // -------------------------------------------------------------------------
+    // ACTION: Platform AI Settings stored in Database (no AI_* env needed)
+    // -------------------------------------------------------------------------
+    if (action === 'ai_settings_get') {
+      const { data, error } = await supabase
+        .from('platform_ai_settings')
+        .select('id, provider, api_base_url, api_key, model, fallback_model, is_enabled, timeout_ms, updated_at')
+        .eq('id', 'default')
+        .maybeSingle();
+
+      if (error) {
+        return res.status(503).json({
+          ok: false,
+          error: error.code === 'PGRST205'
+            ? 'Bảng platform_ai_settings chưa được tạo trên Supabase.'
+            : error.message
+        });
+      }
+
+      const rawKey = String(data?.api_key || '').trim();
+      const maskedKey = rawKey.length > 8
+        ? `${rawKey.slice(0, 5)}••••${rawKey.slice(-4)}`
+        : (rawKey ? '••••' : '');
+
+      return res.status(200).json({
+        ok: true,
+        aiSettings: {
+          provider: data?.provider || 'xpiki',
+          apiBaseUrl: data?.api_base_url || 'https://api.xpiki.com/v1/chat/completions',
+          model: data?.model || 'claude-opus-5',
+          fallbackModel: data?.fallback_model || 'claude-opus-4-6',
+          isEnabled: data?.is_enabled !== false,
+          timeoutMs: data?.timeout_ms || 22000,
+          hasApiKey: Boolean(rawKey),
+          apiKeyMasked: maskedKey,
+          updatedAt: data?.updated_at || null
+        }
+      });
+    }
+
+    if (action === 'ai_settings_update') {
+      const next = body.aiSettings || body || {};
+      const patch = {
+        id: 'default',
+        updated_by: user.id,
+        updated_at: new Date().toISOString()
+      };
+      if (typeof next.provider === 'string' && next.provider.trim()) patch.provider = next.provider.trim().slice(0, 64);
+      if (typeof next.apiBaseUrl === 'string' && next.apiBaseUrl.trim()) patch.api_base_url = next.apiBaseUrl.trim();
+      if (typeof next.apiKey === 'string' && next.apiKey.trim()) patch.api_key = next.apiKey.trim();
+      if (typeof next.model === 'string' && next.model.trim()) patch.model = next.model.trim().slice(0, 120);
+      if (typeof next.fallbackModel === 'string') patch.fallback_model = next.fallbackModel.trim().slice(0, 120);
+      if (typeof next.isEnabled === 'boolean') patch.is_enabled = next.isEnabled;
+      if (Number.isFinite(Number(next.timeoutMs))) {
+        patch.timeout_ms = Math.min(60000, Math.max(3000, Math.round(Number(next.timeoutMs))));
+      }
+
+      const { error } = await supabase
+        .from('platform_ai_settings')
+        .upsert(patch, { onConflict: 'id' });
+
+      if (error) {
+        return res.status(400).json({ ok: false, error: error.message });
+      }
+
+      try {
+        const aiMod = require('./ai');
+        aiMod.invalidateAiConfigCache?.();
+      } catch (_) {}
+
+      try {
+        await supabase.from('security_audit_logs').insert({
+          organization_id: null,
+          actor_user_id: user.id,
+          action: 'PLATFORM_AI_SETTINGS_UPDATED',
+          target_type: 'platform_ai_settings',
+          target_id: 'default',
+          metadata: {
+            performed_by: user.email,
+            model: patch.model,
+            fallback_model: patch.fallback_model,
+            api_base_url: patch.api_base_url,
+            is_enabled: patch.is_enabled,
+            updated_api_key: Boolean(patch.api_key)
+          },
+          created_at: new Date().toISOString()
+        });
+      } catch (_) {}
+
+      return res.status(200).json({ ok: true, message: 'Đã lưu cấu hình AI vào database.' });
+    }
+
     return res.status(400).json({ ok: false, error: `Action không hợp lệ: ${action}` });
   } catch (err) {
     console.error('[platform-admin error]', err);

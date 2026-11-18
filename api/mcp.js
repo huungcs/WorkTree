@@ -1422,8 +1422,24 @@ async function fetchOrgTasks(supabase, orgId) {
     .eq('organization_id', orgId)
     .is('archived_at', null)
     .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+
+  if (!error) return data || [];
+
+  // Fallback to base `tasks` table if `task_rollups` view is unavailable
+  const fallback = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('organization_id', orgId)
+    .is('archived_at', null)
+    .order('created_at', { ascending: false });
+  if (fallback.error) throw fallback.error;
+  return (fallback.data || []).map(t => ({
+    ...t,
+    actual_minutes: Number(t.actual_minutes || 0),
+    checklist_total: Number(t.checklist_total || 0),
+    checklist_done: Number(t.checklist_done || 0),
+    is_blocked: Boolean(t.is_blocked)
+  }));
 }
 
 async function fetchOrgEmployees(supabase, orgId) {
@@ -1433,8 +1449,36 @@ async function fetchOrgEmployees(supabase, orgId) {
     .eq('organization_id', orgId)
     .eq('employment_status', 'active')
     .order('full_name', { ascending: true });
-  if (error) throw error;
-  return data || [];
+  if (!error) return data || [];
+
+  const fallback = await supabase
+    .from('employees')
+    .select('id, organization_id, full_name, email, employee_code, job_title, home_node_id, employment_status, created_at, updated_at')
+    .eq('organization_id', orgId)
+    .eq('employment_status', 'active')
+    .order('full_name', { ascending: true });
+  if (fallback.error) throw fallback.error;
+  return fallback.data || [];
+}
+
+function createMcpExecutionCache(supabase, grant) {
+  let scopePromise = null;
+  let tasksPromise = null;
+  let employeesPromise = null;
+  return {
+    getScopeCtx() {
+      if (!scopePromise) scopePromise = loadReadableScopeContext(supabase, grant);
+      return scopePromise;
+    },
+    getTasks() {
+      if (!tasksPromise) tasksPromise = fetchOrgTasks(supabase, grant.organizationId);
+      return tasksPromise;
+    },
+    getEmployees() {
+      if (!employeesPromise) employeesPromise = fetchOrgEmployees(supabase, grant.organizationId);
+      return employeesPromise;
+    }
+  };
 }
 
 function formatTaskItem(task, nodeMap, empMap, today) {
@@ -1508,14 +1552,16 @@ async function syncTaskAutoProgress(supabase, organizationId, task) {
   }
 }
 
-async function executeMcpTool(supabase, grant, toolName, rawArgs = {}) {
+async function executeMcpTool(supabase, grant, toolName, rawArgs = {}, runtimeCache = null) {
   const args = (rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)) ? rawArgs : {};
   const availableNames = new Set(getToolDefinitions(grant).map(t => t.name));
   if (!availableNames.has(toolName)) {
     throw mcpToolError('permission_denied', `Công cụ "${toolName}" không tồn tại hoặc không nằm trong quyền của kết nối MCP này.`);
   }
 
-  const scopeCtx = await loadReadableScopeContext(supabase, grant);
+  const getTasks = () => (runtimeCache ? runtimeCache.getTasks() : fetchOrgTasks(supabase, grant.organizationId));
+  const getEmployees = () => (runtimeCache ? runtimeCache.getEmployees() : fetchOrgEmployees(supabase, grant.organizationId));
+  const scopeCtx = await (runtimeCache ? runtimeCache.getScopeCtx() : loadReadableScopeContext(supabase, grant));
   const today = getTodayInTimezone(grant.organization?.timezone);
 
   // -------------------------------------------------------------------------
@@ -1523,8 +1569,8 @@ async function executeMcpTool(supabase, grant, toolName, rawArgs = {}) {
   // -------------------------------------------------------------------------
   if (toolName === 'worktree_get_workspace') {
     const [allTasks, allEmployees] = await Promise.all([
-      fetchOrgTasks(supabase, grant.organizationId),
-      fetchOrgEmployees(supabase, grant.organizationId)
+      getTasks(),
+      getEmployees()
     ]);
     const readableTasks = allTasks.filter(t => canReadTask(grant, t, scopeCtx));
     const readableEmployees = allEmployees.filter(e =>
@@ -1623,8 +1669,8 @@ async function executeMcpTool(supabase, grant, toolName, rawArgs = {}) {
     }
 
     const [employees, allTasks] = await Promise.all([
-      fetchOrgEmployees(supabase, grant.organizationId),
-      includeCounts ? fetchOrgTasks(supabase, grant.organizationId) : Promise.resolve([])
+      getEmployees(),
+      includeCounts ? getTasks() : Promise.resolve([])
     ]);
 
     let list = employees.filter(e =>
@@ -1681,8 +1727,8 @@ async function executeMcpTool(supabase, grant, toolName, rawArgs = {}) {
   // -------------------------------------------------------------------------
   if (toolName === 'worktree_list_tasks') {
     const [allTasks, allEmployees] = await Promise.all([
-      fetchOrgTasks(supabase, grant.organizationId),
-      fetchOrgEmployees(supabase, grant.organizationId)
+      getTasks(),
+      getEmployees()
     ]);
     const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
@@ -1785,7 +1831,7 @@ async function executeMcpTool(supabase, grant, toolName, rawArgs = {}) {
       { data: timeEntries = [] },
       { data: attachments = [] }
     ] = await Promise.all([
-      fetchOrgEmployees(supabase, grant.organizationId),
+      getEmployees(),
       supabase.from('task_checklist_items').select('id, content, is_done, sort_order, completed_at, created_at').eq('organization_id', grant.organizationId).eq('task_id', taskId).order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
       supabase.from('task_dependencies').select('depends_on_task_id, created_at').eq('organization_id', grant.organizationId).eq('task_id', taskId),
       supabase.from('task_comments').select('id, author_user_id, body, edited_at, created_at').eq('organization_id', grant.organizationId).eq('task_id', taskId).order('created_at', { ascending: true }),
@@ -1854,8 +1900,8 @@ async function executeMcpTool(supabase, grant, toolName, rawArgs = {}) {
   if (toolName === 'worktree_get_report') {
     const includeWorkload = args.include_workload !== false;
     const [allTasks, allEmployees] = await Promise.all([
-      fetchOrgTasks(supabase, grant.organizationId),
-      fetchOrgEmployees(supabase, grant.organizationId)
+      getTasks(),
+      getEmployees()
     ]);
     const empMap = new Map(allEmployees.map(e => [e.id, e]));
 
@@ -3853,7 +3899,15 @@ defaultHandler.getToolDefinitions = getToolDefinitions;
 defaultHandler.getPromptDefinitions = getPromptDefinitions;
 defaultHandler.renderPromptMessage = renderPromptMessage;
 defaultHandler.executeMcpTool = executeMcpTool;
+defaultHandler.createMcpExecutionCache = createMcpExecutionCache;
 defaultHandler.loadReadableScopeContext = loadReadableScopeContext;
+defaultHandler.fetchOrgTasks = fetchOrgTasks;
+defaultHandler.fetchOrgEmployees = fetchOrgEmployees;
+defaultHandler.canReadTask = canReadTask;
+defaultHandler.formatTaskItem = formatTaskItem;
+defaultHandler.isTaskLate = isTaskLate;
+defaultHandler.isTaskAttention = isTaskAttention;
+defaultHandler.getTodayInTimezone = getTodayInTimezone;
 defaultHandler.readRawBody = readRawBody;
 defaultHandler.polyfillRes = polyfillRes;
 defaultHandler.loadConfig = loadConfig;
