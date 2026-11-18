@@ -127,6 +127,14 @@ export class GettingStartedCard {
         </div>
 
         <div class="worktree-checklist-footer">
+          ${(['owner', 'admin'].includes(role) && typeof window.openAiOrgBlueprintDialog === 'function') ? `
+          <button type="button" class="worktree-checklist-tour-btn" id="openAiOrgBlueprintBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m12 3 2.5 6.2L21 12l-6.5 2.8L12 21l-2.5-6.2L3 12l6.5-2.8Z"></path>
+            </svg>
+            <span>Khởi tạo khung phòng ban mẫu bằng AI</span>
+          </button>
+          ` : ''}
           <button type="button" class="worktree-checklist-tour-btn" id="startTourFromCardBtn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -143,6 +151,13 @@ export class GettingStartedCard {
     const dismissBtn = card.querySelector('#checklistDismissBtn');
     const contentEl = card.querySelector('#checklistContent');
     const tourBtn = card.querySelector('#startTourFromCardBtn');
+    const blueprintBtn = card.querySelector('#openAiOrgBlueprintBtn');
+
+    blueprintBtn?.addEventListener('click', () => {
+      if (typeof window.openAiOrgBlueprintDialog === 'function') {
+        window.openAiOrgBlueprintDialog();
+      }
+    });
 
     toggleBtn?.addEventListener('click', () => {
       const currentlyCollapsed = contentEl.classList.contains('is-collapsed');

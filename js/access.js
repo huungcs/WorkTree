@@ -31,8 +31,71 @@ Object.assign(ICONS,{
  bot:'<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
  phone:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>'
 });
+const DEMO_ROLES={
+ owner:{name:'Chủ sở hữu Demo',personId:306,scopes:[],icon:'shield',detail:'Toàn bộ không gian làm việc'},
+ admin:{name:'Quản trị viên Demo',personId:306,scopes:[],icon:'settings',detail:'Toàn bộ đơn vị và công việc mẫu'},
+ manager:{name:'Quản lý Demo',personId:302,scopes:[11],icon:'network',detail:'Quản lý Phòng Marketing'},
+ member:{name:'Phạm Chi',personId:302,scopes:[11],icon:'user',detail:'Công việc được giao trong Phòng Marketing'},
+ viewer:{name:'Khách xem Demo',personId:null,scopes:[1],icon:'eye',detail:'Xem công việc trong toàn bộ không gian'}
+};
+let demoAccount=null;
+const demoPins=new Map();
+function isDemoRoute(){return new URLSearchParams(window.location.search).get('demo')==='1';}
+function createDemoDataset(){
+ const sample=validateData(SEED).data;
+ sample.nodes.find(n=>n.parent===null).name='NTH GROUP';
+ let offset=-1;
+ for(const task of sample.tasks){
+  // Preserve a completed task outside the current cycle to demonstrate history.
+  const dueOffset=task.status==='Hoàn thành'?-45:offset++;
+  task.due=addDays(TODAY,dueOffset);
+  task.start=addDays(task.due,-(2+task.id%3));
+ }
+ return sample;
+}
+function startDemoWorkspace(){
+ if(!isDemoRoute()||window.__worktree_supabase_user||window.__worktree_is_cloud_workspace)return false;
+ data=createDemoDataset();
+ rebuild();
+ document.body.dataset.demoWorkspace='true';
+ $('workspaceSub').textContent='Bản demo';
+ for(const id of ['hub-tab-mcp','hub-tab-settings'])$(id).hidden=true;
+ $('authScreen').hidden=true;$('authScreen').innerHTML='';
+ $('app').hidden=false;$('app').inert=false;
+ selectDemoRole('owner',{preserveUrl:true});
+ if(typeof window.applyUrlStateToWorkspace==='function')window.applyUrlStateToWorkspace({isInitialLoad:true});
+ if(!$('drawer')?.open)$('mainContent').focus({preventScroll:true});
+ return true;
+}
+function selectDemoRole(role,{preserveUrl=false}={}){
+ if((!demoAccount&&!isDemoRoute())||!Object.hasOwn(DEMO_ROLES,role)||window.__worktree_supabase_user)return;
+ const previous={theme:state.theme,density:state.density,collapsed:state.collapsed};
+ demoAccount={...DEMO_ROLES[role],id:'demo-'+role,role};
+ closeDialog('profileDialog',true);
+ closeSystemHub();
+ resetPersonalState();
+ Object.assign(state,previous,{currentUser:demoAccount.personId,savedViews:[]});
+ if(role==='member')state.view='list';
+ applyTheme();applySidebar();renderAll(true);renderStorage();
+ if(!preserveUrl)syncUrlWithState({replace:true});
+ $('liveStatus').textContent='Đang xem demo với vai trò '+T[role];
+ window.appState?.notify();
+}
+function openDemoRolePicker(){
+ const a=demoAccount;
+ $('profileContent').innerHTML=`
+  <div class="dialog-head"><div><h2 id="profileTitle">Xem theo vai trò</h2><p class="dialog-sub">NTH GROUP · Bản demo</p></div><button type="button" class="icon-btn" data-action="close" data-dialog="profileDialog" aria-label="Đóng">${icon('x')}</button></div>
+  <div class="dialog-scroll"><div class="ws-switcher-list" role="group" aria-label="Vai trò trong demo">
+   ${Object.entries(DEMO_ROLES).map(([role,option])=>`<button type="button" class="ws-switcher-item ${a.role===role?'active':''}" data-v8="demo-role" data-role="${role}" aria-pressed="${a.role===role}">
+    <span class="ws-switcher-avatar" aria-hidden="true">${icon(option.icon)}</span><span class="ws-switcher-info"><strong class="ws-switcher-name">${T[role]}</strong><span class="ws-switcher-slug">${esc(option.detail)}</span></span>${a.role===role?`<span class="ws-switcher-check" aria-hidden="true">${icon('check')}</span>`:''}
+   </button>`).join('')}
+  </div></div>
+  <div class="dialog-foot"><button type="button" class="btn" data-v8="demo-exit">Thoát demo</button><button type="button" class="btn primary" data-action="close" data-dialog="profileDialog">Xong</button></div>`;
+ closeSidebar();showDialog('profileDialog','[aria-pressed="true"]');
+}
 function currentAccount(){
  if(window.__worktree_supabase_user) return window.__worktree_supabase_user;
+ if(demoAccount)return demoAccount;
  if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
   const a=session&&identity.accounts.find(a=>a.id===session.id&&a.active&&a.version===session.version);
   return a&&!a.mustChange?a:null;
@@ -77,13 +140,27 @@ function inScope(nodeId,a=currentAccount()){
 }
 function canReadTask(t,a=currentAccount()){
  if(!a||!t)return false;
- if(window.__worktree_is_cloud_workspace && a.personId && (t.owner === a.personId || String(t.owner) === String(a.personId))) return true;
- return !!(inScope(t.node,a)&&(a.role!=='member'||(a.personId&&t.owner===a.personId)));
+ if(window.__worktree_is_cloud_workspace && a.personId && (t.owner === a.personId || String(t.owner) === String(a.personId) || (Array.isArray(t.collaborators) && t.collaborators.some(id => String(id) === String(a.personId))))) return true;
+ return !!(inScope(t.node,a)&&(a.role!=='member'||(a.personId&&(t.owner===a.personId||(Array.isArray(t.collaborators)&&t.collaborators.some(id=>String(id)===String(a.personId)))))));
 }
 function canUpdateTask(t){const a=currentAccount();return !!(a&&a.role!=='viewer'&&canReadTask(t));}
 function canManageTask(t){const a=currentAccount();return !!(a&&['owner','admin','manager'].includes(a.role)&&canReadTask(t));}
 function canCreateTask(){const a=currentAccount();return !!(a&&['owner','admin','manager'].includes(a.role)&&data.nodes.some(n=>inScope(n.id)));}
 function canPlaceTask(id){return isAdmin()||currentAccount()?.role==='manager'&&inScope(id);}
+function canCreateChildNode(parentId=state.selected){
+ if(isAdmin())return true;
+ const a=currentAccount();
+ if(!a||a.role!=='manager')return false;
+ if(parentId&&byNode.has(parentId))return inScope(parentId,a);
+ return data?.nodes?.some(n=>inScope(n.id,a))||false;
+}
+function canManageNode(nodeId=state.selected){
+ if(demoAccount&&nodeId===rootNode()?.id)return false;
+ if(isAdmin())return true;
+ const a=currentAccount(),n=byNode.get(nodeId);
+ if(!a||a.role!=='manager'||!n||n.parent===null)return false;
+ return inScope(n.id,a)&&(!n.parent||inScope(n.parent,a));
+}
 function canReport(){return ['owner','admin','manager'].includes(currentAccount()?.role);}
 function readableTasks(){return data?.tasks.filter(t=>canReadTask(t))||[];}
 function visibleNodeIds(){
@@ -111,7 +188,7 @@ function refreshIdentity(){
  if(session&&!currentAccount()){lockWorkspace(T.sessionExpired);return false;}return true;
 }
 function requireLogin(){
- if(window.__worktree_supabase_user) return true;
+ if(window.__worktree_supabase_user||demoAccount) return true;
  if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
   if(!refreshIdentity())return false;
   if(!currentAccount()||(session && (Date.now()-session.lastActive>IDLE_MS||Date.now()-session.startedAt>MAX_SESSION_MS))){if(session)lockWorkspace(T.sessionExpired);return false;}
@@ -122,14 +199,26 @@ function requireLogin(){
 function requireAdmin(){return requireLogin()&&(isAdmin()||deny());}
 function assertMutation(before,after){
  if(!requireLogin())throw Error(T.denied);const a=currentAccount();
- if(a.role==='admin'){
+ if(a.role==='admin'||(demoAccount&&a.role==='owner')){
   const map=new Map(after.nodes.map(n=>[n.id,n]));
   for(const u of identity.accounts.filter(u=>u.active&&u.role!=='admin')){
    if(u.personId&&map.get(u.personId)?.type!=='person'||u.scopes.some(id=>!map.has(id)))throw Error(T.linkedGuard);
   }return;
  }
  if(a.role==='viewer')throw Error(T.denied);
- if(JSON.stringify(before.nodes)!==JSON.stringify(after.nodes))throw Error(T.denied);
+ if(JSON.stringify(before.nodes)!==JSON.stringify(after.nodes)){
+  if(a.role!=='manager')throw Error(T.denied);
+  const oldN=new Map(before.nodes.map(n=>[n.id,n])),nextN=new Map(after.nodes.map(n=>[n.id,n]));
+  const isNodeScoped=(nid,map)=>{let cur=map.get(nid),seen=new Set();while(cur&&!seen.has(cur.id)){if((a.scopes||[]).includes(cur.id))return true;seen.add(cur.id);cur=map.get(cur.parent);}return false;};
+  for(const u of identity.accounts.filter(u=>u.active&&u.role!=='admin')){if(u.personId&&nextN.get(u.personId)?.type!=='person'||u.scopes.some(sid=>!nextN.has(sid)))throw Error(T.linkedGuard);}
+  for(const nid of new Set([...oldN.keys(),...nextN.keys()])){
+   const b=oldN.get(nid),n=nextN.get(nid);
+   if(JSON.stringify(b)===JSON.stringify(n))continue;
+   if(b?.parent===null||n?.parent===null)throw Error(T.denied);
+   if(b&&!isNodeScoped(b.id,oldN))throw Error(T.denied);
+   if(n&&(!isNodeScoped(n.parent,nextN)||n.type==='company'||n.type==='person'))throw Error(T.denied);
+  }
+ }
  const old=new Map(before.tasks.map(t=>[t.id,t])),next=new Map(after.tasks.map(t=>[t.id,t]));
  const memberFields=new Set(['status','progress','actual','checklist','comments','logs','updatedAt','resumeStatus','resumeProgress','autoProgress','favorite']);
  for(const id of new Set([...old.keys(),...next.keys()])){
@@ -162,6 +251,7 @@ function readIdentity(){
  try{pinRaw=localStorage.getItem(PIN_KEY);const p=JSON.parse(pinRaw||'null');if(p?.version===1&&isObject(p.users))pinDB=p;}catch(e){}
 }
 function writeIdentity(next){
+ if(demoAccount)return false;
  try{
   if(localStorage.getItem(ACCESS_KEY)!==identityRaw)throw Error(T.scopeChanged);
   const raw=JSON.stringify(next);localStorage.setItem(ACCESS_KEY,raw);identity=next;identityRaw=raw;return true;
@@ -245,7 +335,7 @@ function loadPrefs(){
  if(r&&!visibleNodeIds().has(state.selected))state.selected=r.id;
  if(state.timer&&!canUpdateTask(byTask.get(state.timer.taskId)))state.timer=null;
 }
-function savePrefs(){const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}
+function savePrefs(){if(demoAccount)return;const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}
 async function enterWorkspace(a,first=false,restore=false){
  resetPersonalState();if(!restore)session={id:a.id,version:a.version,startedAt:Date.now(),lastActive:Date.now()};saveSession();loadPrefs();
  if(window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views)){
@@ -253,12 +343,19 @@ async function enterWorkspace(a,first=false,restore=false){
  }
  if(a.role==='member'&&!restore){state.view='list';state.filters.owner=String(a.personId);}
  $('authScreen').hidden=true;$('app').hidden=false;$('app').inert=false;
- $('authScreen').innerHTML='';applyTheme();applySidebar();renderAll(true);appReady=true;
+ $('authScreen').innerHTML='';applyTheme();applySidebar();appReady=true;
+ const urlParams=typeof window!=='undefined'&&window.location?.search?new URLSearchParams(window.location.search):null;
+ const hasUrlState=Boolean(urlParams&&['node','view','nav','sub','q','status','priority','owner','due','fav','period','from','to','task','module'].some(k=>urlParams.has(k)));
+ if(hasUrlState&&typeof window.applyUrlStateToWorkspace==='function'){
+  await window.applyUrlStateToWorkspace({isInitialLoad:true});
+ }else{
+  renderAll(true);
+ }
  if(typeof window.refreshNotificationBadge==='function'){window.refreshNotificationBadge();}
  if(first&&!lastRaw&&!storageProtected)persistData();
  if(!restore)toast(T.welcome+': '+a.name);
  if(migrationMessage&&first)toast(migrationMessage);
- $('mainContent').focus({preventScroll:true});
+ if(!$('drawer')?.open&&!isSystemHubOpen())$('mainContent').focus({preventScroll:true});
 }
 function lockWorkspace(message=T.sessionExpired){
  if(session&&state.timer){state.timer.pausedAt=Date.now();savePrefs();}
@@ -299,10 +396,69 @@ function roleDescription(r){
  };
  return descriptions[r] || 'Toàn quyền trong phạm vi được cấp.';
 }
+const CLOUD_AUDIT_LABELS={
+ 'organization.created':'Tạo không gian làm việc',
+ 'invitation.created':'Tạo lời mời',
+ 'invitation.accepted':'Chấp nhận lời mời',
+ 'invitation.revoked':'Thu hồi lời mời',
+ 'membership.role_scopes_changed':'Đổi vai trò hoặc phạm vi truy cập',
+ 'membership.status_changed':'Đổi trạng thái tài khoản'
+};
+const cloudAuditDate=new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short',timeZone:TZ});
+function cloudAuditHTML(){
+ return `<section class="cloud-account-audit" aria-label="Nhật ký tài khoản">
+  <div class="access-toolbar cloud-audit-toolbar"><div><h3>Sự kiện bảo mật</h3><p>Tối đa 50 sự kiện gần nhất của không gian làm việc.</p></div>
+   <button type="button" class="btn" data-v8="audit-refresh" id="cloudAuditRefresh" disabled>${icon('refresh')}Làm mới</button></div>
+  <div id="cloudAuditResults" role="status" aria-live="polite"></div>
+ </section>`;
+}
+async function loadCloudAccountAudit(){
+ const panel=$('cloudAuditResults'),refresh=$('cloudAuditRefresh'),account=currentAccount();
+ const orgId=window.appState?.activeOrganizationId;
+ if(!panel||!refresh||!window.__worktree_is_cloud_workspace||!isAdmin())return;
+ const isCurrent=()=>panel.isConnected&&window.__worktree_is_cloud_workspace&&
+  window.appState?.activeOrganizationId===orgId&&currentAccount()?.id===account.id&&isAdmin();
+ panel.setAttribute('aria-busy','true');
+ panel.innerHTML='<p class="cloud-audit-state">Đang tải nhật ký…</p>';
+ refresh.disabled=true;
+ try{
+  const events=await window.SecurityAuditRepository.getRecentEvents(orgId);
+  if(!isCurrent())return;
+  if(!events.length){
+   panel.innerHTML=emptyState('Chưa có sự kiện bảo mật','Các lời mời và thay đổi quyền được hệ thống ghi nhận sẽ xuất hiện tại đây.',null,'',true,'shield');
+   return;
+  }
+  const employees=new Map((window.cloudEmployees||[]).map(employee=>[String(employee.id),employee.full_name]));
+  panel.innerHTML=`<ol class="cloud-audit-list">${events.map(entry=>{
+   const title=Object.hasOwn(CLOUD_AUDIT_LABELS,entry.action)?CLOUD_AUDIT_LABELS[entry.action]:'Sự kiện bảo mật';
+   const target=entry.target_type==='employee'?employees.get(String(entry.target_id)):'';
+   const actor=entry.actor_user_id===account.id?account.name:entry.actor_user_id?'Thành viên workspace':'Không rõ người thực hiện';
+   const date=new Date(entry.created_at);
+   const timestamp=entry.created_at&&Number.isFinite(date.getTime())?cloudAuditDate.format(date):'';
+   return `<li><span class="access-audit-icon" aria-hidden="true">${icon('shield')}</span><div class="cloud-audit-info">
+    <strong>${esc(title)}${target?' · '+esc(target):''}</strong><span class="muted">${esc(actor)}</span></div>
+    ${timestamp?`<time datetime="${esc(entry.created_at)}">${esc(timestamp)}</time>`:''}</li>`;
+  }).join('')}</ol>`;
+ }catch{
+  if(isCurrent())panel.innerHTML=emptyState('Chưa tải được nhật ký','Bấm Làm mới để thử lại.',null,'',true,'alert');
+ }finally{
+  if(isCurrent()){panel.removeAttribute('aria-busy');refresh.disabled=false;}
+ }
+}
 function accessAuditHTML(){return `<p class="view-note">${T.local} · Đây không phải nhật ký chống chỉnh sửa.</p><div class="access-audit">${identity.audit.slice().reverse().map(a=>`<div><span class="access-audit-icon">${icon('shield')}</span><p><strong>${esc(a.actor)}</strong> ${esc(a.action)}<small>${esc(a.target)} · ${esc(timeAgo(a.at))}</small></p></div>`).join('')||T.noAudit}</div>`;}
 function matrixHTML(){
  const rows=[['Xem công việc','Toàn bộ','Trong nhánh','Việc được giao','Trong nhánh'],['Tạo, giao, sửa kế hoạch','yes','yes','no','no'],['Cập nhật, checklist, ghi giờ','yes','yes','Việc được giao','no'],['Xóa công việc','yes','Trong nhánh*','no','no'],['Mời tài khoản mới','yes','member/viewer trong nhánh','no','no'],['Sửa cây, quản trị tài khoản','yes','no','no','no'],['Nhập / sao lưu JSON','yes','no','no','no'],['Xuất CSV theo bộ lọc','yes','yes','no','no'],[T.pins+' · '+T.personal,'yes','yes','yes','yes']];
- return `<div class="role-cards">${ROLES.map(r=>`<article><span class="role-badge role-${r}">${icon(r==='admin'?'shield':r==='viewer'?'eye':'user')}${T[r]}</span><p>${roleDescription(r)}</p></article>`).join('')}</div><div class="access-table-scroll"><table class="access-matrix"><thead><tr><th>Thao tác</th>${ROLES.map(r=>`<th>${T[r]}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i===0?`<th>${v}</th>`:`<td>${v==='yes'?`<span class="matrix-yes" aria-label="Có">${icon('check')}</span>`:v==='no'?'<span class="muted" aria-label="Không">—</span>':v}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="view-note">* Không xóa nếu thao tác đó làm thay đổi liên kết của công việc ngoài phạm vi. Cần quản trị viên xử lý.</p>`;
+ return `<section class="permission-matrix" aria-label="So sánh quyền theo vai trò">
+  <div class="role-cards">${ROLES.map(r=>`<article><span class="role-badge role-${r}">${icon(r==='admin'?'shield':r==='viewer'?'eye':'user')}${T[r]}</span><p>${roleDescription(r)}</p></article>`).join('')}</div>
+  <p class="matrix-scroll-hint">Vuốt ngang để xem các cột quyền.</p>
+  <div class="access-table-scroll" tabindex="0" role="region" aria-label="Bảng so sánh quyền">
+   <table class="access-matrix">
+    <thead><tr><th scope="col">Thao tác</th>${ROLES.map(r=>`<th scope="col">${T[r]}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(([label,...values])=>`<tr><th scope="row">${label}</th>${values.map(v=>`<td>${v==='yes'?`<span class="matrix-mark matrix-yes">${icon('check')}<span class="sr-only">Có</span></span>`:v==='no'?'<span class="matrix-mark muted"><span aria-hidden="true">—</span><span class="sr-only">Không</span></span>':v}</td>`).join('')}</tr>`).join('')}</tbody>
+   </table>
+  </div>
+  <p class="view-note">* Không xóa nếu thao tác đó làm thay đổi liên kết của công việc ngoài phạm vi. Cần quản trị viên xử lý.</p>
+ </section>`;
 }
 function getAccountsList(){
  const list = [...identity.accounts];
@@ -503,6 +659,14 @@ function buildScopeTreeOptions(selectedIds = [], inputName = 'empScope') {
  }).join('');
 }
 
+function employeeHomePickerField(id,options){
+ return `<div class="field full">
+  <span class="field-title" id="${id}Label">Đơn vị công tác <span class="required" aria-hidden="true">*</span></span>
+  <select id="${id}" hidden data-node-picker-options>${options}</select>
+  <div class="node-picker-box employee-home-picker" id="${id}PickerBox"></div>
+ </div>`;
+}
+
 function openAddEmployeeDialog(){
  if(!requireAdmin())return;
  accountEditing = null;
@@ -525,9 +689,7 @@ function openAddEmployeeDialog(){
    <div class="dialog-scroll">
     <div class="form-error" id="empFormError" role="alert" tabindex="-1" hidden></div>
 
-    <div style="margin:8px 0 12px 0;font-weight:700;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:6px">
-     <span>Thông tin nhân sự</span>
-    </div>
+    <h3 class="employee-form-section">Thông tin nhân sự</h3>
     <div class="form-grid">
      ${field('Họ và tên *','newEmpName','text','','required maxlength="180" autocomplete="name" placeholder="VD: Nguyễn Văn A"')}
      ${field('Email','newEmpEmail','email','','maxlength="180" autocomplete="email" placeholder="email@congty.com"')}
@@ -536,16 +698,9 @@ function openAddEmployeeDialog(){
      ${field('Chức danh','newEmpTitle','text','','maxlength="100" placeholder="VD: Chuyên viên kinh doanh"')}
     </div>
 
-    <div style="margin:16px 0 12px 0;font-weight:700;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:6px">
-     <span>Vị trí trong tổ chức</span>
-    </div>
+    <h3 class="employee-form-section">Vị trí trong tổ chức</h3>
     <div class="form-grid">
-     <label class="field">
-      Phòng ban trực thuộc *
-      <select id="newEmpHomeNode" required>
-       ${homeOptionsHTML}
-      </select>
-     </label>
+     ${employeeHomePickerField('newEmpHomeNode',homeOptionsHTML)}
      <div class="field">
       <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--muted)">Trạng thái</label>
       <div style="padding:8px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:6px;font-size:13px">
@@ -554,9 +709,7 @@ function openAddEmployeeDialog(){
      </div>
     </div>
 
-    <div style="margin:16px 0 12px 0;font-weight:700;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:6px">
-     <span>Quyền truy cập WorkTree</span>
-    </div>
+    <h3 class="employee-form-section">Quyền truy cập WorkTree</h3>
     <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:8px 0 12px 0;font-weight:600">
      <input id="empInviteToggle" type="checkbox">
      <span>Mời nhân viên sử dụng WorkTree</span>
@@ -658,6 +811,9 @@ function openAddEmployeeDialog(){
 
  updateRoleScopeUI();
  $('addEmployeeForm').addEventListener('submit', submitNewEmployee);
+ nodePickerState.target=null;
+ nodePickerState.collapsed.clear();
+ renderNodePickerBox('newEmpHomeNode');
  showDialog('accountDialog', '#newEmpName');
 }
 
@@ -681,7 +837,7 @@ async function submitNewEmployee(e){
   const employeeCode = $('newEmpCode').value.trim() || null;
   const jobTitle = $('newEmpTitle').value.trim() || null;
   const homeNodeId = $('newEmpHomeNode').value;
-  if(!homeNodeId) throw new Error('Phòng ban trực thuộc là bắt buộc.');
+  if(!homeNodeId) throw new Error('Chọn đơn vị công tác cho nhân viên.');
 
   const invite = $('empInviteToggle').checked;
   let inviteEmail = null;
@@ -787,9 +943,7 @@ function openEditEmployeeDialog(employeeId){
    <div class="dialog-scroll">
     <div class="form-error" id="editEmpFormError" role="alert" tabindex="-1" hidden></div>
 
-    <div style="margin:8px 0 12px 0;font-weight:700;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:6px">
-     <span>Thông tin nhân sự</span>
-    </div>
+    <h3 class="employee-form-section">Thông tin nhân sự</h3>
     <div class="form-grid">
      ${field('Họ và tên *','editEmpName','text',emp.full_name||'','required maxlength="180" autocomplete="name" placeholder="VD: Nguyễn Văn A"')}
      ${field('Email liên hệ','editEmpEmail','email',emp.email||'','maxlength="180" autocomplete="email" placeholder="email@congty.com"')}
@@ -798,16 +952,9 @@ function openEditEmployeeDialog(employeeId){
      ${field('Chức danh','editEmpTitle','text',emp.job_title||'','maxlength="100" placeholder="VD: Chuyên viên kinh doanh"')}
     </div>
 
-    <div style="margin:16px 0 12px 0;font-weight:700;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:6px">
-     <span>Vị trí trong tổ chức</span>
-    </div>
+    <h3 class="employee-form-section">Vị trí trong tổ chức</h3>
     <div class="form-grid">
-     <label class="field">
-      Phòng ban trực thuộc *
-      <select id="editEmpHomeNode" required>
-       ${homeOptionsHTML}
-      </select>
-     </label>
+     ${employeeHomePickerField('editEmpHomeNode',homeOptionsHTML)}
      <label class="field">
       Tình trạng nhân sự
       <select id="editEmpStatus">
@@ -825,6 +972,9 @@ function openEditEmployeeDialog(employeeId){
  `;
 
  $('editEmployeeForm').addEventListener('submit', (e) => submitEditEmployee(e, emp.id));
+ nodePickerState.target=null;
+ nodePickerState.collapsed.clear();
+ renderNodePickerBox('editEmpHomeNode');
  showDialog('accountDialog', '#editEmpName');
 }
 
@@ -848,7 +998,7 @@ async function submitEditEmployee(e, employeeId){
   const employeeCode = $('editEmpCode').value.trim() || null;
   const jobTitle = $('editEmpTitle').value.trim() || null;
   const homeNodeId = $('editEmpHomeNode').value;
-  if(!homeNodeId) throw new Error('Phòng ban trực thuộc là bắt buộc.');
+  if(!homeNodeId) throw new Error('Chọn đơn vị công tác cho nhân viên.');
   const employmentStatus = $('editEmpStatus').value;
 
   if(!window.EmployeeService?.updateEmployee){
@@ -971,9 +1121,7 @@ function openInviteExistingEmployeeDialog(employeeId){
    <div class="dialog-scroll">
     <div class="form-error" id="inviteExistError" role="alert" tabindex="-1" hidden></div>
 
-    <div style="margin:8px 0 12px 0;font-weight:700;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:6px">
-     <span>Thông tin nhân sự</span>
-    </div>
+    <h3 class="employee-form-section">Thông tin nhân sự</h3>
     <div style="background:var(--surface-2);padding:12px 16px;border-radius:8px;border:1px solid var(--line);margin-bottom:16px;display:flex;align-items:center;gap:12px;">
      <span class="avatar av-1">${esc(initials(emp.full_name))}</span>
      <div>
@@ -982,9 +1130,7 @@ function openInviteExistingEmployeeDialog(employeeId){
      </div>
     </div>
 
-    <div style="margin:16px 0 12px 0;font-weight:700;color:var(--text);border-bottom:1px solid var(--line);padding-bottom:6px">
-     <span>Quyền truy cập WorkTree</span>
-    </div>
+    <h3 class="employee-form-section">Quyền truy cập WorkTree</h3>
     <div class="form-grid">
      ${field('Email đăng nhập *','inviteExistEmail','email',emp.email||'','required maxlength="180" placeholder="email@congty.com"')}
      <label class="field">
@@ -1589,8 +1735,50 @@ async function confirmRevokeInvitation(employeeId){
  }
 }
 
-function openAccess(tab=accessTab){
- if(!requireLogin()||!canOpenPeopleAccess())return deny();
+let activeHubTab='access';
+function isSystemHubOpen(){return Boolean($('systemHubContent')&&!$('systemHubContent').hidden);}
+function isSystemHubTabActive(tabName){return isSystemHubOpen()&&activeHubTab===tabName;}
+window.isSystemHubOpen=isSystemHubOpen;
+window.getActiveHubTab=()=>activeHubTab;
+window.getActiveAccessSubTab=()=>accessTab;
+function closeSystemHub(){const wasOpen=isSystemHubOpen();const hub=$('systemHubContent');if(hub)hub.hidden=true;const main=$('mainContent');if(main&&!document.body.classList.contains('chat-is-open'))main.hidden=false;const navBtn=$('accessNav');if(navBtn){navBtn.classList.remove('active');navBtn.removeAttribute('aria-current');}if(wasOpen){document.dispatchEvent(new CustomEvent('worktree:system-hub-changed'));if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});}}
+window.closeSystemHub=closeSystemHub;
+document.addEventListener('click',e=>{if(e.target.closest('[data-chat-open],[data-mobile="messages"]')&&isSystemHubOpen())closeSystemHub();},true);
+async function openSystemHub(hubTab=activeHubTab,subTab=null){
+ if(!requireLogin())return;
+ const allowed=demoAccount?['access']:['access','mcp','settings'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
+ closeSidebar();if($('profileDialog')?.open)closeDialog('profileDialog',true);
+ document.body.classList.remove('chat-is-open');
+ if($('messagesContent'))$('messagesContent').hidden=true;
+ if($('mainContent'))$('mainContent').hidden=true;
+ const hubEl=$('systemHubContent');if(hubEl)hubEl.hidden=false;
+ $$('.primary-nav .nav-item').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
+ const navBtn=$('accessNav');if(navBtn){navBtn.classList.add('active');navBtn.setAttribute('aria-current','page');}
+ if($('topScope'))$('topScope').textContent='Quản trị & Cài đặt';
+ const tabMap={access:$('hubPanelAccess'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings')};
+ Object.entries(tabMap).forEach(([k,p])=>{if(p)p.hidden=(k!==activeHubTab);});
+ $$('#systemHubTabs [data-hub-tab]').forEach(btn=>{const isSel=btn.dataset.hubTab===activeHubTab;btn.setAttribute('aria-selected',String(isSel));btn.tabIndex=isSel?0:-1;});
+ if(activeHubTab==='access')renderAccessSection(subTab||accessTab);
+ else if(activeHubTab==='mcp'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openMcpDialog==='function')await window.openMcpDialog({container:$('mcpHubContent'),switchToTab:false});else if($('mcpHubContent'))$('mcpHubContent').innerHTML='<div class="mcp-empty">Đang khởi tạo kết nối MCP. Vui lòng thử lại sau giây lát.</div>';}
+ else if(activeHubTab==='settings'){renderSettingsSection();if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});}
+ document.dispatchEvent(new CustomEvent('worktree:system-hub-changed'));
+ if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});
+ if(hubEl&&typeof hydrateIcons==='function')hydrateIcons(hubEl);
+ hubEl?.focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'});
+}
+function openAccess(tab=accessTab){if(!requireLogin())return;return openSystemHub('access',tab);}
+function renderAccessSection(tab=accessTab){
+ if(!requireLogin())return;
+ if(demoAccount||!canOpenPeopleAccess()){
+  const cur=currentAccount(),roleLabel=T[cur?.role]||cur?.role||'Thành viên';
+  $('accessTitle').textContent='Vai trò & Phạm vi truy cập';
+  $('accessContent').innerHTML=`<div class="access-banner access-summary">
+   <span class="access-banner-icon" aria-hidden="true">${icon('shield')}</span>
+   <div><h3>${esc(demoAccount?roleLabel:cur?.name||'Thành viên')}</h3>
+   <p>${demoAccount?'':esc(roleLabel)+' · '}Phạm vi hiện tại: ${esc(cur?accountSummary(cur):'Không gian được phân công')}.</p></div>
+  </div>${matrixHTML()}`;
+  if(typeof hydrateIcons==='function')hydrateIcons($('accessContent'));return;
+ }
  const scopedManager=canInviteScopedMembers();
  if(scopedManager&&tab==='audit')tab='accounts';
  accessTab=tab;$('accessTitle').textContent=scopedManager?'Thành viên trong phạm vi':(window.__worktree_is_cloud_workspace ? 'Nhân sự & tài khoản' : T.accounts);
@@ -1601,7 +1789,7 @@ function openAccess(tab=accessTab){
   ? `<button class="btn primary" data-v8="employee-invite-new">${icon('mail')}Mời thành viên</button>`
   : `<button class="btn primary" data-v8="${isCloud ? 'employee-new' : 'account-new'}">${icon('plus')}${isCloud ? 'Thêm nhân viên' : T.create}</button>`;
  
- $('accessContent').innerHTML=`<div class="access-banner"><div><span class="access-banner-icon">${icon('shield')}</span><h3>Rõ vai trò. Đúng phạm vi.</h3><p>${scopedManager?'Mời Nhân viên hoặc Chỉ xem vào đúng nhánh bạn đang quản lý.':isCloud ? 'Quản lý nhân sự và phân quyền truy cập không gian làm việc.' : 'Cấp quyền theo công việc thực tế, không chia sẻ một tài khoản chung.'}</p></div><div class="access-stat"><strong>${count}</strong><span>${scopedManager?'Trong phạm vi':isCloud ? 'Nhân sự' : T.active}</span></div></div><div class="access-tabs" role="tablist">${tabs.map(([key,label])=>`<button role="tab" aria-selected="${key===tab}" data-v8="access-tab" data-tab="${key}">${label}</button>`).join('')}</div><div id="accessPanel" role="tabpanel">${tab==='matrix'?matrixHTML():tab==='audit'?accessAuditHTML():`<div class="access-toolbar"><label class="access-search">${icon('search')}<input id="accountSearch" type="search" value="${esc(accountQuery)}" placeholder="${isCloud ? 'Tìm nhân sự, chức danh...' : T.searchAccounts}" aria-label="${isCloud ? 'Tìm nhân sự' : T.searchAccounts}"></label>${primaryAction}</div><div id="accountList"></div><p class="view-note">${scopedManager?'Lời mời và phạm vi được kiểm tra lại tại cơ sở dữ liệu. Bạn không thể cấp quyền cao hơn hoặc vượt khỏi nhánh quản lý.':isCloud ? 'Tài khoản được bảo vệ bởi Supabase Auth & Row-Level Security đa tổ chức.' : T.credentialsHint}</p>`}</div>${isCloud ? '' : `<details class="access-limits"><summary>${icon('info')}${T.local}</summary><p>${T.localWarning}</p></details>`}`;
+ $('accessContent').innerHTML=`<div class="access-banner"><div><span class="access-banner-icon">${icon('shield')}</span><h3>Rõ vai trò. Đúng phạm vi.</h3><p>${scopedManager?'Mời Nhân viên hoặc Chỉ xem vào đúng nhánh bạn đang quản lý.':isCloud ? 'Quản lý nhân sự và phân quyền truy cập không gian làm việc.' : 'Cấp quyền theo công việc thực tế, không chia sẻ một tài khoản chung.'}</p></div><div class="access-stat"><strong>${count}</strong><span>${scopedManager?'Trong phạm vi':isCloud ? 'Nhân sự' : T.active}</span></div></div><div class="access-tabs" role="tablist">${tabs.map(([key,label])=>`<button role="tab" aria-selected="${key===tab}" data-v8="access-tab" data-tab="${key}">${label}</button>`).join('')}</div><div id="accessPanel" role="tabpanel">${tab==='matrix'?matrixHTML():tab==='audit'?(isCloud?cloudAuditHTML():accessAuditHTML()):`<div class="access-toolbar"><label class="access-search">${icon('search')}<input id="accountSearch" type="search" value="${esc(accountQuery)}" placeholder="${isCloud ? 'Tìm nhân sự, chức danh...' : T.searchAccounts}" aria-label="${isCloud ? 'Tìm nhân sự' : T.searchAccounts}"></label>${primaryAction}</div><div id="accountList"></div><p class="view-note">${scopedManager?'Lời mời và phạm vi được kiểm tra lại tại cơ sở dữ liệu. Bạn không thể cấp quyền cao hơn hoặc vượt khỏi nhánh quản lý.':isCloud ? 'Tài khoản được bảo vệ bởi Supabase Auth & Row-Level Security đa tổ chức.' : T.credentialsHint}</p>`}</div>${isCloud ? '' : `<details class="access-limits"><summary>${icon('info')}${T.local}</summary><p>${T.localWarning}</p></details>`}`;
 
  if(tab==='accounts'){
   if(isCloud){
@@ -1612,7 +1800,9 @@ function openAccess(tab=accessTab){
    $('accountSearch')?.addEventListener('input',e=>{accountQuery=e.target.value;renderAccountList();});
   }
  }
- closeSidebar();showDialog('accessDialog');
+ if(tab==='audit'&&isCloud)void loadCloudAccountAudit();
+ if(typeof hydrateIcons==='function') hydrateIcons($('accessContent'));
+ if(isSystemHubOpen()&&typeof window.syncUrlWithState==='function') window.syncUrlWithState({replace:false});
 }
 
 function renderAccountList(){
@@ -1665,9 +1855,10 @@ async function toggleAccount(id){
  try{auditEvent(next,u.active?T.enable:T.disable,u.username);writeIdentity(next);openAccess('accounts');toast(T.saved);}catch(e){toast(e.message,'error');}
 }
 function openProfile(){
+ if(demoAccount){openDemoRolePicker();return;}
  if(!requireLogin())return;const a=currentAccount();
- $('profileContent').innerHTML=`${dialogHead(T.account,'profileTitle','profileDialog')}<div class="dialog-scroll"><div class="profile-summary"><span class="avatar av-2">${esc(initials(a.name))}</span><h3>${esc(a.name)}</h3><p>@${esc(a.username)}</p><span class="role-badge role-${a.role}">${esc(T[a.role]||a.role)}</span></div><div class="profile-scope"><strong>${T.scope}</strong><p>${esc(accountSummary(a))}</p><p class="muted">${esc(roleDescription(a.role))}</p></div><div class="profile-actions"><button class="btn" data-v8="password-change">${icon('key')}${T.changePassword}</button><button class="btn" data-v8="pins-manage">${icon('pin')}${T.managePins}</button>${isAdmin()?`<button class="btn" data-v8="access-tab" data-tab="accounts">${icon('shield')}${T.accounts}</button>`:''}<button class="btn danger" data-v8="logout">${icon('logout')}${T.logout}</button></div><p class="view-note">${T.idle}</p></div>`;
- closeSidebar();showDialog('profileDialog');
+ $('profileContent').innerHTML=`${dialogHead(T.account,'profileTitle','profileDialog')}<div class="dialog-scroll"><div class="profile-summary"><span class="avatar av-2" data-profile-avatar-preview>${esc(initials(a.name))}</span><h3>${esc(a.name)}</h3><p>@${esc(a.username)}</p><span class="role-badge role-${a.role}">${esc(T[a.role]||a.role)}</span><div class="profile-avatar-editor" data-profile-avatar-editor hidden><input type="file" data-profile-avatar-file accept="image/jpeg,image/png,image/webp" hidden><div class="profile-avatar-actions"><button type="button" class="btn" data-profile-avatar-pick>Đổi ảnh đại diện</button><button type="button" class="btn primary" data-profile-avatar-save hidden>Lưu ảnh</button><button type="button" class="btn" data-profile-avatar-cancel hidden>Hủy</button></div><p role="status" aria-live="polite"></p></div></div><div class="profile-scope"><strong>${T.scope}</strong><p>${esc(accountSummary(a))}</p><p class="muted">${esc(roleDescription(a.role))}</p></div><div class="profile-actions"><button class="btn" data-v8="password-change">${icon('key')}${T.changePassword}</button><button class="btn" data-v8="pins-manage">${icon('pin')}${T.managePins}</button>${isAdmin()?`<button class="btn" data-v8="access-tab" data-tab="accounts">${icon('shield')}${T.accounts}</button>`:''}<button class="btn danger" data-v8="logout">${icon('logout')}${T.logout}</button></div><p class="view-note">${T.idle}</p></div>`;
+ closeSidebar();showDialog('profileDialog');document.dispatchEvent(new CustomEvent('worktree:profile-opened'));
 }
 function openPassword(target=null,forced=false){
  if(!forced&&!requireLogin())return;if(target&&!requireAdmin())return;
@@ -1694,7 +1885,7 @@ async function savePassword(e,forced,reset){
   auditEvent(next,reset?T.resetPassword:T.changePassword,u.username,forced?u.name:currentAccount().name);writeIdentity(next);
   closeDialog('passwordDialog',true);$('passwordContent').innerHTML='';pendingUser=null;
   if(forced)await enterWorkspace(u);else if(id===curId){if(session){session.version=u.version;saveSession();}}
-  if($('accessDialog').open)openAccess();toast(T.passwordSaved);
+  if($('accessDialog')?.open || isSystemHubTabActive('access'))renderAccessSection(accessTab);toast(T.passwordSaved);
  }catch(err){if($('passwordError')){$('passwordError').textContent=err.message;$('passwordError').hidden=false;}}finally{if($('passwordSave'))$('passwordSave').disabled=false;}
 }
 function normalPins(list){const seen=new Set();return (Array.isArray(list)?list:[]).filter(p=>{if(!p||!['node','task'].includes(p.kind)||!(Number.isSafeInteger(p.id)||(typeof p.id==='string'&&p.id.trim()))||seen.has(p.kind+':'+p.id))return false;seen.add(p.kind+':'+p.id);return true;}).slice(0,100).map(p=>({kind:p.kind,id:p.id,urgent:p.urgent===true,createdAt:typeof p.createdAt==='string'?p.createdAt:new Date().toISOString()}));}
@@ -1702,13 +1893,19 @@ function ownPins(){
  if(window.__worktree_is_cloud_workspace){
   return (window.__worktree_cloud_pins||[]).map(p=>({kind:p.kind,id:p.id,urgent:p.urgent===true,createdAt:p.createdAt||new Date().toISOString()}));
  }
- const a=currentAccount();return a?normalPins(pinDB.users[a.id]):[];
+ const a=currentAccount();return a?normalPins(demoAccount?demoPins.get(a.id):pinDB.users[a.id]):[];
 }
 function canPin(kind,id){return kind==='task'?canReadTask(byTask.get(id)):byNode.has(id)&&inScope(id);}
 function visiblePins(){return ownPins().filter(p=>canPin(p.kind,p.id));}
 function isPinned(kind,id){return ownPins().some(p=>p.kind===kind&&String(p.id)===String(id));}
 function savePins(list,remember=true){
  if(!requireLogin())return false;
+ if(demoAccount){
+  const before=ownPins();
+  demoPins.set(demoAccount.id,normalPins(list));
+  if(remember)pinUndo={user:demoAccount.id,list:before};
+  renderPins();decoratePinButtons();return true;
+ }
  if(window.__worktree_is_cloud_workspace){
   return true;
  }
@@ -1790,11 +1987,11 @@ function renderPins(){
 function renderTree(){
  if(!currentAccount())return;const q=fold(state.treeQuery),ids=visibleNodeIds(),matches=new Set(),forced=new Set();
  if(q)visibleNodes().filter(n=>fold(n.name+' '+n.desc).includes(q)).forEach(n=>pathNodes(n.id).forEach(p=>{matches.add(p.id);if(p.parent)forced.add(p.parent);}));
- const counts=new Map();for(const t of readableTasks())for(const n of pathNodes(t.node))counts.set(n.id,(counts.get(n.id)||0)+1);
+ const stats=computeTreeBranchCounts(readableTasks());
  const row=(n,depth)=>{
   if(!ids.has(n.id)||q&&!matches.has(n.id))return '';
   const kids=childrenOf(n.id).filter(c=>ids.has(c.id)),open=q?forced.has(n.id):state.expanded.includes(n.id),on=isPinned('node',n.id);
-  return `<div class="tree-node ${state.selected===n.id?'selected':''}" style="padding-left:${Math.min(depth*10,60)}px">${kids.length?`<button class="node-expand ${open?'expanded':''}" data-action="tree-toggle" data-id="${n.id}" aria-expanded="${open}" aria-label="${open?'Thu gọn':'Mở'} ${esc(n.name)}">${icon('chevron-right')}</button>`:'<span class="node-spacer"></span>'}<button class="node-select" data-action="select-node" data-id="${n.id}" ${state.selected===n.id?'aria-current="page"':''} title="${esc(pathName(n.id))}">${icon(nodeIcon(n.type))}<span class="tree-name">${esc(n.name.replace(/^Công ty /,''))}</span></button>${canPin('node',n.id)?`<button class="tiny-btn tree-pin ${on?'is-pinned':''}" data-v8="pin-toggle" data-kind="node" data-id="${n.id}" aria-pressed="${on}" title="${on?T.unpin:T.pin}" aria-label="${on?T.unpin:T.pin}: ${esc(n.name)}">${icon('pin')}</button>`:''}<span class="tree-count">${counts.get(n.id)||0}</span></div>${open?kids.map(n=>row(n,depth+1)).join(''):''}`;
+  return `<div class="tree-node tree-type-${esc(n.type)} ${state.selected===n.id?'selected':''}" style="padding-left:${Math.min(depth*10,60)}px">${kids.length?`<button class="node-expand ${open?'expanded':''}" data-action="tree-toggle" data-id="${n.id}" aria-expanded="${open}" aria-label="${open?'Thu gọn':'Mở'} ${esc(n.name)}">${icon('chevron-right')}</button>`:'<span class="node-spacer"></span>'}<button class="node-select" data-action="select-node" data-id="${n.id}" ${state.selected===n.id?'aria-current="page"':''} title="${esc(pathName(n.id))}">${icon(nodeIcon(n.type))}<span class="tree-name">${esc(n.name.replace(/^Công ty /,''))}</span></button>${canCreateChildNode(n.id)?`<button class="tiny-btn tree-add-child" data-action="new-child-node" data-id="${n.id}" title="${esc('Thêm đơn vị con vào '+n.name)}" aria-label="${esc('Thêm đơn vị con vào '+n.name)}">${icon('plus')}</button>`:''}${canPin('node',n.id)?`<button class="tiny-btn tree-pin ${on?'is-pinned':''}" data-v8="pin-toggle" data-kind="node" data-id="${n.id}" aria-pressed="${on}" title="${on?T.unpin:T.pin}" aria-label="${on?T.unpin:T.pin}: ${esc(n.name)}">${icon('pin')}</button>`:''}${treeCountBadgeHTML(n.id,stats)}</div>${open?kids.map(n=>row(n,depth+1)).join(''):''}`;
  };
  $('orgTree').innerHTML=row(rootNode(),0)||`<div class="tree-empty">${T.noResults}</div>`;
  const visibleViews = (state.savedViews || []).filter(v => !v.selected || ids.has(v.selected));
@@ -2053,13 +2250,18 @@ async function reorderPin(action,kind,id){
  else{let target=action==='pin-top'?0:action==='pin-up'?vi-1:vi+1;if(target<0||target>=visible.length)return;const t=visible[target],to=list.findIndex(p=>p.kind===t.kind&&String(p.id)===String(t.id));const [p]=list.splice(idx,1);list.splice(to,0,p);}
  if(savePins(list)){openPins();renderTree();}
 }
-function openSettings(){
+function openSettings(){if(!requireLogin())return;return openSystemHub('settings');}
+function renderSettingsSection(){
  if(!requireLogin())return;legacyOpenSettings();
  const sections=$$('.settings-section',$('settingsContent'));
  const profileSection=sections.find(s=>s.querySelector('#profileSelect'));
  if(profileSection){profileSection.innerHTML=`<h3>${icon('shield')}${T.account}</h3><div class="settings-row"><div><strong>${esc(currentAccount().name)}</strong><p>${T[currentAccount().role]} · ${esc(accountSummary(currentAccount()))}</p></div><button class="btn" data-v8="profile">${T.account}</button></div><p>${T.idle}</p>`;}
  if(!isAdmin()){sections.filter((s,i)=>[0,3,4].includes(i)).forEach(s=>s.remove());}
- const last=sections.at(-1);last.innerHTML=`<h3>${icon('info')}WorkTree X V8</h3><p>${T.localWarning}</p><p>JSON công việc không chứa tài khoản hay mật khẩu. Ghim của tài khoản đang xuất được lưu kèm trong personalPins.</p><button class="link-btn" data-v8="help">Hướng dẫn sử dụng ${icon('arrow-right')}</button>`;applyPermissionUI();
+ const last=sections.at(-1);
+ if(typeof window.openMcpDialog==='function'){
+  last.insertAdjacentHTML('beforebegin',`<section class="settings-section"><h3>${icon('bot')}Kết nối AI (MCP Server)</h3><div class="settings-row"><div><strong>Link MCP cho ChatGPT, Claude &amp; Gemini</strong><p>Dán link vào mục Connectors / MCP Server (Authentication: No authentication) để AI đọc báo cáo và xử lý công việc.</p></div><button class="btn primary small" data-action="mcp">${icon('link')}Mở tab Kết nối AI</button></div></section>`);
+ }
+ last.innerHTML=`<h3>${icon('info')}WorkTree X V8</h3><p>${T.localWarning}</p><p>JSON công việc không chứa tài khoản hay mật khẩu. Ghim của tài khoản đang xuất được lưu kèm trong personalPins.</p><button class="link-btn" data-v8="help">Hướng dẫn sử dụng ${icon('arrow-right')}</button>`;applyPermissionUI();
 }
 function openHelp(){
  if(!requireLogin())return;legacyOpenHelp();
@@ -2078,9 +2280,13 @@ function safeSnapshot(){
 function permissionForAction(action,id){
  if(['notif-tab','mark-read-cloud-notif','delete-cloud-notif','clear-read-notifs','mark-all-read','open-cloud-notif','notif-settings','nav-attention-from-notif','close','set-badge-style','test-sound','test-device-notification','notif-pref-toggle','notif-quiet-toggle','reminder-create','reminder-cancel','reminder-delete','cancel-manual-reminder','delete-manual-reminder','ignore'].includes(action))return true;
  if(action==='access')return canOpenPeopleAccess();
- if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery'].includes(action))return isAdmin();
+ if(demoAccount&&['import-json','restore-backup','accept-recovery','load-external'].includes(action))return false;
+ if(['import-json','export-json','restore-backup','reset-demo','accept-recovery'].includes(action))return isAdmin();
+ if(action==='new-node')return canCreateChildNode(id||state.selected);
+ if(action==='new-child-node')return canCreateChildNode(id);
+ if(['edit-node','node-menu','delete-node'].includes(action))return canManageNode(id||state.selected);
  if(action==='new-task')return canCreateTask();
- if(['edit-task','delete-task','duplicate-task'].includes(action))return canManageTask(byTask.get(id));
+ if(['edit-task','delete-task','duplicate-task','remove-collaborator','toggle-collab-picker'].includes(action))return canManageTask(byTask.get(id));
  if(['complete','favorite','edit-check','save-check','delete-check','timer-toggle'].includes(action))return canUpdateTask(byTask.get(id));
  if(action==='cancel-check')return true;
  if(action==='open-task')return canReadTask(byTask.get(id));
@@ -2090,18 +2296,21 @@ function permissionForAction(action,id){
 }
 function applyPermissionUI(){
  const a=currentAccount();if(!a)return;
- $('profileRole').textContent=T[a.role];$('topAvatar').setAttribute('aria-label',T.account+': '+a.name);
- $('accessNav').hidden=!canOpenPeopleAccess();
- if(!isAdmin()&&state.selected===rootNode().id){$('topScope').textContent=T.allowedScope;$('pageEyebrow').textContent=T.allowedScope.toUpperCase();}
+ $('profileRole').textContent=T[a.role];
+ const topAvatar=$('topAvatar');
+ topAvatar.setAttribute('aria-label',demoAccount?'Xem theo vai trò · '+T[a.role]:T.account+': '+a.name);
+ if(demoAccount){topAvatar.title='Đổi vai trò demo';topAvatar.setAttribute('aria-haspopup','dialog');}
+ if($('accessNav')) $('accessNav').hidden=false;
+ if(!isAdmin()&&state.selected===rootNode().id){$('topScope').textContent=T.allowedScope;}
  $$('[data-action]',$('app')).concat($$('[data-action]',$('drawer'))).forEach(b=>{
   const action=b.dataset.action, rawId=b.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
-  if(['new-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,id);
-  else if(['complete','favorite','edit-check','save-check','delete-check','timer-toggle','delete-comment'].includes(action)){b.disabled=!permissionForAction(action,id);}
+  if(['new-node','new-child-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,id);
+  else if(['complete','favorite','edit-check','save-check','delete-check','timer-toggle','delete-comment','remove-collaborator','toggle-collab-picker'].includes(action)){b.disabled=!permissionForAction(action,id);}
  });
- $$('[data-status-task],[data-owner-task],[data-priority-task],[data-check-task]').forEach(el=>{
-  const rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask;
+ $$('[data-status-task],[data-owner-task],[data-priority-task],[data-node-task],[data-check-task]').forEach(el=>{
+  const rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.nodeTask||el.dataset.checkTask;
   const id=(rawId&&!isNaN(rawId))?Number(rawId):rawId,t=byTask.get(id);
-  el.disabled=el.hasAttribute('data-owner-task')||el.hasAttribute('data-priority-task')?!canManageTask(t):!canUpdateTask(t);
+  el.disabled=el.hasAttribute('data-owner-task')||el.hasAttribute('data-priority-task')||el.hasAttribute('data-node-task')?!canManageTask(t):!canUpdateTask(t);
  });
  const t=byTask.get(drawerId);if(t){
   for(const id of ['checklistForm','commentForm','logForm','dependencyForm'])if($(id))$(id).hidden=!canUpdateTask(t);
@@ -2126,8 +2335,11 @@ function handleV8Click(e){
    switch(action){
     case 'logout':await logout();break;
     case 'profile':openProfile();break;
+    case 'demo-role':if(demoAccount)selectDemoRole(v.dataset.role);break;
+    case 'demo-exit':if(demoAccount)window.location.assign(window.location.pathname);break;
     case 'help':openHelp();break;
     case 'access-tab':openAccess(v.dataset.tab);break;
+    case 'audit-refresh':void loadCloudAccountAudit();break;
     case 'employee-new':openAddEmployeeDialog();break;
     case 'employee-invite-new':openScopedInviteDialog();break;
     case 'employee-edit':openEditEmployeeDialog(v.dataset.employeeId);break;
@@ -2176,30 +2388,32 @@ document.addEventListener('keydown',e=>{
 },true);
 document.addEventListener('change',e=>{
  if(!currentAccount())return;
- const el=e.target,rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.checkTask;
+ const el=e.target,rawId=el.dataset.statusTask||el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.nodeTask||el.dataset.checkTask;
  const id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
- if(id&&(!(el.dataset.ownerTask||el.dataset.priorityTask)?!canUpdateTask(byTask.get(id)):!canManageTask(byTask.get(id)))){e.stopImmediatePropagation();deny();refreshDrawer();}
+ if(id&&(!(el.dataset.ownerTask||el.dataset.priorityTask||el.dataset.nodeTask)?!canUpdateTask(byTask.get(id)):!canManageTask(byTask.get(id)))){e.stopImmediatePropagation();deny();refreshDrawer();}
 },true);
 ['pointerdown','input','wheel'].forEach(name=>document.addEventListener(name,()=>{if(currentAccount())touchSession();},{capture:true,passive:true}));
 window.addEventListener('storage',e=>{
- if(e.key===ACCESS_KEY||e.key===null){refreshIdentity();if(currentAccount()){renderAll(true);if($('accessDialog').open)openAccess();}}
+ if(demoAccount)return;
+ if(e.key===ACCESS_KEY||e.key===null){refreshIdentity();if(currentAccount()){renderAll(true);if($('accessDialog')?.open||isSystemHubTabActive('access'))renderAccessSection(accessTab);}}
  if(e.key===PIN_KEY){try{const value=JSON.parse(e.newValue||'null');pinDB=value?.version===1&&isObject(value.users)?value:{version:1,users:{}};pinRaw=e.newValue;pinUndo=null;if(currentAccount()){renderPins();decoratePinButtons();}}catch(err){}}
 });
 function bootV8(){
- loadData();rebuild();readIdentity();hydrateIcons();
+ if(!isDemoRoute()){loadData();rebuild();readIdentity();}
+ hydrateIcons();
  if(typeof $('toastRegion').showPopover==='function')$('toastRegion').setAttribute('popover','manual');
  $('viewTabs').innerHTML=Object.entries(VIEWS).map(([key,[label,ico]])=>`<button class="view-tab" role="tab" id="tab-${key}" aria-selected="${key===state.view}" aria-controls="viewContent" tabindex="${key===state.view?0:-1}" data-action="view" data-view="${key}">${icon(ico)}${label}${key==='list'?'<span class="tab-count">0</span>':''}</button>`).join('');
  window.WorkTree=Object.freeze({version:8,exportJSON,getSnapshot:safeSnapshot,validate:input=>validateData(input)});
- if(window.__WORKTREE_LEGACY_LOCAL_AUTH__){
+ if(!isDemoRoute()&&window.__WORKTREE_LEGACY_LOCAL_AUTH__){
   let previous=null;try{previous=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch(e){}
   if(!identityIssue&&previous&&Number.isFinite(previous.lastActive)&&Number.isFinite(previous.startedAt)&&Date.now()-previous.lastActive<IDLE_MS&&Date.now()-previous.startedAt<MAX_SESSION_MS){session=previous;if(currentAccount())enterWorkspace(currentAccount(),false,true);else{session=null;renderAuth();}}
   else renderAuth();
- } else {
+ } else if(!isDemoRoute()){
   // Production Path: Supabase Auth in src/app/app.js handles authoritative session bootstrap
   $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
   if(typeof window.renderSupabaseAuth==='function') window.renderSupabaseAuth();
  }
- let tick=0;setInterval(()=>{if(session||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
+ let tick=0;setInterval(()=>{if(session||demoAccount||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
  window.openAddEmployeeDialog = openAddEmployeeDialog;
  window.openEditEmployeeDialog = openEditEmployeeDialog;
  window.openInviteExistingEmployeeDialog = openInviteExistingEmployeeDialog;
@@ -2210,5 +2424,11 @@ function bootV8(){
  window.confirmRevokeInvitation = confirmRevokeInvitation;
  window.renderCloudEmployeeDirectory = renderCloudEmployeeDirectory;
  window.openAccess = openAccess;
+ window.openSettings = openSettings;
+ window.openSystemHub = openSystemHub;
+ window.closeSystemHub = closeSystemHub;
+ document.addEventListener('worktree:navigate', () => { closeSystemHub(); });
+ document.addEventListener('worktree:open-messages', () => { closeSystemHub(); });
+ document.addEventListener('click', (e) => { if (e.target.closest('[data-chat-open]')) closeSystemHub(); }, true);
 }
 bootV8();

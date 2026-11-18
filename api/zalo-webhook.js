@@ -4,10 +4,36 @@
  * Performs 1-Touch Pairing via Supabase RPC and returns automated replies.
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
+const { createClient } = require('@supabase/supabase-js');
+
 const SUPABASE_CONFIG = {
   url: process.env.SUPABASE_URL || 'https://taupjuaficdzdgbmxmbe.supabase.co',
   publishableKey: process.env.SUPABASE_ANON_KEY || 'sb_publishable_U_sRQahpts_YouuXX5xbJQ_wpohAq4t'
 };
+
+function getServiceSupabase() {
+  let url = process.env.SUPABASE_URL || SUPABASE_CONFIG.url;
+  let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  if (!serviceKey) {
+    try {
+      const envPath = path.join(process.cwd(), '.env');
+      if (fs.existsSync(envPath)) {
+        for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+          const idx = trimmed.indexOf('=');
+          const k = trimmed.slice(0, idx).trim();
+          const v = trimmed.slice(idx + 1).trim().replace(/^['"]|['"]$/g, '');
+          if (k === 'SUPABASE_URL' && v) url = v;
+          if ((k === 'SUPABASE_SERVICE_ROLE_KEY' || k === 'SUPABASE_SECRET_KEY') && v) serviceKey = v;
+        }
+      }
+    } catch (_) {}
+  }
+  return url && serviceKey ? createClient(url, serviceKey) : null;
+}
 
 const BOT_TOKENS = [
   // Bot WorkTree X 🛎 (Active primary bot)
@@ -164,7 +190,28 @@ async function handleZaloEvent(event) {
     return { handled: true, isCardNotice: true, sendRes };
   }
 
-  // 3. Greeting / Help if not a phone number
+  // 3. Two-way Conversational Copilot if sender is already linked & service client available
+  const text = String(event?.message?.text || event?.text || event?.message?.body || '').trim();
+  const serviceSb = getServiceSupabase();
+  if (serviceSb && text) {
+    try {
+      const { ZaloBotService } = await import('../src/features/integrations/services/zalo-bot-service.js');
+      const empCtx = await ZaloBotService.resolveZaloEmployeeContext(serviceSb, chatId);
+      if (empCtx) {
+        return await ZaloBotService.handleConversationalCopilot({
+          chatId,
+          text,
+          employeeCtx: empCtx,
+          sb: serviceSb,
+          sendFn: sendZaloMessage
+        });
+      }
+    } catch (copilotErr) {
+      console.warn('[ZaloBot Webhook] Copilot fallback to greeting:', copilotErr.message);
+    }
+  }
+
+  // 4. Greeting / Help if not a phone number and not linked
   const welcomeMsg = [
     `**👋 Xin chào ${displayName || 'bạn'}!**`,
     'Tôi là **Trợ lý Thông báo Tự động** của nền tảng **WorkTree X**.',

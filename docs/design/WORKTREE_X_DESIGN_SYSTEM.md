@@ -48,6 +48,8 @@ body {
 ### Quy tắc
 - Inter là font ưu tiên.
 - Fallback theo system font để tải nhanh và an toàn.
+- Các trang nạp `src/design-system/typography.css` để dùng chung tệp Inter Variable trong `assets/fonts/` và các token chữ. Giữ thông báo bản quyền Inter đi kèm font.
+- Dùng `--text-page-title`, `--text-dialog-title`, `--text-control` và `--text-entry` cho tiêu đề, điều khiển và ô nhập. `--text-entry` là 16px trên mobile để giữ chữ nhập liệu rõ và tránh phóng to khi lấy tiêu điểm.
 - Không đổi family trong feature.
 - Không dùng quá nhiều font-weight.
 - Không dùng ALL CAPS cho nội dung dài.
@@ -60,6 +62,7 @@ body {
 --text-2xs: 9px;
 --text-xs: 10px;
 --text-sm: 11px;
+--text-label: 12px;
 --text-base: 13px;
 --text-mobile-base: 14px;
 --text-md: 16px;
@@ -80,6 +83,7 @@ Weight:
 ```
 
 ### Heading
+- Đầu trang phân hệ bắt đầu bằng tiêu đề chính. Bỏ dải nhãn viết hoa và chấm trang trí phía trên tiêu đề. Dùng breadcrumb để thể hiện vị trí trong ứng dụng.
 - Page title desktop baseline: khoảng `28px`, weight `700`, tracking âm nhẹ.
 - Màn hình lớn có thể lên khoảng `31px`.
 - Mobile page title khoảng `24–26px`.
@@ -87,6 +91,8 @@ Weight:
 - Text body desktop thường 12–13px; mobile body khoảng 13–14px.
 
 Không giảm chữ mobile xuống quá nhỏ để cố nhét dữ liệu.
+
+Trong bảng chi tiết công việc, đặt nhãn phía trên ô người phụ trách và người liên quan. Dùng cùng thang chữ cho mô tả và checklist. Các trường trạng thái và ưu tiên có chung kích thước và viền focus. Trên mobile, xếp hai ô người theo chiều dọc và giữ nút thao tác dễ chạm.
 
 ---
 
@@ -326,7 +332,8 @@ Tree:
 - row phải có hover/focus;
 - tên dài ellipsis trên desktop, wrap hợp lý trên mobile;
 - count nhỏ, không cạnh tranh với label;
-- pin là secondary action.
+- trên desktop có chuột, nút thêm đơn vị con và ghim chỉ chiếm chỗ khi rê chuột hoặc điều hướng bằng bàn phím;
+- trên màn hình cảm ứng, các nút luôn hiển thị và có vùng chạm tối thiểu 44px.
 
 Collapsed:
 - chỉ giữ icon/brand mark/action chính;
@@ -418,6 +425,48 @@ Drawer:
 - dùng cho task detail/secondary editing;
 - mobile có thể chuyển fullscreen sheet nếu trải nghiệm tốt hơn;
 - không chồng nhiều modal sâu.
+
+---
+
+Trên điện thoại, hai ô Người phụ trách và Người liên quan nằm cùng hàng. Ô Người liên quan hiển thị tối đa hai avatar và tổng số người. Chạm vào ô để xem danh sách, ưu tiên người đã được chọn. Trên điện thoại, danh sách mở rộng bằng cả hàng và cuộn riêng khi có nhiều người.
+
+### Biểu mẫu công việc
+
+Ô nhập và bộ chọn dùng cùng kiểu chữ, viền focus và góc bo như bảng chi tiết. Chiều cao tối thiểu là 44px trên desktop và 48px trên điện thoại.
+
+Trên điện thoại, ngày bắt đầu và hạn hoàn thành nằm ở phần chính. Thông tin bổ sung mở bên dưới và thứ tự Tab đi theo thứ tự hiển thị. Chân biểu mẫu hiển thị nơi lưu tương ứng với không gian làm việc hiện tại.
+
+---
+
+### Biểu mẫu đơn vị
+
+Bộ chọn đơn vị cấp trên mở toàn chiều rộng ngay dưới ô đã chọn. Nội dung dùng chung thanh cuộn của biểu mẫu để giữ nút lưu và hủy luôn truy cập được. Tên đơn vị dài được xuống dòng trong danh sách.
+
+---
+
+### Biểu mẫu nhân sự
+
+Bộ chọn Đơn vị công tác dùng cây có tìm kiếm và lọc theo loại đơn vị. Danh sách mở toàn chiều rộng bên dưới ô chọn và cuộn cùng biểu mẫu.
+
+### Vai trò và phạm vi truy cập
+
+Khối phạm vi hiện tại cách các thẻ vai trò 16px. Bảng quyền căn giữa nội dung từng vai trò và cuộn ngang trong khung riêng trên màn hình hẹp.
+
+### Bộ lọc chu kỳ công việc
+
+Số việc đã hoàn thành bị ẩn hiển thị dưới dạng nút đếm ghép vào bộ chọn chu kỳ. Bấm vào số việc để chuyển sang Tất cả lịch sử. Chỉ hiển thị liên kết khi có việc bị ẩn.
+
+### Tiêu đề phân hệ
+
+Công việc, Tin nhắn và Quản trị & Cài đặt dùng khoảng đệm 18px dưới thanh trên cùng trên desktop và 16px trên điện thoại. Trang Công việc và Quản trị & Cài đặt dùng tiêu đề tối đa 28px trên desktop. Tin nhắn đưa nút icon Tạo nhóm cạnh Tin nhắn mới trong đầu danh sách hội thoại để dành chỗ cho nội dung. Trong trang công việc, mô tả nằm sát tiêu đề và cách đường dẫn phạm vi 16px.
+
+### Nhật ký tài khoản
+
+Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đa 50 sự kiện bảo mật gần nhất. Nhật ký có trạng thái tải, trống, lỗi và nút làm mới. Các hàng hiển thị thao tác, người thực hiện khi xác định được và thời điểm.
+
+### Bản demo công khai
+
+Avatar trên thanh trên cùng mở danh sách vai trò mẫu. Vai trò đang xem được đánh dấu trong danh sách. Workspace mẫu duy nhất là NTH GROUP. Khách có thể thử thao tác với dữ liệu minh họa trong phiên, sau khi tải lại demo sẽ trở về vai trò Chủ sở hữu và dữ liệu ban đầu. Ngày của các công việc mẫu được tính theo ngày mở demo để biểu đồ Tiến độ có dữ liệu trong khoảng xem mặc định. Một công việc đã hoàn thành vẫn nằm trong lịch sử.
 
 ---
 

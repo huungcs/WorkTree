@@ -15,7 +15,7 @@ export function formatNodeErrorMessage(error) {
   const msg = error.message || String(error);
 
   if (error.code === '42501' || msg.includes('permission denied') || msg.includes('violates row-level security')) {
-    return 'Bạn không có quyền thực hiện thao tác này. Chỉ Chủ sở hữu hoặc Quản trị viên mới có thể quản lý cơ cấu tổ chức.';
+    return 'Bạn không có quyền thực hiện thao tác này trên đơn vị ngoài phạm vi quản lý.';
   }
   if (msg.includes('Cannot move a node to another organization')) {
     return 'Không thể chuyển đơn vị sang tổ chức khác.';
@@ -59,7 +59,7 @@ export function getAllowedChildTypes(parentType) {
     case 'project':
       return ['project', 'team', 'folder'];
     case 'team':
-      return ['team', 'folder'];
+      return ['project', 'team', 'folder'];
     case 'folder':
       return ['folder'];
     default:

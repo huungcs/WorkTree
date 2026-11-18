@@ -252,7 +252,7 @@ export function initPlatformAdminShell() {
     z-index: 99999;
     background: var(--bg);
     color: var(--text);
-    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: var(--font-sans);
     overflow: hidden;
   `;
 
@@ -341,7 +341,7 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .top-search:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft);background:var(--surface)}
       .platform-admin-portal .top-search .search-icon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;color:var(--muted);flex-shrink:0}
       .platform-admin-portal .top-search .search-icon svg{width:15px;height:15px}
-      .platform-admin-portal .top-search input{border:0;outline:0;background:transparent;width:100%;min-width:0;color:var(--text);font-size:11.5px;font-family:inherit;padding:0}
+      .platform-admin-portal .top-search input{border:0;outline:0;background:transparent;width:100%;min-width:0;color:var(--text);font-size:var(--text-control);font-family:inherit;padding:0}
       .platform-admin-portal .top-search input::placeholder{color:var(--muted);font-size:11px}
       .platform-admin-portal .top-search kbd{margin-left:auto;font-size:9.5px;font-weight:600;font-family:inherit;background:var(--surface);border:1px solid var(--line);border-radius:5px;color:var(--muted);padding:2px 7px;white-space:nowrap!important;word-break:keep-all!important;line-height:1.2;flex-shrink:0!important;letter-spacing:.2px;display:inline-flex!important;align-items:center;justify-content:center;min-width:max-content}
       .platform-admin-portal .top-separator{height:23px;border-left:1px solid var(--line);margin:0 4px;flex-shrink:0}

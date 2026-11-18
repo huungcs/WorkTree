@@ -1,5 +1,15 @@
 {
   "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/mcp/:key",
+      "destination": "/api/mcp?key=:key"
+    },
+    {
+      "source": "/mcp/:key/",
+      "destination": "/api/mcp?key=:key"
+    }
+  ],
   "functions": {
     "api/*.js": {
       "memory": 1024,

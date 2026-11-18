@@ -50,8 +50,9 @@ test('Task visibility and scope evaluation for member role in cloud workspace', 
 
   function canReadTask(t, a) {
     if (!a || !t) return false;
-    if (isCloudWorkspace && a.personId && (t.owner === a.personId || String(t.owner) === String(a.personId))) return true;
-    return !!(inScope(t.node, a) && (a.role !== 'member' || (a.personId && t.owner === a.personId)));
+    const isCollab = Boolean(a.personId && Array.isArray(t.collaborators) && t.collaborators.some(cid => String(cid) === String(a.personId)));
+    if (isCloudWorkspace && a.personId && (t.owner === a.personId || String(t.owner) === String(a.personId) || isCollab)) return true;
+    return !!(inScope(t.node, a) && (a.role !== 'member' || (a.personId && (t.owner === a.personId || isCollab))));
   }
 
   // Member account in Sales department
@@ -102,4 +103,14 @@ test('Task visibility and scope evaluation for member role in cloud workspace', 
   };
   assert.equal(canReadTask(task1, memberWithEmptyScopes), true, 'Member should see their assigned task even if scopes array is empty');
   assert.equal(canReadTask(taskOther, memberWithEmptyScopes), false, 'Member should still not see others tasks with empty scopes');
+
+  const taskCollab = {
+    id: 'task-4',
+    node: 'dept-tech',
+    title: 'Phối hợp liên phòng ban',
+    owner: 'emp-other',
+    collaborators: ['emp-unicon']
+  };
+  assert.equal(canReadTask(taskCollab, memberAccount), true, 'Member added as collaborator should see the task');
+  assert.equal(canReadTask(taskCollab, memberWithEmptyScopes), true, 'Collaborator member should see the task even with empty scopes');
 });

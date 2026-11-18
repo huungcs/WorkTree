@@ -425,11 +425,11 @@ export class AuthView {
 
       <div class="auth-demo-box">
         <p class="auth-demo-box-hint">
-          Khám phá không gian làm việc với đầy đủ dự án, phòng ban, phân công và tiến độ thực tế:
+          Thử xem dự án và công việc theo từng vai trò. Không cần đăng nhập.
         </p>
         <button type="button" id="demoLoginBtn" class="btn auth-demo-btn" ${this.isSubmitting ? 'disabled' : ''}>
           ${SVG_ICONS.sparkles}
-          <span>Xem tài khoản dữ liệu mẫu (Demo)</span>
+          <span>Xem demo NTH GROUP</span>
         </button>
       </div>
 
@@ -504,7 +504,7 @@ export class AuthView {
       <div style="text-align:center;margin-top:16px;">
         <button type="button" id="signupDemoBtn" class="link-btn" style="background:none;border:none;padding:0;color:var(--primary-text);font-size:12.5px;cursor:pointer;text-decoration:underline;display:inline-flex;align-items:center;gap:6px;justify-content:center;">
           ${SVG_ICONS.sparkles}
-          <span>Hoặc xem thử hệ thống với tài khoản dữ liệu mẫu</span>
+          <span>Xem demo NTH GROUP</span>
         </button>
       </div>
 
@@ -746,7 +746,7 @@ export class AuthView {
     if (demoLoginBtn) {
       demoLoginBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        this.handleDemoLogin(demoLoginBtn);
+        this.openDemo();
       });
     }
 
@@ -754,7 +754,7 @@ export class AuthView {
     if (signupDemoBtn) {
       signupDemoBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        this.handleDemoLogin(signupDemoBtn);
+        this.openDemo();
       });
     }
   }
@@ -864,56 +864,10 @@ export class AuthView {
     }
   }
 
-  /**
-   * Xử lý Đăng nhập tài khoản Demo có sẵn dữ liệu (nguyentronghuu1905@gmail.com)
-   */
-  async handleDemoLogin(triggerBtn = null) {
-    if (this.isSubmitting) return;
-
-    const demoEmail = 'nguyentronghuu1905@gmail.com';
-    const demoPasswords = ['WorkTreeDemo2026@!', 'nguyentronghuu1905@gmail.com'];
-
-    const emailInput = document.getElementById('loginEmail');
-    const passInput = document.getElementById('loginPassword');
-    if (emailInput) emailInput.value = demoEmail;
-    if (passInput) passInput.value = demoPasswords[0];
-
-    const demoBtn = triggerBtn || this.container.querySelector('#demoLoginBtn') || this.container.querySelector('#signupDemoBtn');
-    let originalHtml = '';
-    if (demoBtn) {
-      originalHtml = demoBtn.innerHTML;
-      demoBtn.innerHTML = `${SVG_ICONS.spinner} <span>Đang nạp dữ liệu mẫu...</span>`;
-    }
-
-    this.setSubmitting(true);
-    try {
-      let data = null;
-      let lastErr = null;
-
-      for (const pwd of demoPasswords) {
-        try {
-          data = await AuthService.signIn(demoEmail, pwd);
-          if (data?.session) {
-            lastErr = null;
-            break;
-          }
-        } catch (err) {
-          lastErr = err;
-        }
-      }
-
-      if (data?.session) {
-        this.onAuthenticated(data.session);
-      } else if (lastErr) {
-        throw lastErr;
-      }
-    } catch (err) {
-      console.warn('Đăng nhập tài khoản demo thất bại:', err.message);
-      this.showError('Không thể đăng nhập tài khoản demo: ' + AuthService.formatAuthError(err));
-      if (demoBtn && originalHtml) demoBtn.innerHTML = originalHtml;
-    } finally {
-      this.setSubmitting(false);
-    }
+  openDemo() {
+    const url = new URL(window.location.pathname, window.location.origin);
+    url.searchParams.set('demo', '1');
+    window.location.assign(url);
   }
 
   /**

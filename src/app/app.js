@@ -9,7 +9,7 @@ import { callLegacyGlobal, getLegacyGlobal, publishLegacyGlobals } from './legac
 import { setupSidebarToggle } from '../components/navigation/sidebar.js';
 import { AuthService, AuthView } from '../features/auth/index.js';
 import { OrgService, WorkspaceDialog } from '../features/organizations/index.js';
-import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository, AttachmentRepository, OrganizationRepository, ActivityRepository } from '../lib/supabase/repositories.js';
+import { NodeRepository, EmployeeRepository, TaskRepository, InvitationRepository, PinRepository, StarRepository, SavedViewRepository, AttachmentRepository, OrganizationRepository, ActivityRepository, SecurityAuditRepository, CollaboratorFallbackStore } from '../lib/supabase/repositories.js';
 import { EmployeeService } from '../features/employees/index.js';
 import { TaskService, StarService } from '../features/tasks/index.js';
 import { TreeService } from '../features/organization-tree/index.js';
@@ -25,6 +25,10 @@ import { NotificationService, PushDeviceService } from '../features/notification
 import { ZaloBotService, ZALO_BOT_CONFIG } from '../features/integrations/index.js';
 import { initConsoleGuard } from '../lib/security/console-guard.js';
 import { PlatformAdminService, openPlatformAdminPortal, closePlatformAdminPortal } from '../features/platform-admin/index.js';
+import { McpClientService, openMcpDialog } from '../features/mcp/index.js';
+import { AiClientService, openAiAssistantDialog, clearAiSessionHistory } from '../features/ai/index.js';
+import { mountChatFeature, createMockChatAdapter } from '../features/chat/index.js';
+import { mountProfileAvatar, createProfileAvatarAdapter } from '../features/profile/index.js';
 
 // Activate Client Console Security Guard & Self-XSS Warning
 initConsoleGuard();
@@ -52,6 +56,8 @@ let authViewInstance = null;
 let workspaceDialogInstance = null;
 let isBootstrapping = false;
 let workspaceLoadGeneration = 0;
+let chatFeatureInstance = null;
+let profileAvatarMounted = false;
 
 /**
  * Tạo adapter cho tài khoản người dùng từ Supabase User, Profile & active organization membership
@@ -149,6 +155,9 @@ function mapCloudTasks(rawTasks) {
       node: t.node_id,
       title: t.title || '',
       owner: t.primary_assignee_id || null,
+      collaborators: Array.isArray(t.collaborator_ids)
+        ? [...t.collaborator_ids]
+        : (Array.isArray(t.collaborators) ? [...t.collaborators] : []),
       status: uiStatus,
       priority: uiPriority,
       start: t.start_date || '',
@@ -307,9 +316,23 @@ export async function loadWorkspaceData(orgId) {
     }
 
     // 9. Normalize / map rows
+    const activityCollabLogs = (rawActivities || [])
+      .filter(a => a.action === 'task.collaborators_updated' && a.task_id && Array.isArray(a.metadata?.collaborator_ids))
+      .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    const activityCollabMap = new Map();
+    for (const act of activityCollabLogs) {
+      activityCollabMap.set(act.task_id, act.metadata.collaborator_ids);
+      CollaboratorFallbackStore.set(orgId, act.task_id, act.metadata.collaborator_ids);
+    }
+    const hydratedRawTasks = (rawTasks || []).map(t => {
+      if (Array.isArray(t.collaborator_ids) && t.collaborator_ids.length > 0) return t;
+      const fromAct = activityCollabMap.get(t.id);
+      return fromAct ? { ...t, collaborator_ids: fromAct } : t;
+    });
+
     const mappedNodes = mapCloudNodes(rawNodes, membership.name);
     const mappedEmployees = mapCloudEmployees(rawEmployees);
-    const mappedTasks = mapCloudTasks(rawTasks);
+    const mappedTasks = mapCloudTasks(hydratedRawTasks);
 
     if (appState.user) {
       const match = (rawEmployees || []).find(e => 
@@ -440,6 +463,18 @@ export function closeAllModalsAndPopovers() {
         if (typeof popover.hidePopover === 'function') popover.hidePopover();
         popover.remove();
       } catch (e) {}
+    }
+    const mcpDlg = document.getElementById('mcpDialog');
+    if (mcpDlg) {
+      try { mcpDlg.remove(); } catch (e) {}
+    }
+    const aiDlg = document.getElementById('aiAssistantDialog');
+    if (aiDlg) {
+      try { aiDlg.remove(); } catch (e) {}
+    }
+    clearAiSessionHistory();
+    if (typeof window.closeSystemHub === 'function') {
+      try { window.closeSystemHub(); } catch (e) {}
     }
   }
 }
@@ -919,7 +954,74 @@ function updateUserProfileUI(account) {
  * Khởi tạo toàn bộ ứng dụng và điều phối auth lifecycle
  */
 export async function bootstrapApp() {
-  console.info('WorkTree X initializing with authoritative Supabase Auth & Multi-Tenant Onboarding...');
+  const isDemo = callLegacyGlobal('isDemoRoute') === true;
+  const demoWorkspace = { organizationId: 'demo-nth-group', name: 'NTH GROUP', slug: 'nth-group' };
+
+
+  // Preview adapter is isolated from cloud data. Replace this factory when the
+  // backend agent delivers the adapter in CHAT_FEATURE_HANDOFF.md.
+  if (!chatFeatureInstance && document.getElementById('messagesContent')) {
+    chatFeatureInstance = mountChatFeature({
+      host: document.getElementById('messagesContent'),
+      getContext: () => {
+        if (isDemo) {
+          const account = callLegacyGlobal('currentAccount');
+          return {
+            organizationId: demoWorkspace.organizationId,
+            userId: account?.id || null,
+            displayName: account?.name || 'Khách'
+          };
+        }
+        return {
+          organizationId: appState.activeMembership ? appState.activeOrganizationId : null,
+          userId: appState.user?.id || null,
+          displayName: appState.user?.user_metadata?.full_name || 'Bạn'
+        };
+      },
+      subscribeContext: listener => appState.subscribe(listener),
+      createAdapter: createMockChatAdapter,
+      onCloseSidebar: () => callLegacyGlobal('closeSidebar'),
+      taskBridge: {
+        canCreate: () => callLegacyGlobal('canCreateTask') === true,
+        openForm: messageSource => callLegacyGlobal('openTaskForm', [null, { messageSource }]),
+        closeDrawer: () => callLegacyGlobal('closeDialog', ['drawer', true])
+      }
+    });
+  }
+
+  const profileDialog = document.getElementById('profileDialog');
+  if (!isDemo && !profileAvatarMounted && profileDialog) {
+    profileAvatarMounted = true;
+    mountProfileAvatar({
+      dialog: profileDialog,
+      getContext: () => ({
+        userId: appState.user?.id,
+        avatarPath: getLegacyGlobal('__worktree_supabase_user')?.profile?.avatar_path
+      }),
+      subscribeContext: listener => appState.subscribe(listener),
+      adapter: createProfileAvatarAdapter(),
+      onChange: url => {
+        for (const id of ['userAvatar', 'topAvatar']) {
+          const avatar = document.getElementById(id);
+          if (url) avatar?.style.setProperty('--profile-avatar-image', `url(${JSON.stringify(url)})`);
+          else avatar?.style.removeProperty('--profile-avatar-image');
+        }
+        chatFeatureInstance?.setProfileAvatar(url);
+      }
+    });
+  }
+
+  if (isDemo) {
+    workspaceDialogInstance = new WorkspaceDialog();
+    window.openWorkspaceSwitcher = () => workspaceDialogInstance.openSwitcher({
+      organizations: [{ ...demoWorkspace, role: callLegacyGlobal('currentAccount')?.role }],
+      activeOrganizationId: demoWorkspace.organizationId,
+      canCreateWorkspace: false
+    });
+    setupSidebarToggle();
+    callLegacyGlobal('startDemoWorkspace');
+    return;
+  }
 
   // 0. Kiểm tra tham số mời ?invite=<token> trên URL
   let inviteToken = null;
@@ -1197,7 +1299,197 @@ export async function bootstrapApp() {
   console.info('WorkTree X bootstrap complete.');
 }
 
+function openWorkspaceMcpDialog(opts = {}) {
+  const container = opts.container || (typeof document !== 'undefined' ? document.getElementById('mcpHubContent') : null);
+  if (opts.switchToTab !== false && typeof window !== 'undefined' && typeof window.openSystemHub === 'function') {
+    return window.openSystemHub('mcp');
+  }
+  const orgId = appState.activeOrganizationId;
+  const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
+  const role = appState.activeMembership?.role || activeOrg?.role || 'member';
+  return openMcpDialog({
+    container,
+    organizationId: orgId,
+    organizationName: activeOrg?.name || 'Workspace',
+    role,
+    nodes: appState.nodes || [],
+    onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
+  });
+}
+
+function focusTaskDrawerSection(sectionKey) {
+  if (!sectionKey || typeof document === 'undefined') return;
+  const selectorByKey = {
+    checklist: '#newChecklist',
+    dependencies: '#newDepTask, #dependencyForm',
+    comments: '#commentText',
+    time: '#logHours',
+    attachments: '[data-action="pick-attachment"]'
+  };
+  const headingByKey = {
+    checklist: 'Checklist',
+    dependencies: 'Phụ thuộc',
+    comments: 'Bình luận',
+    time: 'Ghi thời gian',
+    attachments: 'Tệp đính kèm'
+  };
+
+  const tryFocus = (attempt = 0) => {
+    const drawer = document.getElementById('drawer');
+    if (!drawer?.open) return;
+    let target = selectorByKey[sectionKey]
+      ? drawer.querySelector(selectorByKey[sectionKey])
+      : null;
+    if (!target && headingByKey[sectionKey]) {
+      const headings = drawer.querySelectorAll('.drawer-section h3');
+      for (const h of headings) {
+        if ((h.textContent || '').includes(headingByKey[sectionKey])) {
+          target = h.closest('.drawer-section') || h;
+          break;
+        }
+      }
+    }
+    if (target) {
+      try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+      if (typeof target.focus === 'function' && !target.disabled && target.tagName !== 'SECTION') {
+        try { target.focus({ preventScroll: true }); } catch (_) {}
+      }
+      return;
+    }
+    if (attempt < 3) {
+      setTimeout(() => tryFocus(attempt + 1), 160);
+    }
+  };
+
+  requestAnimationFrame(() => tryFocus(0));
+}
+
+async function navigateWorktreeTarget(rawHref, label = '') {
+  if (typeof window === 'undefined' || typeof rawHref !== 'string' || !rawHref.startsWith('worktree://')) return;
+  let parsed;
+  try {
+    parsed = new URL(rawHref);
+  } catch {
+    return;
+  }
+
+  const kind = parsed.host;
+  const rawId = decodeURIComponent((parsed.pathname || '').replace(/^\/+/, ''));
+  const q = parsed.searchParams;
+  if (!rawId) return;
+
+  const applyParams = async (params) => {
+    const qs = params.toString();
+    const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`;
+    try {
+      window.history.pushState({ worktree: true }, '', nextUrl);
+    } catch (_) {}
+    if (typeof window.applyUrlStateToWorkspace === 'function') {
+      await window.applyUrlStateToWorkspace({ isInitialLoad: false });
+    }
+  };
+
+  if (kind === 'task') {
+    const resolvedId = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
+    if (typeof window.openDrawer === 'function') {
+      window.openDrawer(resolvedId);
+      const focusKey = (q.get('focus') || '').toLowerCase();
+      if (focusKey) focusTaskDrawerSection(focusKey);
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      params.set('task', rawId);
+      await applyParams(params);
+    }
+    if (label) callLegacyGlobal('toast', [`Đang mở: ${label} · Bấm icon Trợ lý AI nếu muốn hỏi tiếp.`, 'info']);
+    return;
+  }
+
+  if (kind === 'node') {
+    const params = new URLSearchParams();
+    params.set('node', rawId);
+    params.set('view', q.get('view') || 'list');
+    for (const key of ['due', 'status', 'priority', 'owner', 'q', 'sub', 'fav']) {
+      if (q.get(key)) params.set(key, q.get(key));
+    }
+    await applyParams(params);
+    if (label) callLegacyGlobal('toast', [`Đã chuyển tới đơn vị: ${label}`, 'info']);
+    return;
+  }
+
+  if (kind === 'employee') {
+    const params = new URLSearchParams();
+    if (q.get('view') === 'workload') {
+      params.set('view', 'workload');
+    } else {
+      params.set('view', 'list');
+      params.set('owner', rawId);
+    }
+    await applyParams(params);
+    if (label) callLegacyGlobal('toast', [`Đang lọc công việc của: ${label}`, 'info']);
+    return;
+  }
+
+  if (kind === 'view') {
+    const params = new URLSearchParams();
+    if (rawId === 'attention' || rawId === 'mine') {
+      params.set('nav', rawId);
+    } else if (['late', 'today', 'week', 'unscheduled'].includes(rawId)) {
+      params.set('view', 'list');
+      params.set('due', rawId);
+    } else {
+      params.set('view', rawId);
+      for (const key of ['node', 'due', 'status', 'priority', 'owner', 'q', 'sub', 'fav']) {
+        if (q.get(key)) params.set(key, q.get(key));
+      }
+    }
+    await applyParams(params);
+    if (label) callLegacyGlobal('toast', [`Đã chuyển tới: ${label}`, 'info']);
+    return;
+  }
+
+  if (kind === 'hub' && typeof window.openSystemHub === 'function') {
+    await window.openSystemHub(rawId);
+  }
+}
+
+function openWorkspaceAiAssistantDialog(options = {}) {
+  const orgId = appState.activeOrganizationId;
+  const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
+  const role = appState.activeMembership?.role || activeOrg?.role || 'member';
+  const fallbackName = typeof window !== 'undefined' && typeof window.currentWorkspaceLabel === 'function'
+    ? window.currentWorkspaceLabel()
+    : 'Workspace';
+  return openAiAssistantDialog({
+    organizationId: orgId,
+    organizationName: activeOrg?.name || fallbackName,
+    role,
+    initialPrompt: options?.initialPrompt || null,
+    initialPreset: options?.initialPreset || null,
+    localContextProvider: () => (typeof window !== 'undefined' && typeof window.getAiLocalContext === 'function' ? window.getAiLocalContext() : null),
+    onDataMutated: async () => {
+      if (orgId && orgId === appState.activeOrganizationId) {
+        await loadWorkspaceData(orgId, { quiet: true });
+      }
+    },
+    onNavigate: (href, label) => navigateWorktreeTarget(href, label),
+    onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
+  });
+}
+
+function openWorkspaceAiBlueprintDialog() {
+  const orgId = appState.activeOrganizationId;
+  if (!orgId || !workspaceDialogInstance) return;
+  const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
+  const role = appState.activeMembership?.role || activeOrg?.role || 'member';
+  if (!['owner', 'admin'].includes(role)) return;
+  return workspaceDialogInstance.openBlueprintGenerator({
+    organizationId: orgId,
+    organizationName: activeOrg?.name || 'Workspace'
+  });
+}
+
 if (typeof window !== 'undefined') {
+  window.openAiOrgBlueprintDialog = openWorkspaceAiBlueprintDialog;
   publishLegacyGlobals({
     appState,
     loadWorkspaceData,
@@ -1210,6 +1502,7 @@ if (typeof window !== 'undefined') {
     TimeEntryService,
     EmployeeService,
     EmployeeRepository,
+    SecurityAuditRepository,
     InvitationRepository,
     PinRepository,
     StarRepository,
@@ -1223,8 +1516,14 @@ if (typeof window !== 'undefined') {
     NotificationService,
     PushDeviceService,
     ZaloBotService,
-    ZALO_BOT_CONFIG
+    ZALO_BOT_CONFIG,
+    McpClientService,
+    openMcpDialog: openWorkspaceMcpDialog,
+    AiClientService,
+    openAiAssistantDialog: openWorkspaceAiAssistantDialog
   });
+  window.openMcpDialog = openWorkspaceMcpDialog;
+  window.openAiAssistantDialog = openWorkspaceAiAssistantDialog;
 }
 
 // Tự khởi chạy khi file được nạp

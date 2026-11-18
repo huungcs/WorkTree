@@ -8,6 +8,154 @@
 
 import { OrgService, ROLE_LABELS } from '../services/org-service.js';
 
+function foldBlueprintText(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
+export function generateOrgBlueprintFromDescription(description = '') {
+  const raw = String(description || '').trim();
+  if (!raw) return null;
+  const f = foldBlueprintText(raw);
+  const departments = [];
+
+  if (/\b(agency|marketing|ads|content|design|truyen thong|sang tao|tiktok|branding)\b/.test(f)) {
+    departments.push(
+      {
+        name: 'Phòng Nội dung (Content)',
+        type: 'department',
+        description: 'Sản xuất nội dung, kịch bản & lịch đăng đa kênh',
+        projects: [{ name: 'Kế hoạch Content Tháng 1', description: 'Trụ cột nội dung & lịch xuất bản' }],
+        starterTasks: [{
+          title: 'Xây dựng bộ khung nội dung & lịch đăng 14 ngày',
+          priority: 'high',
+          estimateMinutes: 240,
+          tags: ['Content', 'Onboarding'],
+          checklist: ['Chốt 3 nhóm thông điệp chính', 'Phân bổ lịch đăng Facebook / TikTok', 'Trình duyệt mẫu bài đầu tiên']
+        }]
+      },
+      {
+        name: 'Phòng Quảng cáo (Ads)',
+        type: 'department',
+        description: 'Triển khai, đo lường Pixel/CAPI và tối ưu chi phí',
+        projects: [{ name: 'Chiến dịch Lead & Chuyển đổi', description: 'Theo dõi CPA/ROAS và creative thắng' }],
+        starterTasks: [{
+          title: 'Kiểm tra Pixel/Tracking & thiết lập chiến dịch thử nghiệm',
+          priority: 'high',
+          estimateMinutes: 180,
+          tags: ['Ads', 'Tracking'],
+          checklist: ['Kiểm tra sự kiện chuyển đổi', 'Chuẩn bị 3 nhóm đối tượng test', 'Đặt ngưỡng cảnh báo CPA']
+        }]
+      },
+      {
+        name: 'Phòng Thiết kế (Design)',
+        type: 'department',
+        description: 'Hình ảnh, video ngắn và tài nguyên thương hiệu',
+        projects: [{ name: 'Bộ Creative & Template Chuẩn', description: 'Asset thiết kế dùng chung cho các chiến dịch' }],
+        starterTasks: [{
+          title: 'Chuẩn hóa bộ template thiết kế & kích thước social',
+          priority: 'medium',
+          estimateMinutes: 240,
+          tags: ['Design', 'Brand'],
+          checklist: ['Chốt bảng màu & font chuẩn', 'Tạo 5 layout banner quảng cáo', 'Chia sẻ thư mục asset cho Ads & Content']
+        }]
+      }
+    );
+  } else if (/\b(phan mem|it|cong nghe|tech|saas|dev|software|lap trinh|product)\b/.test(f)) {
+    departments.push(
+      {
+        name: 'Phòng Sản phẩm & UI/UX',
+        type: 'department',
+        description: 'Yêu cầu nghiệp vụ, wireframe & trải nghiệm người dùng',
+        projects: [{ name: 'Roadmap Phiên bản v1', description: 'Định nghĩa tính năng lõi & trải nghiệm' }],
+        starterTasks: [{
+          title: 'Chốt phạm vi tính năng MVP & luồng người dùng chính',
+          priority: 'high',
+          estimateMinutes: 240,
+          tags: ['Product', 'UX'],
+          checklist: ['Liệt kê luồng người dùng ưu tiên', 'Phác thảo màn hình chính', 'Review cùng Kỹ thuật trước Sprint']
+        }]
+      },
+      {
+        name: 'Phòng Kỹ thuật (Engineering)',
+        type: 'department',
+        description: 'Phát triển Backend, Frontend & kiểm thử tự động',
+        projects: [{ name: 'Sprint Khởi tạo Hệ thống', description: 'Kiến trúc nền tảng & CI/CD' }],
+        starterTasks: [{
+          title: 'Thiết lập repo, phân quyền dữ liệu & pipeline kiểm thử',
+          priority: 'high',
+          estimateMinutes: 300,
+          tags: ['Tech', 'Architecture'],
+          checklist: ['Khởi tạo cấu trúc module & env', 'Thiết lập kiểm tra tự động', 'Kiểm thử luồng đăng nhập & phân quyền']
+        }]
+      }
+    );
+  } else {
+    departments.push(
+      {
+        name: 'Phòng Kinh doanh',
+        type: 'department',
+        description: 'Tìm kiếm khách hàng, tư vấn và chốt hợp đồng',
+        projects: [{ name: 'Pipeline Khách hàng Mục tiêu', description: 'Theo dõi cơ hội và tỷ lệ chuyển đổi' }],
+        starterTasks: [{
+          title: 'Thiết lập quy trình chăm sóc khách hàng & mục tiêu tháng',
+          priority: 'high',
+          estimateMinutes: 180,
+          tags: ['Sales', 'KPI'],
+          checklist: ['Xác định chỉ tiêu doanh số tuần', 'Phân loại nguồn khách hàng', 'Chốt lịch rà soát pipeline thứ 6']
+        }]
+      },
+      {
+        name: 'Phòng Vận hành',
+        type: 'department',
+        description: 'Điều phối công việc, chất lượng đầu ra và hậu cần',
+        projects: [{ name: 'Quy trình Vận hành Chuẩn', description: 'Chuẩn hóa checklist bàn giao nội bộ' }],
+        starterTasks: [{
+          title: 'Rà soát quy trình bàn giao & phân công phụ trách',
+          priority: 'medium',
+          estimateMinutes: 120,
+          tags: ['Ops', 'Process'],
+          checklist: ['Liệt kê đầu việc lặp lại hàng tuần', 'Gắn người chịu trách nhiệm chính', 'Đặt mốc kiểm tra chất lượng']
+        }]
+      }
+    );
+  }
+
+  // Detect explicit custom unit names listed after "gồm ..." / "gồm:"
+  const listMatch = raw.match(/(?:gồm|bao gồm|gồm các bộ phận|gồm team)\s*:?\s*([^\n.]+)/i);
+  if (listMatch && listMatch[1]) {
+    const tokens = listMatch[1].split(/,|và|&|\//i).map(s => s.trim()).filter(s => s.length >= 2 && s.length <= 40);
+    for (const tok of tokens.slice(0, 5)) {
+      const ft = foldBlueprintText(tok);
+      if (!departments.some(d => foldBlueprintText(d.name).includes(ft) || ft.includes(foldBlueprintText(d.name.replace(/^phòng\s+/i, ''))))) {
+        departments.push({
+          name: /^(phòng|team|ban|bộ phận|nhóm)/i.test(tok) ? tok : `Bộ phận ${tok}`,
+          type: 'department',
+          description: `Khởi tạo theo mô tả doanh nghiệp: "${tok}"`,
+          projects: [],
+          starterTasks: [{
+            title: `Lập kế hoạch vận hành tuần đầu cho ${tok}`,
+            priority: 'medium',
+            estimateMinutes: 120,
+            tags: ['Onboarding'],
+            checklist: ['Xác định mục tiêu 30 ngày đầu', 'Phân công nhân sự phụ trách']
+          }]
+        });
+      }
+    }
+  }
+
+  return {
+    summary: `Đề xuất ${departments.length} phòng ban & ${departments.reduce((s, d) => s + (d.starterTasks?.length || 0), 0)} đầu việc khởi đầu kèm checklist`,
+    departments: departments.slice(0, 6)
+  };
+}
+
 export class WorkspaceDialog {
   constructor(options = {}) {
     this.onWorkspaceChanged = options.onWorkspaceChanged || (() => {});
@@ -78,6 +226,19 @@ export class WorkspaceDialog {
                 <option value="UTC">UTC (Giờ chuẩn quốc tế)</option>
               </select>
             </label>
+
+            <div class="field full" style="padding:12px 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);">
+              <label for="wsAiDesc" style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:600;margin-bottom:6px;">
+                <span>✨ Khởi tạo nhanh cây tổ chức bằng AI (Tùy chọn)</span>
+              </label>
+              <textarea id="wsAiDesc" rows="2" maxlength="400" placeholder="Ví dụ: Agency marketing 12 người gồm Content, Ads, Design" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font:inherit;font-size:13px;resize:vertical;"></textarea>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+                <button type="button" class="btn small" data-ws-preset="Agency marketing 12 người gồm Content, Ads, Design">Agency Marketing</button>
+                <button type="button" class="btn small" data-ws-preset="Công ty phần mềm SaaS gồm Sản phẩm, Kỹ thuật, QA">Công ty Phần mềm</button>
+                <button type="button" class="btn small" data-ws-preset="Doanh nghiệp bán lẻ gồm Kinh doanh, CSKH, Kho vận">Kinh doanh &amp; Vận hành</button>
+              </div>
+              <div id="wsAiPreview" style="margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5;"></div>
+            </div>
           </div>
         </div>
 
@@ -100,9 +261,35 @@ export class WorkspaceDialog {
     const nameInput = dialog.querySelector('#wsName');
     const slugInput = dialog.querySelector('#wsSlug');
     const tzSelect = dialog.querySelector('#wsTimezone');
+    const aiDescInput = dialog.querySelector('#wsAiDesc');
+    const aiPreviewEl = dialog.querySelector('#wsAiPreview');
     const errorEl = dialog.querySelector('#wsFormError');
     const submitBtn = dialog.querySelector('#wsSubmitBtn');
     const logoutBtn = dialog.querySelector('#onboardingLogoutBtn');
+
+    let currentBlueprint = null;
+    const updateAiPreview = () => {
+      currentBlueprint = generateOrgBlueprintFromDescription(aiDescInput?.value || '');
+      if (!aiPreviewEl) return;
+      if (!currentBlueprint) {
+        aiPreviewEl.innerHTML = '<span>Nhập mô tả 1–2 câu để AI dựng sẵn phòng ban, dự án mẫu &amp; checklist khởi đầu.</span>';
+        return;
+      }
+      aiPreviewEl.innerHTML = `
+        <strong style="color:var(--primary-text);display:block;margin-bottom:4px;">${this.escapeHtml(currentBlueprint.summary)}:</strong>
+        <ul style="margin:0;padding-left:18px;display:grid;gap:2px;">
+          ${currentBlueprint.departments.map(d => `<li><strong>${this.escapeHtml(d.name)}</strong>${d.projects?.length ? ` → ${this.escapeHtml(d.projects.map(p => p.name).join(', '))}` : ''}</li>`).join('')}
+        </ul>
+      `;
+    };
+    aiDescInput?.addEventListener('input', updateAiPreview);
+    dialog.querySelectorAll('[data-ws-preset]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (aiDescInput) aiDescInput.value = btn.getAttribute('data-ws-preset') || '';
+        updateAiPreview();
+      });
+    });
+    updateAiPreview();
 
     // Auto slugify when name changes
     let slugManualEdited = false;
@@ -164,9 +351,13 @@ export class WorkspaceDialog {
       `;
 
       try {
+        const blueprintToSeed = currentBlueprint;
         const newOrg = await OrgService.createNewOrganization(name, slug, timezone);
         this.close();
         await this.onWorkspaceChanged(newOrg.organizationId, newOrg);
+        if (blueprintToSeed) {
+          await this.applyOrgBlueprint(newOrg.organizationId, blueprintToSeed);
+        }
       } catch (err) {
         errorEl.textContent = err.message || 'Không thể tạo workspace. Vui lòng thử lại.';
         errorEl.style.display = 'block';
@@ -292,6 +483,162 @@ export class WorkspaceDialog {
     }
 
     dialog.showModal();
+  }
+
+  async applyOrgBlueprint(organizationId, blueprint) {
+    if (!organizationId || !blueprint?.departments?.length) return 0;
+    if (typeof window === 'undefined' || !window.TreeService) return 0;
+    let rootId = (window.appState?.nodes || []).find(n => !n.parent && !n.parent_id)?.id || null;
+    if (!rootId && window.TreeService.loadOrganizationTree) {
+      const roots = await window.TreeService.loadOrganizationTree(organizationId);
+      rootId = roots?.[0]?.id || null;
+    }
+    if (!rootId) return 0;
+
+    let createdCount = 0;
+    for (let i = 0; i < blueprint.departments.length; i++) {
+      const dept = blueprint.departments[i];
+      const deptRes = await window.TreeService.createNode({
+        organizationId,
+        parentId: rootId,
+        name: dept.name,
+        type: dept.type || 'department',
+        description: dept.description || '',
+        sortOrder: i + 1
+      });
+      const deptId = deptRes?.created?.id;
+      if (!deptId) continue;
+      createdCount++;
+
+      let firstProjectId = null;
+      for (let j = 0; j < (dept.projects || []).length; j++) {
+        const proj = dept.projects[j];
+        const projRes = await window.TreeService.createNode({
+          organizationId,
+          parentId: deptId,
+          name: proj.name,
+          type: 'project',
+          description: proj.description || '',
+          sortOrder: j + 1
+        });
+        if (!firstProjectId && projRes?.created?.id) firstProjectId = projRes.created.id;
+      }
+
+      if (window.TaskService?.createTask) {
+        for (const st of (dept.starterTasks || [])) {
+          const createdTask = await window.TaskService.createTask({
+            organizationId,
+            nodeId: firstProjectId || deptId,
+            title: st.title,
+            description: 'Công việc khởi tạo mẫu từ AI Onboarding Blueprint.',
+            priority: st.priority || 'medium',
+            estimateMinutes: st.estimateMinutes || 120,
+            tags: st.tags || ['Onboarding']
+          });
+          if (createdTask?.id && window.ChecklistService?.addItem && Array.isArray(st.checklist)) {
+            for (const step of st.checklist) {
+              await window.ChecklistService.addItem({ taskId: createdTask.id, content: step });
+            }
+          }
+        }
+      }
+    }
+
+    if (typeof window.loadWorkspaceData === 'function') {
+      await window.loadWorkspaceData(organizationId, { quiet: true });
+    }
+    if (typeof window.toast === 'function') {
+      window.toast(`AI đã khởi tạo ${createdCount} phòng ban mẫu và checklist ban đầu.`);
+    }
+    return createdCount;
+  }
+
+  openBlueprintGenerator({ organizationId, organizationName = 'Workspace' } = {}) {
+    if (!organizationId) return;
+    this.close();
+
+    const dialog = document.createElement('dialog');
+    dialog.className = 'dialog form-dialog small-dialog workspace-modal';
+    dialog.id = 'aiBlueprintDialog';
+    dialog.setAttribute('aria-labelledby', 'aiBpTitle');
+    dialog.setAttribute('aria-modal', 'true');
+
+    dialog.innerHTML = `
+      <form id="aiBpForm" method="dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="overline">AI ONBOARDING · ${this.escapeHtml(organizationName)}</p>
+            <h2 id="aiBpTitle">Khởi tạo cây tổ chức bằng AI</h2>
+          </div>
+          <button type="button" class="icon-btn" data-action="close-dialog" aria-label="Đóng">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="dialog-scroll">
+          <div class="form-error" id="aiBpError" role="alert" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--red-soft);color:var(--red);border-radius:8px;font-size:13px;"></div>
+          <label class="field full">
+            <span>Mô tả 1–2 câu mô hình doanh nghiệp của bạn</span>
+            <textarea id="aiBpDesc" rows="3" maxlength="400" placeholder="Ví dụ: Agency marketing 12 người gồm Content, Ads, Design"></textarea>
+          </label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px;">
+            <button type="button" class="btn small" data-bp-preset="Agency marketing 12 người gồm Content, Ads, Design">Agency Marketing</button>
+            <button type="button" class="btn small" data-bp-preset="Công ty phần mềm SaaS gồm Sản phẩm, Kỹ thuật, QA">Công ty Phần mềm</button>
+            <button type="button" class="btn small" data-bp-preset="Doanh nghiệp bán lẻ gồm Kinh doanh, CSKH, Kho vận">Kinh doanh &amp; Vận hành</button>
+          </div>
+          <div id="aiBpPreview" style="padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font-size:12.5px;color:var(--muted);"></div>
+        </div>
+        <div class="dialog-foot">
+          <button type="button" class="btn" data-action="close-dialog">Hủy</button>
+          <button type="submit" class="btn primary" id="aiBpSubmitBtn">Áp dụng vào Workspace</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(dialog);
+    this.currentDialog = dialog;
+
+    const descEl = dialog.querySelector('#aiBpDesc');
+    const previewEl = dialog.querySelector('#aiBpPreview');
+    const errorEl = dialog.querySelector('#aiBpError');
+    const submitBtn = dialog.querySelector('#aiBpSubmitBtn');
+    let blueprint = null;
+
+    const refreshPreview = () => {
+      blueprint = generateOrgBlueprintFromDescription(descEl.value);
+      submitBtn.disabled = !blueprint;
+      previewEl.innerHTML = blueprint
+        ? `<strong style="color:var(--primary-text);display:block;margin-bottom:6px;">${this.escapeHtml(blueprint.summary)}:</strong><ul style="margin:0;padding-left:18px;display:grid;gap:4px;">${blueprint.departments.map(d => `<li><strong>${this.escapeHtml(d.name)}</strong>${d.projects?.length ? ` · Dự án: ${this.escapeHtml(d.projects.map(p => p.name).join(', '))}` : ''}</li>`).join('')}</ul>`
+        : 'Nhập mô tả doanh nghiệp hoặc chọn một gợi ý mẫu để xem trước khung cây tổ chức.';
+    };
+
+    descEl.addEventListener('input', refreshPreview);
+    dialog.querySelectorAll('[data-bp-preset]').forEach(b => b.addEventListener('click', () => {
+      descEl.value = b.getAttribute('data-bp-preset') || '';
+      refreshPreview();
+    }));
+    dialog.querySelectorAll('[data-action="close-dialog"]').forEach(b => b.addEventListener('click', () => this.close()));
+    dialog.addEventListener('cancel', () => this.close());
+    dialog.querySelector('#aiBpForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!blueprint || this.isSubmitting) return;
+      this.isSubmitting = true;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Đang tạo cây tổ chức...';
+      try {
+        await this.applyOrgBlueprint(organizationId, blueprint);
+        this.close();
+      } catch (err) {
+        errorEl.textContent = err.message || 'Không thể khởi tạo cây tổ chức.';
+        errorEl.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Áp dụng vào Workspace';
+        this.isSubmitting = false;
+      }
+    });
+
+    refreshPreview();
+    dialog.showModal();
+    descEl.focus();
   }
 
   close() {

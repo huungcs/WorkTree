@@ -41,6 +41,9 @@ export function mapCloudTaskToUI(t) {
     node: t.node_id,
     title: t.title || '',
     owner: t.primary_assignee_id || null,
+    collaborators: Array.isArray(t.collaborator_ids)
+      ? [...t.collaborator_ids]
+      : (Array.isArray(t.collaborators) ? [...t.collaborators] : []),
     status: uiStatus,
     priority: uiPriority,
     start: t.start_date || '',
@@ -203,9 +206,13 @@ export const TaskService = {
     description = '',
     priority = 'medium',
     primaryAssigneeId = null,
+    collaboratorIds = [],
     dueDate = null,
     startDate = null,
     estimateMinutes = 0,
+    status = 'todo',
+    progress = 0,
+    autoProgress = false,
     tags = []
   }) {
     const activeOrg = appState.activeOrganizationId;
@@ -222,9 +229,13 @@ export const TaskService = {
         description,
         priority,
         primaryAssigneeId,
+        collaboratorIds,
         dueDate: dueDate || null,
         startDate: startDate || null,
         estimateMinutes: Math.round(Number(estimateMinutes) || 0),
+        status,
+        progress,
+        autoProgress,
         tags: Array.isArray(tags) ? tags : []
       });
 
@@ -236,7 +247,8 @@ export const TaskService = {
 
       // Refetch canonical row from task_rollups view
       const canonical = await TaskRepository.getTaskById(created.id);
-      const mappedUI = mapCloudTaskToUI(canonical || created);
+      const merged = canonical ? { ...canonical, collaborator_ids: canonical.collaborator_ids?.length ? canonical.collaborator_ids : created.collaborator_ids } : created;
+      const mappedUI = mapCloudTaskToUI(merged);
 
       // Asynchronously notify assigned employee via Zalo Bot if linked
       if (primaryAssigneeId && mappedUI) {
@@ -288,7 +300,8 @@ export const TaskService = {
 
       // Refetch canonical rollup row
       const canonical = await TaskRepository.getTaskById(taskId);
-      const mappedUI = mapCloudTaskToUI(canonical || updated);
+      const merged = canonical ? { ...canonical, collaborator_ids: canonical.collaborator_ids?.length || updates.collaborator_ids || updates.collaboratorIds ? (canonical.collaborator_ids?.length ? canonical.collaborator_ids : updated.collaborator_ids) : canonical.collaborator_ids } : updated;
+      const mappedUI = mapCloudTaskToUI(merged);
 
       // Asynchronously notify newly assigned employee via Zalo Bot if primary assignee changed
       if (updates.primary_assignee_id && mappedUI) {

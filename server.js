@@ -8,6 +8,7 @@ const PUBLIC_DIR = __dirname;
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
+  '.woff2': 'font/woff2',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
@@ -20,9 +21,33 @@ const MIME_TYPES = {
 };
 
 const SUPABASE_CONFIG = {
-  url: 'https://taupjuaficdzdgbmxmbe.supabase.co',
+  url: process.env.SUPABASE_URL || 'https://taupjuaficdzdgbmxmbe.supabase.co',
   publishableKey: 'sb_publishable_U_sRQahpts_YouuXX5xbJQ_wpohAq4t'
 };
+
+function getZaloServiceSupabase() {
+  let url = process.env.SUPABASE_URL || SUPABASE_CONFIG.url;
+  let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  if (!serviceKey) {
+    try {
+      const envPath = path.join(process.cwd(), '.env');
+      if (fs.existsSync(envPath)) {
+        for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+          const idx = trimmed.indexOf('=');
+          const k = trimmed.slice(0, idx).trim();
+          const v = trimmed.slice(idx + 1).trim().replace(/^['"]|['"]$/g, '');
+          if (k === 'SUPABASE_URL' && v) url = v;
+          if ((k === 'SUPABASE_SERVICE_ROLE_KEY' || k === 'SUPABASE_SECRET_KEY') && v) serviceKey = v;
+        }
+      }
+    } catch (_) {}
+  }
+  if (!url || !serviceKey) return null;
+  const { createClient } = require('@supabase/supabase-js');
+  return createClient(url, serviceKey);
+}
 
 const ZALO_BOT_CONFIG = {
   botId: '2266752785520432648',
@@ -113,7 +138,26 @@ async function handleZaloEvent(event) {
     }
   }
 
-  // Greeting if not a phone number
+  const serviceSb = getZaloServiceSupabase();
+  if (serviceSb && text) {
+    try {
+      const { ZaloBotService } = await import('./src/features/integrations/services/zalo-bot-service.js');
+      const empCtx = await ZaloBotService.resolveZaloEmployeeContext(serviceSb, chatId);
+      if (empCtx) {
+        return await ZaloBotService.handleConversationalCopilot({
+          chatId,
+          text,
+          employeeCtx: empCtx,
+          sb: serviceSb,
+          sendFn: sendZaloMessage
+        });
+      }
+    } catch (copilotErr) {
+      console.warn('[ZaloBot Local] Copilot fallback to greeting:', copilotErr.message);
+    }
+  }
+
+  // Greeting if not a phone number and not linked
   const welcomeMsg = [
     `**👋 Xin chào ${displayName || 'bạn'}!**`,
     'Tôi là **Trợ lý Thông báo Tự động** của nền tảng **WorkTree X**.',
@@ -238,7 +282,7 @@ function handleZaloApi(req, res, reqPath) {
   res.end(JSON.stringify({ ok: false, error: 'Endpoint not found' }));
 }
 
-function createServer({ publicDir = PUBLIC_DIR } = {}) {
+function createServer({ publicDir = PUBLIC_DIR, mcpHandler = null, aiHandler = null } = {}) {
   return http.createServer((req, res) => {
   let reqPath;
 
@@ -252,6 +296,40 @@ function createServer({ publicDir = PUBLIC_DIR } = {}) {
 
   if (reqPath.startsWith('/api/zalo/') || reqPath === '/api/zalo-send') {
     handleZaloApi(req, res, reqPath);
+    return;
+  }
+
+  if (
+    reqPath === '/api/mcp' ||
+    reqPath.startsWith('/api/mcp/') ||
+    reqPath === '/mcp' ||
+    reqPath.startsWith('/mcp/')
+  ) {
+    const resolvedMcpHandler = mcpHandler || require('./api/mcp.js');
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    req.query = Object.fromEntries(urlObj.searchParams.entries());
+    if (reqPath === '/mcp') {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ error: 'not_found' }));
+      return;
+    }
+    if (reqPath.startsWith('/mcp/')) {
+      req.query.key = reqPath.slice('/mcp/'.length).replace(/\/+$/, '');
+      if (!req.query.key || req.query.key.includes('/')) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ error: 'not_found' }));
+        return;
+      }
+    }
+    resolvedMcpHandler(req, res);
+    return;
+  }
+
+  if (reqPath === '/api/ai' || reqPath.startsWith('/api/ai/')) {
+    const resolvedAiHandler = aiHandler || require('./api/ai.js');
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    req.query = Object.fromEntries(urlObj.searchParams.entries());
+    resolvedAiHandler(req, res);
     return;
   }
 

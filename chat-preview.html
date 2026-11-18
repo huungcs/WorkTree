@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Tin nhắn · WorkTree X — Xem trước</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="src/design-system/typography.css?v=1">
+<link rel="stylesheet" href="css/style.css?v=8.2.26">
+  <link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.26">
+</head>
+<body>
+<a class="skip-link" href="#messagesContent">Đến nội dung tin nhắn</a>
+<div class="app chat-preview-shell" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Điều hướng bản xem trước">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M7 8v9a6 6 0 0 0 6 6h12M16 5v18M25 10v13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="7" cy="7" r="3" fill="currentColor"/><circle cx="16" cy="6" r="3" fill="currentColor"/><circle cx="25" cy="10" r="3" fill="currentColor"/></svg></div>
+      <span class="brand-text">WorkTree<span class="brand-x">X</span><small>KHÔNG GIAN LÀM VIỆC</small></span>
+      <button type="button" class="icon-btn side-icon collapse-control" data-preview-sidebar aria-label="Thu gọn thanh điều hướng" title="Thu gọn / mở rộng"><span data-preview-icon="menu"></span></button>
+    </div>
+    <div class="workspace-switch"><span class="workspace-avatar">WX</span><span class="side-label workspace-text"><strong class="preview-workspace-name">WorkTree Studio</strong><small>Không gian minh họa</small></span><span class="side-label" data-preview-icon="chevronDown"></span></div>
+    <div class="side-scroll">
+      <p class="side-heading"><span class="side-label">KHÔNG GIAN</span></p>
+      <nav class="primary-nav" aria-label="Chế độ chính">
+        <a class="nav-item" href="/" aria-label="Tổng quan" title="Tổng quan"><span data-preview-icon="building"></span><span class="side-label">Tổng quan</span></a>
+        <button type="button" class="nav-item" data-chat-open aria-current="page" title="Tin nhắn"><span class="chat-nav-icon"></span><span class="side-label">Tin nhắn</span><span class="nav-count side-label" data-chat-unread></span></button>
+        <a class="nav-item" href="/" aria-label="Công việc của tôi" title="Công việc của tôi"><span data-preview-icon="checkCircle"></span><span class="side-label">Công việc của tôi</span></a>
+        <a class="nav-item" href="/" aria-label="Tất cả công việc" title="Tất cả công việc"><span data-preview-icon="list"></span><span class="side-label">Tất cả công việc</span></a>
+        <a class="nav-item" href="/" aria-label="Lịch công việc" title="Lịch công việc"><span data-preview-icon="calendar"></span><span class="side-label">Lịch công việc</span></a>
+      </nav>
+      <div class="preview-side-tree side-label"><p class="side-heading">CÂY TỔ CHỨC</p><div class="tree-row"><span data-preview-icon="building"></span><span>WorkTree Studio</span></div><div class="tree-row" style="padding-left:28px"><span data-preview-icon="folder"></span><span>Phát triển sản phẩm</span></div><div class="tree-row" style="padding-left:28px"><span data-preview-icon="folder"></span><span>Thiết kế & trải nghiệm</span></div><div class="tree-row" style="padding-left:28px"><span data-preview-icon="folder"></span><span>Marketing</span></div></div>
+      <div class="preview-side-note side-label">Không gian cho những ý tưởng<br>và những người cùng tạo nên chúng.<a href="/">← Về ứng dụng WorkTree X</a></div>
+    </div>
+    <div class="side-footer"><button type="button" class="nav-item" data-preview-theme aria-label="Đổi giao diện sáng tối" title="Đổi giao diện sáng tối"><span data-preview-icon="moon"></span><span class="side-label">Giao diện sáng / tối</span></button><div class="profile"><span class="avatar user-avatar">TA</span><span class="side-label profile-text"><strong>Trần Tuấn Anh</strong><small>Tài khoản minh họa</small></span></div></div>
+  </aside>
+  <button type="button" class="sidebar-scrim" data-preview-sidebar aria-label="Đóng thanh điều hướng" hidden></button>
+  <div class="main-shell">
+    <header class="topbar"><div class="topbar-left"><button type="button" class="icon-btn chat-preview-menu" data-preview-sidebar aria-label="Mở menu"><span data-preview-icon="menu"></span></button><div class="top-crumb"><span data-preview-icon="building"></span><span>WorkTree Studio</span><span class="crumb-divider">/</span><strong>Tin nhắn</strong></div></div><div class="topbar-right"><a href="/" class="preview-back">Về ứng dụng<span data-preview-icon="chevronRight"></span></a><span class="top-separator"></span><button type="button" class="icon-btn" data-preview-theme aria-label="Đổi giao diện sáng tối"><span data-preview-icon="moon"></span></button><span class="avatar user-avatar">TA</span><span class="preview-user-name">Tuấn Anh</span></div></header>
+    <main id="messagesContent" tabindex="-1"></main>
+  </div>
+  <nav class="m-nav chat-preview-mobile-nav" aria-label="Điều hướng di động"><a href="/"><span data-preview-icon="building"></span><span>Tổng quan</span></a><a href="/"><span data-preview-icon="list"></span><span>Công việc</span></a><button type="button" data-chat-open aria-current="page"><span data-preview-icon="messageSquare"></span><span>Tin nhắn</span></button><button type="button" data-preview-theme><span data-preview-icon="moon"></span><span>Giao diện</span></button><button type="button" data-preview-sidebar><span data-preview-icon="menu"></span><span>Menu</span></button></nav>
+</div>
+<script type="module" src="src/features/chat/preview.js"></script>
+</body>
+</html>

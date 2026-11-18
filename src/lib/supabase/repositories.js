@@ -6,6 +6,61 @@
 
 import { getSupabase } from './client.js';
 
+function normalizeCollaboratorIds(ids, primaryAssigneeId = null) {
+  if (!Array.isArray(ids)) return [];
+  const seen = new Set();
+  const clean = [];
+  for (const raw of ids) {
+    const id = raw != null ? String(raw).trim() : '';
+    if (!id || (primaryAssigneeId && id === String(primaryAssigneeId)) || seen.has(id)) continue;
+    seen.add(id);
+    clean.push(id);
+    if (clean.length >= 30) break;
+  }
+  return clean;
+}
+
+function isMissingCollaboratorColumnError(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const msg = String(error.message || '');
+  return (
+    code === 'PGRST204' ||
+    code === '42703' ||
+    /collaborator_ids/i.test(msg)
+  );
+}
+
+export const CollaboratorFallbackStore = {
+  _key(orgId) {
+    return `worktree_task_collabs_${orgId}`;
+  },
+  getAll(orgId) {
+    if (!orgId || typeof localStorage === 'undefined') return {};
+    try {
+      const parsed = JSON.parse(localStorage.getItem(this._key(orgId)) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  },
+  get(orgId, taskId) {
+    if (!orgId || !taskId) return [];
+    const map = this.getAll(orgId);
+    return Array.isArray(map[taskId]) ? map[taskId] : [];
+  },
+  set(orgId, taskId, ids) {
+    if (!orgId || !taskId || typeof localStorage === 'undefined') return;
+    try {
+      const map = this.getAll(orgId);
+      const clean = normalizeCollaboratorIds(ids);
+      if (clean.length > 0) map[taskId] = clean;
+      else delete map[taskId];
+      localStorage.setItem(this._key(orgId), JSON.stringify(map));
+    } catch (_) {}
+  }
+};
+
 // ============================================================================
 // ENUM & LABEL MAPPINGS (Database English <-> UI Tiếng Việt)
 // ============================================================================
@@ -662,17 +717,23 @@ export const TaskRepository = {
     if (error) throw error;
 
     // Explicit domain mapping
-    return (data || []).map(t => ({
-      ...t,
-      assignee_id: t.primary_assignee_id,
-      assigneeId: t.primary_assignee_id,
-      dueDate: t.due_date,
-      startDate: t.start_date,
-      estimateMinutes: t.estimate_minutes,
-      actualMinutes: t.actual_minutes,
-      uiStatus: STATUS_MAP.dbToUi[t.status] || t.status,
-      uiPriority: PRIORITY_MAP.dbToUi[t.priority] || t.priority
-    }));
+    return (data || []).map(t => {
+      const collabs = Array.isArray(t.collaborator_ids)
+        ? t.collaborator_ids
+        : CollaboratorFallbackStore.get(t.organization_id || organizationId, t.id);
+      return {
+        ...t,
+        assignee_id: t.primary_assignee_id,
+        assigneeId: t.primary_assignee_id,
+        collaborator_ids: collabs,
+        dueDate: t.due_date,
+        startDate: t.start_date,
+        estimateMinutes: t.estimate_minutes,
+        actualMinutes: t.actual_minutes,
+        uiStatus: STATUS_MAP.dbToUi[t.status] || t.status,
+        uiPriority: PRIORITY_MAP.dbToUi[t.priority] || t.priority
+      };
+    });
   },
 
   async createTask({
@@ -683,38 +744,61 @@ export const TaskRepository = {
     priority = 'medium',
     primaryAssigneeId = null,
     assigneeId = null,
+    collaboratorIds = [],
+    collaborator_ids = null,
     dueDate = null,
     startDate = null,
     estimateMinutes = 0,
+    status = 'todo',
+    progress = 0,
+    autoProgress = false,
     tags = []
   }) {
     const sb = await getSupabase();
     const dbPriority = PRIORITY_MAP.uiToDb[priority] || priority;
     const resolvedAssigneeId = primaryAssigneeId || assigneeId || null;
+    const cleanCollabs = normalizeCollaboratorIds(collaborator_ids ?? collaboratorIds, resolvedAssigneeId);
 
-    const { data, error } = await sb
+    const dbStatus = normalizeDbStatus(status);
+    const baseInsert = {
+      organization_id: organizationId,
+      node_id: nodeId,
+      title,
+      description,
+      priority: dbPriority,
+      primary_assignee_id: resolvedAssigneeId,
+      due_date: dueDate,
+      start_date: startDate,
+      estimate_minutes: estimateMinutes,
+      tags: tags || [],
+      status: dbStatus,
+      progress: dbStatus === 'done' ? 100 : progress,
+      auto_progress: autoProgress
+    };
+
+    let res = await sb
       .from('tasks')
-      .insert({
-        organization_id: organizationId,
-        node_id: nodeId,
-        title,
-        description,
-        priority: dbPriority,
-        primary_assignee_id: resolvedAssigneeId,
-        due_date: dueDate,
-        start_date: startDate,
-        estimate_minutes: estimateMinutes,
-        tags: tags || [],
-        status: 'todo'
-      })
+      .insert(cleanCollabs.length > 0 ? { ...baseInsert, collaborator_ids: cleanCollabs } : baseInsert)
       .select()
       .single();
 
-    if (error) throw error;
+    if (res.error && cleanCollabs.length > 0 && isMissingCollaboratorColumnError(res.error)) {
+      res = await sb.from('tasks').insert(baseInsert).select().single();
+      if (!res.error && res.data?.id) {
+        CollaboratorFallbackStore.set(organizationId, res.data.id, cleanCollabs);
+      }
+    } else if (!res.error && res.data?.id && cleanCollabs.length > 0) {
+      CollaboratorFallbackStore.set(organizationId, res.data.id, cleanCollabs);
+    }
+
+    if (res.error) throw res.error;
+    const data = res.data;
+    const finalCollabs = Array.isArray(data.collaborator_ids) ? data.collaborator_ids : cleanCollabs;
     return {
       ...data,
       assignee_id: data.primary_assignee_id,
       assigneeId: data.primary_assignee_id,
+      collaborator_ids: finalCollabs,
       dueDate: data.due_date,
       startDate: data.start_date,
       uiStatus: STATUS_MAP.dbToUi[data.status] || data.status,
@@ -734,10 +818,15 @@ export const TaskRepository = {
     if (error) throw error;
     if (!data) return null;
 
+    const collabs = Array.isArray(data.collaborator_ids)
+      ? data.collaborator_ids
+      : CollaboratorFallbackStore.get(data.organization_id, data.id);
+
     return {
       ...data,
       assignee_id: data.primary_assignee_id,
       assigneeId: data.primary_assignee_id,
+      collaborator_ids: collabs,
       dueDate: data.due_date,
       startDate: data.start_date,
       estimateMinutes: data.estimate_minutes,
@@ -769,6 +858,15 @@ export const TaskRepository = {
     if (updates.primary_assignee_id !== undefined || updates.primaryAssigneeId !== undefined || updates.assigneeId !== undefined || updates.assignee_id !== undefined) {
       payload.primary_assignee_id = updates.primary_assignee_id ?? updates.primaryAssigneeId ?? updates.assigneeId ?? updates.assignee_id;
     }
+    const hasCollabUpdate = updates.collaborator_ids !== undefined || updates.collaboratorIds !== undefined;
+    let nextCollabs = null;
+    if (hasCollabUpdate) {
+      nextCollabs = normalizeCollaboratorIds(
+        updates.collaborator_ids ?? updates.collaboratorIds,
+        payload.primary_assignee_id ?? updates._currentAssigneeId ?? null
+      );
+      payload.collaborator_ids = nextCollabs;
+    }
     if (updates.due_date !== undefined || updates.dueDate !== undefined) {
       payload.due_date = updates.due_date ?? updates.dueDate;
     }
@@ -776,6 +874,7 @@ export const TaskRepository = {
       payload.start_date = updates.start_date ?? updates.startDate;
     }
     if (updates.progress !== undefined) payload.progress = updates.progress;
+    if (updates.auto_progress !== undefined) payload.auto_progress = updates.auto_progress;
     if (updates.estimate_minutes !== undefined || updates.estimateMinutes !== undefined) {
       payload.estimate_minutes = updates.estimate_minutes ?? updates.estimateMinutes;
     }
@@ -789,7 +888,29 @@ export const TaskRepository = {
     if (expectedUpdatedAt) {
       query = query.eq('updated_at', expectedUpdatedAt);
     }
-    const { data, error } = await query.select().maybeSingle();
+    let { data, error } = await query.select().maybeSingle();
+
+    if (error && hasCollabUpdate && isMissingCollaboratorColumnError(error)) {
+      const restPayload = { ...payload };
+      delete restPayload.collaborator_ids;
+
+      if (Object.keys(restPayload).length > 0) {
+        let retryQuery = sb.from('tasks').update(restPayload).eq('id', taskId);
+        if (expectedUpdatedAt) retryQuery = retryQuery.eq('updated_at', expectedUpdatedAt);
+        const retryRes = await retryQuery.select().maybeSingle();
+        data = retryRes.data;
+        error = retryRes.error;
+      } else {
+        const readRes = await sb.from('tasks').select('*').eq('id', taskId).maybeSingle();
+        data = readRes.data;
+        error = readRes.error;
+      }
+      if (!error && data?.organization_id) {
+        CollaboratorFallbackStore.set(data.organization_id, taskId, nextCollabs);
+      }
+    } else if (!error && hasCollabUpdate && data?.organization_id) {
+      CollaboratorFallbackStore.set(data.organization_id, taskId, nextCollabs);
+    }
 
     if (error) throw error;
     if (expectedUpdatedAt && !data) {
@@ -798,10 +919,15 @@ export const TaskRepository = {
       throw conflictErr;
     }
 
+    const finalCollabs = Array.isArray(data?.collaborator_ids)
+      ? data.collaborator_ids
+      : (hasCollabUpdate ? nextCollabs : CollaboratorFallbackStore.get(data?.organization_id, taskId));
+
     return {
       ...data,
       assignee_id: data?.primary_assignee_id,
       assigneeId: data?.primary_assignee_id,
+      collaborator_ids: finalCollabs,
       dueDate: data?.due_date,
       startDate: data?.start_date,
       uiStatus: STATUS_MAP.dbToUi[data?.status] || data?.status,
@@ -1791,6 +1917,22 @@ export const AttachmentRepository = {
       .download(storagePath);
     if (error) throw error;
     return data; // Blob
+  }
+};
+
+export const SecurityAuditRepository = {
+  async getRecentEvents(organizationId) {
+    if (!organizationId) throw new Error('Thiếu organizationId.');
+    const sb = await getSupabase();
+    const { data, error } = await sb
+      .from('security_audit_logs')
+      .select('actor_user_id, action, target_type, target_id, created_at')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return data || [];
   }
 };
 
