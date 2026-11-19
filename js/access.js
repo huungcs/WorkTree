@@ -1746,7 +1746,7 @@ window.closeSystemHub=closeSystemHub;
 document.addEventListener('click',e=>{if(e.target.closest('[data-chat-open],[data-mobile="messages"]')&&isSystemHubOpen())closeSystemHub();},true);
 async function openSystemHub(hubTab=activeHubTab,subTab=null){
  if(!requireLogin())return;
- const allowed=demoAccount?['access','notifications']:['access','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
+ const allowed=demoAccount?['access','recurring','notifications']:['access','recurring','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
  closeSidebar();if($('profileDialog')?.open)closeDialog('profileDialog',true);
  document.body.classList.remove('chat-is-open');
  if($('messagesContent'))$('messagesContent').hidden=true;
@@ -1755,10 +1755,11 @@ async function openSystemHub(hubTab=activeHubTab,subTab=null){
  $$('.primary-nav .nav-item').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
  const navBtn=$('accessNav');if(navBtn){navBtn.classList.add('active');navBtn.setAttribute('aria-current','page');}
  if($('topScope'))$('topScope').textContent='Quản trị & Cài đặt';
- const tabMap={access:$('hubPanelAccess'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings'),notifications:$('hubPanelNotifications')};
+ const tabMap={access:$('hubPanelAccess'),recurring:$('hubPanelRecurring'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings'),notifications:$('hubPanelNotifications')};
  Object.entries(tabMap).forEach(([k,p])=>{if(p)p.hidden=(k!==activeHubTab);});
  $$('#systemHubTabs [data-hub-tab]').forEach(btn=>{const isSel=btn.dataset.hubTab===activeHubTab;btn.setAttribute('aria-selected',String(isSel));btn.tabIndex=isSel?0:-1;});
  if(activeHubTab==='access')renderAccessSection(subTab||accessTab);
+ else if(activeHubTab==='recurring'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openRecurringTasksHub==='function')await window.openRecurringTasksHub({container:$('recurringHubContent')});else if($('recurringHubContent'))$('recurringHubContent').innerHTML='<div class="empty-state"><h3>Đang khởi tạo Việc định kỳ</h3><p>Vui lòng thử lại sau giây lát.</p></div>';}
  else if(activeHubTab==='mcp'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openMcpDialog==='function')await window.openMcpDialog({container:$('mcpHubContent'),switchToTab:false});else if($('mcpHubContent'))$('mcpHubContent').innerHTML='<div class="mcp-empty">Đang khởi tạo kết nối MCP. Vui lòng thử lại sau giây lát.</div>';}
  else if(activeHubTab==='settings'){renderSettingsSection();if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});}
  else if(activeHubTab==='notifications'){
@@ -2295,6 +2296,7 @@ function permissionForAction(action,id){
  if(action==='cancel-check')return true;
  if(action==='open-task')return canReadTask(byTask.get(id));
  if(action==='export-csv')return canReport();
+ if(action==='daily-checkin')return Boolean(currentAccount()&&currentAccount().role!=='viewer');
  if(action==='delete-comment')return canUpdateTask(byTask.get(id));
  return !!currentAccount();
 }
@@ -2308,7 +2310,7 @@ function applyPermissionUI(){
  if(!isAdmin()&&state.selected===rootNode().id){$('topScope').textContent=T.allowedScope;}
  $$('[data-action]',$('app')).concat($$('[data-action]',$('drawer'))).forEach(b=>{
   const action=b.dataset.action, rawId=b.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
-  if(['new-node','new-child-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,id);
+  if(['new-node','new-child-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv','daily-checkin'].includes(action))b.hidden=!permissionForAction(action,id);
   else if(['complete','favorite','edit-check','save-check','delete-check','timer-toggle','delete-comment','remove-collaborator','toggle-collab-picker'].includes(action)){b.disabled=!permissionForAction(action,id);}
  });
  $$('[data-status-task],[data-owner-task],[data-priority-task],[data-node-task],[data-check-task]').forEach(el=>{

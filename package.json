@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "build": "npm run bundle",
-    "check": "npm run check:syntax && npm run check:architecture && npm run test:state && npm run test:employees && npm run test:checklists && npm run test:chat && npm run test:visibility && npm run test:notifications && npm run test:zalo && npm run test:server && npm run test:mcp && npm run test:share && npm run test:ai && npm run test:platform-admin && npm run test:smoke",
+    "check": "npm run check:syntax && npm run check:architecture && npm run test:state && npm run test:employees && npm run test:checklists && npm run test:chat && npm run test:visibility && npm run test:notifications && npm run test:zalo && npm run test:server && npm run test:mcp && npm run test:share && npm run test:ai && npm run test:platform-admin && npm run test:recurring && npm run test:smoke",
     "check:syntax": "node scripts/check-js-syntax.js",
     "check:architecture": "node scripts/check-architecture.js",
     "test:state": "node --test tests/app-state.test.js",
@@ -22,6 +22,7 @@
     "test:share": "node --test tests/task-share.test.js",
     "test:ai": "node --test tests/ai-assistant.test.js",
     "test:platform-admin": "node --test tests/platform-admin.test.js",
+    "test:recurring": "node --test tests/recurring-tasks.test.js",
     "test:smoke": "node scripts/smoke-test.js",
     "test:e2e": "playwright test",
     "bundle": "node scripts/bundle.js"

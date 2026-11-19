@@ -4552,7 +4552,7 @@ body[data-demo-workspace] #topAvatar {
 
 </style>
 <link rel="stylesheet" href="src/features/onboarding/styles/onboarding.css">
-<link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.33">
+<link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.37">
 <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
@@ -4617,7 +4617,7 @@ body[data-demo-workspace] #topAvatar {
     <main id="mainContent" class="content" tabindex="-1">
       <div class="page-heading">
         <div class="page-titles"><h1 id="pageTitle">Tổng quan công việc</h1><p id="pageSubtitle">Tập trung đúng việc. Phối hợp đúng nhịp.</p></div>
-        <div class="page-actions"><button class="btn" data-action="export-csv"><span data-icon="download"></span><span>Xuất báo cáo</span></button><button class="btn primary" data-action="new-task"><span data-icon="plus"></span>Công việc mới</button></div>
+        <div class="page-actions"><button class="btn" data-action="daily-checkin"><span data-icon="check-circle"></span><span>Báo cáo hôm nay</span></button><button class="btn" data-action="export-csv"><span data-icon="download"></span><span>Xuất báo cáo</span></button><button class="btn primary" data-action="new-task"><span data-icon="plus"></span>Công việc mới</button></div>
       </div>
       <div class="scope-strip" id="scopeStrip"><nav id="breadcrumbs" aria-label="Đường dẫn đơn vị"></nav><div class="scope-actions"><button class="icon-btn small" id="pinCurrentNode" data-action="pin-node-current" title="Ghim đơn vị" aria-label="Ghim đơn vị" data-icon="pin"></button><label class="switch-label" title="Bao gồm công việc trong toàn bộ các nhánh con"><input type="checkbox" id="includeChildren" checked><span class="mini-switch"></span>Bao gồm cấp con</label><button class="icon-btn small" data-action="node-menu" title="Chỉnh sửa đơn vị đang chọn" aria-label="Chỉnh sửa đơn vị đang chọn" data-icon="more"></button></div></div>
       <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs" data-tour="view-tabs"></div>
@@ -4673,6 +4673,9 @@ body[data-demo-workspace] #topAvatar {
         <button type="button" class="view-tab" role="tab" id="hub-tab-mcp" data-action="hub-tab" data-hub-tab="mcp" aria-selected="false" aria-controls="hubPanelMcp">
           <span data-icon="bot"></span><span>Kết nối AI (MCP)</span>
         </button>
+        <button type="button" class="view-tab" role="tab" id="hub-tab-recurring" data-action="hub-tab" data-hub-tab="recurring" aria-selected="false" aria-controls="hubPanelRecurring" tabindex="-1">
+          <span data-icon="calendar"></span><span>Việc định kỳ</span>
+        </button>
         <button type="button" class="view-tab" role="tab" id="hub-tab-settings" data-action="hub-tab" data-hub-tab="settings" aria-selected="false" aria-controls="hubPanelSettings">
           <span data-icon="settings"></span><span>Cài đặt &amp; Dữ liệu</span>
         </button>
@@ -4690,6 +4693,9 @@ body[data-demo-workspace] #topAvatar {
       <section id="hubPanelSettings" class="panel hub-panel" role="tabpanel" aria-labelledby="hub-tab-settings" hidden>
         <h2 id="settingsTitle" class="sr-only">Cài đặt không gian</h2>
         <div id="settingsContent" class="hub-panel-body"></div>
+      </section>
+      <section id="hubPanelRecurring" class="panel hub-panel" role="tabpanel" aria-labelledby="hub-tab-recurring" hidden>
+        <div id="recurringHubContent" class="hub-panel-body"></div>
       </section>
       <section id="hubPanelNotifications" class="panel hub-panel" role="tabpanel" aria-labelledby="hub-tab-notifications" hidden>
         <div id="notificationSettingsContent" class="hub-panel-body"></div>
@@ -9059,6 +9065,8 @@ function renderCommand(){
   {label:'Mở bảng Kanban',meta:'Chế độ xem · 3',icon:'kanban',run:()=>setView('kanban')},
   {label:'Mở lịch công việc',meta:'Chế độ xem · 5',icon:'calendar',run:()=>setView('calendar')},
   {label:'Tải công việc đội ngũ',meta:'Chế độ xem · 6',icon:'chart',run:()=>setView('workload')},
+  {label:'Báo cáo hôm nay (Check-in cuối ngày)',meta:'Báo cáo nhanh',icon:'check-circle',allowed:typeof currentAccount==='function'?currentAccount()?.role!=='viewer':true,run:()=>{if(typeof window.openDailyCheckinDialog==='function')void window.openDailyCheckinDialog();}},
+  {label:'Thiết lập Việc định kỳ theo vai trò',meta:'Quản trị',icon:'calendar',run:()=>{if(typeof window.openSystemHub==='function')void window.openSystemHub('recurring');}},
   {label:'Sao lưu dữ liệu JSON',meta:'Dữ liệu',icon:'download',allowed:isAdmin(),run:exportJSON},
   {label:'Tài khoản & Phân quyền',meta:'Quản trị',icon:'shield',allowed:typeof canOpenPeopleAccess==='function'?canOpenPeopleAccess():isAdmin(),run:()=>{if(typeof window.openAccess==='function')window.openAccess();}},
   {label:'Trợ lý AI điều hành (Claude)',meta:'Tích hợp AI',icon:'sparkles',run:()=>{if(typeof window.openAiAssistantDialog==='function')window.openAiAssistantDialog();else toast('Cần mở không gian làm việc đám mây để dùng Trợ lý AI.','error');}},
@@ -9118,6 +9126,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'system-hub':closeSidebar();if(typeof window.openSystemHub==='function'){await window.openSystemHub();}else{openSettings();}break;
    case 'hub-tab':if(typeof window.openSystemHub==='function'){await window.openSystemHub(el.dataset.hubTab);}break;
    case 'hub-back':if(typeof window.closeSystemHub==='function'){window.closeSystemHub();}renderAll();break;
+   case 'daily-checkin':closeSidebar();if(typeof window.openDailyCheckinDialog==='function'){await window.openDailyCheckinDialog();}else{toast('Chưa thể mở hộp thoại Báo cáo hôm nay.','error');}break;
    case 'ai-assistant':closeSidebar();if(typeof window.openAiAssistantDialog==='function'){await window.openAiAssistantDialog();}else{toast('Cần mở không gian làm việc đám mây để dùng Trợ lý AI.','error');}break;
    case 'mcp':closeSidebar();if(typeof window.openSystemHub==='function'){await window.openSystemHub('mcp');}else if(typeof window.openMcpDialog==='function'){await window.openMcpDialog();}else{toast('Cần mở không gian làm việc đám mây để dùng MCP.','error');}break;
    case 'settings':openSettings();break;case 'profile':openProfile();break;
@@ -12246,7 +12255,7 @@ window.closeSystemHub=closeSystemHub;
 document.addEventListener('click',e=>{if(e.target.closest('[data-chat-open],[data-mobile="messages"]')&&isSystemHubOpen())closeSystemHub();},true);
 async function openSystemHub(hubTab=activeHubTab,subTab=null){
  if(!requireLogin())return;
- const allowed=demoAccount?['access','notifications']:['access','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
+ const allowed=demoAccount?['access','recurring','notifications']:['access','recurring','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
  closeSidebar();if($('profileDialog')?.open)closeDialog('profileDialog',true);
  document.body.classList.remove('chat-is-open');
  if($('messagesContent'))$('messagesContent').hidden=true;
@@ -12255,10 +12264,11 @@ async function openSystemHub(hubTab=activeHubTab,subTab=null){
  $$('.primary-nav .nav-item').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
  const navBtn=$('accessNav');if(navBtn){navBtn.classList.add('active');navBtn.setAttribute('aria-current','page');}
  if($('topScope'))$('topScope').textContent='Quản trị & Cài đặt';
- const tabMap={access:$('hubPanelAccess'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings'),notifications:$('hubPanelNotifications')};
+ const tabMap={access:$('hubPanelAccess'),recurring:$('hubPanelRecurring'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings'),notifications:$('hubPanelNotifications')};
  Object.entries(tabMap).forEach(([k,p])=>{if(p)p.hidden=(k!==activeHubTab);});
  $$('#systemHubTabs [data-hub-tab]').forEach(btn=>{const isSel=btn.dataset.hubTab===activeHubTab;btn.setAttribute('aria-selected',String(isSel));btn.tabIndex=isSel?0:-1;});
  if(activeHubTab==='access')renderAccessSection(subTab||accessTab);
+ else if(activeHubTab==='recurring'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openRecurringTasksHub==='function')await window.openRecurringTasksHub({container:$('recurringHubContent')});else if($('recurringHubContent'))$('recurringHubContent').innerHTML='<div class="empty-state"><h3>Đang khởi tạo Việc định kỳ</h3><p>Vui lòng thử lại sau giây lát.</p></div>';}
  else if(activeHubTab==='mcp'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openMcpDialog==='function')await window.openMcpDialog({container:$('mcpHubContent'),switchToTab:false});else if($('mcpHubContent'))$('mcpHubContent').innerHTML='<div class="mcp-empty">Đang khởi tạo kết nối MCP. Vui lòng thử lại sau giây lát.</div>';}
  else if(activeHubTab==='settings'){renderSettingsSection();if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});}
  else if(activeHubTab==='notifications'){
@@ -12795,6 +12805,7 @@ function permissionForAction(action,id){
  if(action==='cancel-check')return true;
  if(action==='open-task')return canReadTask(byTask.get(id));
  if(action==='export-csv')return canReport();
+ if(action==='daily-checkin')return Boolean(currentAccount()&&currentAccount().role!=='viewer');
  if(action==='delete-comment')return canUpdateTask(byTask.get(id));
  return !!currentAccount();
 }
@@ -12808,7 +12819,7 @@ function applyPermissionUI(){
  if(!isAdmin()&&state.selected===rootNode().id){$('topScope').textContent=T.allowedScope;}
  $$('[data-action]',$('app')).concat($$('[data-action]',$('drawer'))).forEach(b=>{
   const action=b.dataset.action, rawId=b.dataset.id, id=(rawId&&!isNaN(rawId))?Number(rawId):rawId;
-  if(['new-node','new-child-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv'].includes(action))b.hidden=!permissionForAction(action,id);
+  if(['new-node','new-child-node','edit-node','node-menu','delete-node','import-json','export-json','restore-backup','reset-demo','accept-recovery','access','new-task','edit-task','delete-task','duplicate-task','export-csv','daily-checkin'].includes(action))b.hidden=!permissionForAction(action,id);
   else if(['complete','favorite','edit-check','save-check','delete-check','timer-toggle','delete-comment','remove-collaborator','toggle-collab-picker'].includes(action)){b.disabled=!permissionForAction(action,id);}
  });
  $$('[data-status-task],[data-owner-task],[data-priority-task],[data-node-task],[data-check-task]').forEach(el=>{
@@ -13134,6 +13145,6 @@ bootV8();
 </script>
 
 
-<script type="module" src="src/app/app.js?v=8.2.32"></script>
+<script type="module" src="src/app/app.js?v=8.2.33"></script>
 </body>
 </html>

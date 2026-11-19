@@ -28,6 +28,11 @@ import { PlatformAdminService, openPlatformAdminPortal, closePlatformAdminPortal
 import { McpClientService, openMcpDialog } from '../features/mcp/index.js';
 import { AiClientService, openAiAssistantDialog, clearAiSessionHistory } from '../features/ai/index.js';
 import { TaskShareService, initTaskShareUI } from '../features/task-share/index.js';
+import {
+  RecurringTasksService,
+  renderRecurringTasksHub,
+  openDailyCheckinDialog
+} from '../features/recurring-tasks/index.js';
 import { mountChatFeature, createMockChatAdapter, createSupabaseChatAdapter } from '../features/chat/index.js';
 import { mountProfileAvatar, createProfileAvatarAdapter } from '../features/profile/index.js';
 
@@ -431,6 +436,16 @@ export async function loadWorkspaceData(orgId) {
       });
     } catch (onboardingErr) {
       console.warn('[Onboarding] Non-fatal initialization error:', onboardingErr);
+    }
+
+    // 14. Auto-generate due recurring tasks for active organization (non-blocking, once per session/day)
+    if (!options?.skipRecurringEnsure) {
+      Promise.resolve().then(async () => {
+        const res = await RecurringTasksService.ensureTodayGenerated(orgId, membership.role || 'member');
+        if (res?.created > 0 && orgId === appState.activeOrganizationId) {
+          await syncCloudTasksQuietly(orgId);
+        }
+      }).catch(() => {});
     }
 
   } catch (err) {
@@ -1519,6 +1534,64 @@ function openWorkspaceAiBlueprintDialog() {
   });
 }
 
+async function openWorkspaceRecurringHub(opts = {}) {
+  const container = opts.container || (typeof document !== 'undefined' ? document.getElementById('recurringHubContent') : null);
+  const orgId = appState.activeOrganizationId;
+  const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
+  const role = appState.activeMembership?.role || activeOrg?.role || callLegacyGlobal('currentAccount')?.role || 'member';
+  return renderRecurringTasksHub({
+    container,
+    organizationId: orgId,
+    userId: appState.user?.id || null,
+    role,
+    employees: appState.employees || [],
+    nodes: appState.nodes || [],
+    tasks: appState.tasks || [],
+    isDemo: !orgId,
+    onTasksGenerated: async () => {
+      if (orgId && orgId === appState.activeOrganizationId) {
+        await syncCloudTasksQuietly(orgId);
+      }
+    },
+    onOpenTask: (taskId) => {
+      if (typeof window.closeSystemHub === 'function') window.closeSystemHub();
+      if (typeof window.openDrawer === 'function') window.openDrawer(taskId);
+    },
+    onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
+  });
+}
+
+async function openWorkspaceDailyCheckinDialog(opts = {}) {
+  const orgId = appState.activeOrganizationId;
+  const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
+  const role = appState.activeMembership?.role || activeOrg?.role || callLegacyGlobal('currentAccount')?.role || 'member';
+  const fallbackName = typeof window !== 'undefined' && typeof window.currentWorkspaceLabel === 'function'
+    ? window.currentWorkspaceLabel()
+    : 'WorkTree X';
+  const tasksList = appState.tasks?.length
+    ? appState.tasks
+    : (typeof window !== 'undefined' && typeof window.WorkTree?.getSnapshot === 'function'
+        ? (window.WorkTree.getSnapshot()?.tasks || [])
+        : []);
+  return openDailyCheckinDialog({
+    organizationId: orgId,
+    organizationName: activeOrg?.name || fallbackName,
+    userId: appState.user?.id || null,
+    employeeId: appState.activeMembership?.employeeId || (typeof window !== 'undefined' ? window.__worktree_supabase_user?.personId : null) || null,
+    role,
+    employees: appState.employees || [],
+    tasks: tasksList,
+    isDemo: !orgId,
+    initialTab: opts?.initialTab || 'mine',
+    onMutated: async () => {
+      if (orgId && orgId === appState.activeOrganizationId) {
+        await syncCloudTasksQuietly(orgId);
+      }
+    },
+    onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
+  });
+}
+
 if (typeof window !== 'undefined') {
   window.openAiOrgBlueprintDialog = openWorkspaceAiBlueprintDialog;
   publishLegacyGlobals({
@@ -1551,10 +1624,15 @@ if (typeof window !== 'undefined') {
     McpClientService,
     openMcpDialog: openWorkspaceMcpDialog,
     AiClientService,
-    openAiAssistantDialog: openWorkspaceAiAssistantDialog
+    openAiAssistantDialog: openWorkspaceAiAssistantDialog,
+    RecurringTasksService,
+    openRecurringTasksHub: openWorkspaceRecurringHub,
+    openDailyCheckinDialog: openWorkspaceDailyCheckinDialog
   });
   window.openMcpDialog = openWorkspaceMcpDialog;
   window.openAiAssistantDialog = openWorkspaceAiAssistantDialog;
+  window.openRecurringTasksHub = openWorkspaceRecurringHub;
+  window.openDailyCheckinDialog = openWorkspaceDailyCheckinDialog;
 }
 
 // Tự khởi chạy khi file được nạp

@@ -4296,6 +4296,8 @@ function renderCommand(){
   {label:'Mở bảng Kanban',meta:'Chế độ xem · 3',icon:'kanban',run:()=>setView('kanban')},
   {label:'Mở lịch công việc',meta:'Chế độ xem · 5',icon:'calendar',run:()=>setView('calendar')},
   {label:'Tải công việc đội ngũ',meta:'Chế độ xem · 6',icon:'chart',run:()=>setView('workload')},
+  {label:'Báo cáo hôm nay (Check-in cuối ngày)',meta:'Báo cáo nhanh',icon:'check-circle',allowed:typeof currentAccount==='function'?currentAccount()?.role!=='viewer':true,run:()=>{if(typeof window.openDailyCheckinDialog==='function')void window.openDailyCheckinDialog();}},
+  {label:'Thiết lập Việc định kỳ theo vai trò',meta:'Quản trị',icon:'calendar',run:()=>{if(typeof window.openSystemHub==='function')void window.openSystemHub('recurring');}},
   {label:'Sao lưu dữ liệu JSON',meta:'Dữ liệu',icon:'download',allowed:isAdmin(),run:exportJSON},
   {label:'Tài khoản & Phân quyền',meta:'Quản trị',icon:'shield',allowed:typeof canOpenPeopleAccess==='function'?canOpenPeopleAccess():isAdmin(),run:()=>{if(typeof window.openAccess==='function')window.openAccess();}},
   {label:'Trợ lý AI điều hành (Claude)',meta:'Tích hợp AI',icon:'sparkles',run:()=>{if(typeof window.openAiAssistantDialog==='function')window.openAiAssistantDialog();else toast('Cần mở không gian làm việc đám mây để dùng Trợ lý AI.','error');}},
@@ -4343,7 +4345,9 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    ownerPickerState.target=null;
    renderOwnerPickerBox(prevTarget);
   }
-  const el=event.target.closest('[data-action]');if(!el||el.disabled)return;event.preventDefault();
+  const el=event.target.closest('[data-action]');if(!el||el.disabled)return;
+  if(typeof justDraggedUntil==='number'&&Date.now()<justDraggedUntil){event.preventDefault();return;}
+  event.preventDefault();
   const action=el.dataset.action;
   const rawId=el.dataset.id;
   const id=(rawId && !isNaN(rawId)) ? Number(rawId) : rawId;
@@ -4355,6 +4359,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'system-hub':closeSidebar();if(typeof window.openSystemHub==='function'){await window.openSystemHub();}else{openSettings();}break;
    case 'hub-tab':if(typeof window.openSystemHub==='function'){await window.openSystemHub(el.dataset.hubTab);}break;
    case 'hub-back':if(typeof window.closeSystemHub==='function'){window.closeSystemHub();}renderAll();break;
+   case 'daily-checkin':closeSidebar();if(typeof window.openDailyCheckinDialog==='function'){await window.openDailyCheckinDialog();}else{toast('Chưa thể mở hộp thoại Báo cáo hôm nay.','error');}break;
    case 'ai-assistant':closeSidebar();if(typeof window.openAiAssistantDialog==='function'){await window.openAiAssistantDialog();}else{toast('Cần mở không gian làm việc đám mây để dùng Trợ lý AI.','error');}break;
    case 'mcp':closeSidebar();if(typeof window.openSystemHub==='function'){await window.openSystemHub('mcp');}else if(typeof window.openMcpDialog==='function'){await window.openMcpDialog();}else{toast('Cần mở không gian làm việc đám mây để dùng MCP.','error');}break;
    case 'settings':openSettings();break;case 'profile':openProfile();break;
@@ -4980,7 +4985,7 @@ document.addEventListener('change',event=>{
   }
   return;
  }
- if(el.dataset.statusTask){const tid=el.dataset.statusTask;changeStatus(tid,el.value);if(!id)document.querySelector(`[data-status-task="${tid}"]`)?.focus({preventScroll:true});return;}
+ if(el.dataset.statusTask){const rawTid=el.dataset.statusTask,tid=resolveTaskId(rawTid)??rawTid;changeStatus(tid,el.value);if(!id)document.querySelector(`[data-status-task="${rawTid}"]`)?.focus({preventScroll:true});return;}
  if(el.dataset.collabTask){
   const rawTid=el.dataset.collabTask,tid=(rawTid&&!isNaN(rawTid))?Number(rawTid):rawTid;
   const pid=el.dataset.personId;
