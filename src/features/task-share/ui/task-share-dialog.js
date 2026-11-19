@@ -7,6 +7,7 @@
  */
 
 import { TaskShareService } from '../services/task-share-service.js';
+import { ICONS } from '../../../design-system/icons.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,15 +16,15 @@ const SHARE_ICON_SVG = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke
 const PERMISSION_META = {
   view: {
     title: 'Chỉ xem',
-    desc: 'Khách xem tiêu đề, mô tả, tiến độ & checklist (tự động ẩn thông tin nội bộ).'
+    desc: 'Xem tiêu đề, mô tả, tiến độ và checklist.'
   },
   comment: {
-    title: 'Xem & Phản hồi',
-    desc: 'Khách nhập tên để bình luận trao đổi, tùy chọn cho phép tick/thêm checklist.'
+    title: 'Xem và phản hồi',
+    desc: 'Bình luận bằng tên khách và dùng checklist nếu được cấp quyền.'
   },
   edit_progress: {
-    title: 'Cập nhật tiến độ (Không Xóa)',
-    desc: 'Khách đổi trạng thái, cập nhật % và checklist; cấm hoàn toàn xóa công việc.'
+    title: 'Cập nhật tiến độ',
+    desc: 'Đổi trạng thái, cập nhật phần trăm hoàn thành và checklist.'
   }
 };
 
@@ -42,43 +43,40 @@ function injectShareStyles() {
   style.id = 'wtTaskShareStyles';
   style.textContent = `
     #taskShareDialog.wt-share-dialog {
-      width: min(560px, calc(100vw - 24px));
-      max-height: min(88dvh, 760px);
-      padding: 0;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-dialog, 17px);
-      background: var(--surface);
-      color: var(--text);
-      box-shadow: var(--shadow-lg);
-      overflow: hidden;
+      width: 580px;
     }
     #taskShareDialog[open] { display: flex; flex-direction: column; }
-    #taskShareDialog::backdrop { background: rgba(15, 21, 36, .45); backdrop-filter: blur(2px); }
+    #taskShareDialog::backdrop { backdrop-filter: none; }
     #taskShareDialog .wt-share-head {
-      display: flex;
       align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--line);
+      padding-block: 16px;
     }
-    #taskShareDialog .wt-share-head h2 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.35;
-    }
-    #taskShareDialog .wt-share-sub {
-      margin: 3px 0 0;
-      font-size: 12px;
+    #taskShareDialog .wt-share-title-group { min-width: 0; }
+    #taskShareDialog .wt-share-task-title {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      margin: 5px 0 0;
+      font-size: var(--text-control);
       color: var(--muted);
     }
     #taskShareDialog .wt-share-body {
-      padding: 16px 20px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+      overscroll-behavior: contain;
+    }
+    #taskShareDialog .wt-share-body,
+    #taskShareDialog #wtShareCreateForm { display: grid; align-content: start; gap: 14px; }
+    #taskShareDialog #wtShareCreateForm { max-height: none; }
+    #taskShareDialog .wt-share-permissions { min-width: 0; padding: 0; border: 0; margin: 0; }
+    #taskShareDialog .wt-share-section-title {
+      margin: 0 0 6px;
+      padding: 0;
+      font-size: var(--text-control);
+      font-weight: var(--weight-semibold);
     }
     #taskShareDialog .wt-share-radio-list {
       display: flex;
@@ -100,42 +98,37 @@ function injectShareStyles() {
       border-color: var(--primary);
       background: var(--primary-soft);
     }
+    #taskShareDialog .wt-share-radio:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
     #taskShareDialog .wt-share-radio input {
+      flex: none;
       margin-top: 3px;
       accent-color: var(--primary);
     }
     #taskShareDialog .wt-share-radio strong {
       display: block;
-      font-size: 13px;
+      font-size: var(--text-control);
     }
     #taskShareDialog .wt-share-radio small {
       display: block;
-      font-size: 12px;
+      font-size: var(--text-label);
       color: var(--muted);
       margin-top: 2px;
+      line-height: var(--leading-copy);
     }
     #taskShareDialog .wt-share-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
     #taskShareDialog .wt-share-field {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      font-size: 12px;
-      font-weight: 600;
+      grid-column: auto;
+      min-width: 0;
     }
     #taskShareDialog .wt-share-field input,
     #taskShareDialog .wt-share-field select {
       min-height: 36px;
-      border: 1px solid var(--line-strong);
-      border-radius: var(--radius-md, 8px);
       background: var(--surface);
       color: var(--text);
-      padding: 6px 10px;
-      font-size: 13px;
-      font-weight: 500;
     }
     #taskShareDialog .wt-share-checks {
       display: flex;
@@ -150,10 +143,12 @@ function injectShareStyles() {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 13px;
+      font-size: var(--text-label);
+      min-height: 28px;
+      line-height: var(--leading-copy);
       cursor: pointer;
     }
-    #taskShareDialog .wt-share-check input { accent-color: var(--primary); }
+    #taskShareDialog .wt-share-check input { accent-color: var(--primary); flex: none; }
     #taskShareDialog .wt-share-alert {
       padding: 10px 12px;
       border-radius: var(--radius-md, 8px);
@@ -180,6 +175,14 @@ function injectShareStyles() {
       border-top: 1px solid var(--line);
       padding-top: 14px;
     }
+    #taskShareDialog .wt-share-links h3,
+    #taskShareDialog .wt-share-empty { margin: 0; }
+    #taskShareDialog .wt-share-empty,
+    #taskShareDialog .wt-share-link-meta,
+    #taskShareDialog .wt-share-link-url { font-size: var(--text-label); color: var(--muted); }
+    #taskShareDialog .wt-share-link-url { overflow-wrap: anywhere; }
+    #taskShareDialog .wt-share-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+    #taskShareDialog .wt-share-footer .btn.primary { min-width: 0; white-space: normal; }
     #taskShareDialog .wt-share-link-card {
       padding: 10px 12px;
       border-radius: var(--radius-md, 8px);
@@ -218,15 +221,14 @@ function injectShareStyles() {
     }
     @media (max-width: 900px) {
       #taskShareDialog.wt-share-dialog {
-        width: 100vw;
-        max-width: 100vw;
-        max-height: 92dvh;
-        margin: auto 0 0;
-        border-radius: var(--radius-dialog, 17px) var(--radius-dialog, 17px) 0 0;
+        width: 100%;
+        max-height: var(--m-vh, 100dvh);
+        height: var(--m-vh, 100dvh);
       }
       #taskShareDialog .wt-share-grid { grid-template-columns: 1fr; }
       #taskShareDialog .btn { min-height: 44px; }
-      #taskShareDialog .wt-share-body { padding-bottom: max(18px, env(safe-area-inset-bottom, 0px)); }
+      #taskShareDialog .wt-share-check { min-height: 44px; }
+      #taskShareDialog .wt-share-head { padding-top: max(12px, env(safe-area-inset-top, 0px)); }
     }
   `;
   document.head.appendChild(style);
@@ -257,6 +259,7 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     allowExternalTaskShare: true,
     links: []
   };
+  let listRequest = 0;
 
   function toast(msg, kind = 'info') {
     if (typeof onToast === 'function') onToast(msg, kind);
@@ -290,37 +293,44 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
 
   async function reloadLinks() {
     if (!state.organizationId || !state.taskId) return;
+    const request = ++listRequest;
     state.loading = true;
     state.error = '';
     renderDialog();
     try {
       const data = await TaskShareService.listShareLinks(state.organizationId, state.taskId);
+      if (request !== listRequest) return;
       state.links = data.links || [];
       state.canShare = Boolean(data.canShare);
       state.isAdmin = Boolean(data.isAdmin);
       state.allowExternalTaskShare = data.allowExternalTaskShare !== false;
     } catch (err) {
-      state.error = err.message || 'Không thể tải danh sách liên kết chia sẻ.';
+      if (request === listRequest) state.error = err.message || 'Không thể tải danh sách liên kết chia sẻ.';
     } finally {
-      state.loading = false;
-      renderDialog();
+      if (request === listRequest) {
+        state.loading = false;
+        renderDialog();
+      }
     }
   }
 
   function renderDialog() {
     const dlg = ensureDialog();
     const policyDisabled = state.allowExternalTaskShare === false;
+    const canCreate = state.canShare && !policyDisabled;
+    const scrollTop = dlg.querySelector('.wt-share-body')?.scrollTop || 0;
+    const focusedId = dlg.contains(document.activeElement) ? document.activeElement.id : '';
 
     dlg.innerHTML = `
-      <div class="wt-share-head">
-        <div>
-          <h2 id="taskShareDialogTitle" tabindex="-1">Chia sẻ công việc: ${esc(state.taskTitle || 'Công việc')}</h2>
-          <p class="wt-share-sub">Tạo link công khai chỉ phạm vi đúng công việc này · Không bao giờ cho phép Xóa</p>
+      <div class="dialog-head wt-share-head">
+        <div class="wt-share-title-group">
+          <h2 id="taskShareDialogTitle" tabindex="-1">Chia sẻ công việc</h2>
+          <p class="wt-share-task-title">${esc(state.taskTitle || 'Công việc')}</p>
         </div>
-        <button type="button" class="icon-btn" id="wtShareCloseBtn" aria-label="Đóng cửa sổ chia sẻ">&times;</button>
+        <button type="button" class="icon-btn" id="wtShareCloseBtn" aria-label="Đóng cửa sổ chia sẻ">${ICONS.x}</button>
       </div>
-      <div class="wt-share-body">
-        ${state.error ? `<div class="wt-share-err" role="alert">${esc(state.error)}</div>` : ''}
+      <div class="dialog-scroll wt-share-body">
+        <div class="wt-share-err" role="alert" ${state.error ? '' : 'hidden'}>${esc(state.error)}</div>
         ${policyDisabled ? `
           <div class="wt-share-alert">
             <span>Doanh nghiệp đang tắt chia sẻ công việc ra ngoài.</span>
@@ -328,10 +338,10 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
           </div>
         ` : ''}
 
-        ${state.canShare && !policyDisabled ? `
-          <form id="wtShareCreateForm" style="display:flex;flex-direction:column;gap:12px;">
-            <div>
-              <div style="font-size:12px;font-weight:700;margin-bottom:6px;">Cho phép người nhận liên kết</div>
+        ${canCreate ? `
+          <form id="wtShareCreateForm">
+            <fieldset class="wt-share-permissions">
+              <legend class="wt-share-section-title">Quyền của người nhận</legend>
               <div class="wt-share-radio-list">
                 ${Object.entries(PERMISSION_META).map(([val, meta], idx) => `
                   <label class="wt-share-radio">
@@ -343,21 +353,21 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
                   </label>
                 `).join('')}
               </div>
-            </div>
+            </fieldset>
 
             <div class="wt-share-checks">
               <label class="wt-share-check">
                 <input type="checkbox" name="hideInternalComments" checked>
-                <span>Ẩn bình luận nội bộ (khách chỉ thấy trao đổi công khai)</span>
+                <span>Ẩn bình luận nội bộ</span>
               </label>
               <label class="wt-share-check">
                 <input type="checkbox" name="allowChecklistToggle" id="wtShareAllowChecklist">
-                <span>Cho phép khách tick / thêm mục checklist (khi chọn Phản hồi)</span>
+                <span>Cho phép khách đánh dấu và thêm mục checklist</span>
               </label>
             </div>
 
             <div class="wt-share-grid">
-              <label class="wt-share-field">
+              <label class="field wt-share-field">
                 <span>Thời hạn liên kết</span>
                 <select name="expiresInHours">
                   <option value="24">24 giờ</option>
@@ -366,49 +376,50 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
                   <option value="0">Không giới hạn</option>
                 </select>
               </label>
-              <label class="wt-share-field">
+              <label class="field wt-share-field">
                 <span>Mã PIN bảo vệ (tùy chọn)</span>
-                <input type="password" name="pin" maxlength="12" autocomplete="new-password" placeholder="VD: 2468 (để trống nếu không)">
+                <input type="password" name="pin" maxlength="12" autocomplete="new-password" placeholder="Nhập mã PIN">
               </label>
             </div>
 
-            <div style="display:flex;justify-content:flex-end;gap:8px;">
-              <button type="button" class="btn" id="wtShareCancelBtn">Đóng</button>
-              <button type="submit" class="btn primary" id="wtShareSubmitBtn">Tạo &amp; Sao chép link</button>
-            </div>
           </form>
         ` : (!state.loading && !state.error && !policyDisabled ? '<p class="muted" style="margin:0;">Vai trò hiện tại không có quyền tạo liên kết chia sẻ công việc này.</p>' : '')}
 
-        <div class="wt-share-links">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <strong style="font-size:13px;">Liên kết đang quản lý (${state.links.length})</strong>
-            ${state.loading ? '<span class="muted" style="font-size:12px;">Đang tải...</span>' : ''}
-          </div>
+        <section class="wt-share-links" aria-labelledby="wtShareLinksTitle" aria-busy="${state.loading}">
+          <h3 class="wt-share-section-title" id="wtShareLinksTitle">Liên kết đã tạo${state.loading ? '' : ` (${state.links.length})`}</h3>
+          ${state.loading ? '<p class="wt-share-empty" role="status">Đang tải liên kết…</p>' : ''}
           ${state.links.length ? state.links.map(link => `
             <div class="wt-share-link-card">
               <div class="wt-share-link-top">
-                <div>
-                  <span class="wt-share-pill ${link.status !== 'active' ? 'paused' : ''}">
-                    ${link.status === 'active' ? esc(PERMISSION_META[link.permission]?.title || link.permission) : 'Đang tạm khóa'}
-                  </span>
-                  ${link.hasPin ? '<span class="wt-share-pill" style="margin-left:4px;">Có mã PIN</span>' : ''}
+                <div class="wt-share-badges">
+                  <span class="wt-share-pill">${esc(PERMISSION_META[link.permission]?.title || link.permission)}</span>
+                  ${link.status !== 'active' ? `<span class="wt-share-pill paused">${link.status === 'revoked' ? 'Đã thu hồi' : 'Tạm dừng'}</span>` : ''}
+                  ${link.hasPin ? '<span class="wt-share-pill">Có mã PIN</span>' : ''}
                 </div>
-                <span class="muted" style="font-size:11px;">${Number(link.viewCount || 0)} lượt xem · ${esc(formatExpiry(link.expiresAt))}</span>
+                <span class="wt-share-link-meta">${Number(link.viewCount || 0)} lượt xem · ${esc(formatExpiry(link.expiresAt))}</span>
               </div>
-              <div class="muted" style="font-size:12px;word-break:break-all;">${esc(link.url || `${link.tokenPrefix}...`)}</div>
-              <div class="wt-share-link-actions">
-                ${link.url ? `<button type="button" class="btn small" data-share-copy="${esc(link.url)}">Sao chép</button>` : ''}
+              <div class="wt-share-link-url">${esc(link.url || `${link.tokenPrefix}…`)}</div>
+              ${link.status !== 'revoked' ? `<div class="wt-share-link-actions">
+                ${link.url && link.status === 'active' ? `<button type="button" class="btn small" data-share-copy="${esc(link.url)}">Sao chép</button>` : ''}
                 <button type="button" class="btn small" data-share-toggle="${esc(link.id)}">${link.status === 'active' ? 'Tạm dừng' : 'Mở lại'}</button>
-                <button type="button" class="btn small" data-share-rotate="${esc(link.id)}">Đổi link</button>
+                <button type="button" class="btn small" data-share-rotate="${esc(link.id)}">Đổi liên kết</button>
                 <button type="button" class="btn small danger" data-share-revoke="${esc(link.id)}">Thu hồi</button>
-              </div>
+              </div>` : ''}
             </div>
-          `).join('') : (!state.loading ? '<p class="muted" style="margin:0;font-size:12px;">Chưa có liên kết chia sẻ nào cho công việc này.</p>' : '')}
-        </div>
+          `).join('') : (!state.loading && !state.error ? '<p class="wt-share-empty">Chưa có liên kết chia sẻ.</p>' : '')}
+        </section>
+      </div>
+      <div class="dialog-foot wt-share-footer">
+        <button type="button" class="btn" id="wtShareCancelBtn">Đóng</button>
+        ${canCreate ? '<button type="submit" form="wtShareCreateForm" class="btn primary" id="wtShareSubmitBtn">Tạo và sao chép</button>' : ''}
       </div>
     `;
 
+    dlg.querySelector('.wt-share-body').scrollTop = scrollTop;
     bindDialogEvents();
+    if (focusedId) {
+      (document.getElementById(focusedId) || dlg.querySelector('#taskShareDialogTitle')).focus({ preventScroll: true });
+    }
   }
 
   function bindDialogEvents() {
@@ -432,19 +443,12 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     const form = dlg.querySelector('#wtShareCreateForm');
     if (form) {
       const checklistCb = form.querySelector('#wtShareAllowChecklist');
+      let commentChecklist = false;
+      checklistCb.addEventListener('change', () => { commentChecklist = checklistCb.checked; });
       const syncPerm = () => {
         const chosen = form.querySelector('input[name="permission"]:checked')?.value || 'view';
-        if (checklistCb) {
-          if (chosen === 'edit_progress') {
-            checklistCb.checked = true;
-            checklistCb.disabled = true;
-          } else if (chosen === 'view') {
-            checklistCb.checked = false;
-            checklistCb.disabled = true;
-          } else {
-            checklistCb.disabled = false;
-          }
-        }
+        checklistCb.checked = chosen === 'edit_progress' || (chosen === 'comment' && commentChecklist);
+        checklistCb.disabled = chosen !== 'comment';
       };
       form.querySelectorAll('input[name="permission"]').forEach(r => r.addEventListener('change', syncPerm));
       syncPerm();
@@ -452,8 +456,11 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
-        const submitBtn = form.querySelector('#wtShareSubmitBtn');
-        if (submitBtn) submitBtn.disabled = true;
+        const submitBtn = dlg.querySelector('#wtShareSubmitBtn');
+        if (submitBtn.disabled) return;
+        const request = listRequest;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Đang tạo liên kết…';
         try {
           const res = await TaskShareService.createShareLink(state.organizationId, state.taskId, {
             permission: String(fd.get('permission') || 'view'),
@@ -463,15 +470,18 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
             pin: String(fd.get('pin') || '').trim() || null,
             label: `Chia sẻ: ${state.taskTitle || 'Công việc'}`.slice(0, 120)
           });
-          if (res.link?.url) {
-            await copyUrl(res.link.url);
-          }
-          await reloadLinks();
+          if (request !== listRequest || !dlg.open) return;
+          if (res.link?.url) await copyUrl(res.link.url);
+          if (request === listRequest && dlg.open) await reloadLinks();
         } catch (err) {
-          state.error = err.message;
-          renderDialog();
+          if (!form.isConnected || !dlg.open) return;
+          const error = dlg.querySelector('.wt-share-err');
+          error.textContent = err.message || 'Không thể tạo liên kết. Vui lòng thử lại.';
+          error.hidden = false;
+          error.scrollIntoView({ block: 'nearest' });
         } finally {
-          if (submitBtn) submitBtn.disabled = false;
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Tạo và sao chép';
         }
       });
     }
@@ -534,14 +544,18 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     state.taskTitle = taskTitle || document.getElementById('drawerTitle')?.textContent?.trim() || 'Công việc';
     state.links = [];
     state.error = '';
+    state.canShare = false;
+    state.isAdmin = false;
+    state.allowExternalTaskShare = true;
 
     const dlg = ensureDialog();
-    renderDialog();
+    if (dlg.open) dlg.querySelector('.wt-share-body').scrollTop = 0;
+    const loading = reloadLinks();
     if (!dlg.open && typeof dlg.showModal === 'function') {
       dlg.showModal();
     }
     dlg.querySelector('#taskShareDialogTitle')?.focus({ preventScroll: true });
-    await reloadLinks();
+    await loading;
   }
 
   function attachDrawerShareButton(event) {

@@ -468,6 +468,10 @@ Công việc, Tin nhắn và Quản trị & Cài đặt dùng khoảng đệm 18
 
 Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đa 50 sự kiện bảo mật gần nhất. Nhật ký có trạng thái tải, trống, lỗi và nút làm mới. Các hàng hiển thị thao tác, người thực hiện khi xác định được và thời điểm.
 
+### Chia sẻ công việc
+
+Hộp thoại dùng tiêu đề cố định và hiển thị tên công việc bên dưới. Phần quyền người nhận và danh sách liên kết cuộn chung. Chân hộp thoại giữ nút tạo liên kết trong tầm chạm. Trên điện thoại, thời hạn và mã PIN xếp dọc. Liên kết đã thu hồi chỉ hiển thị thông tin trạng thái.
+
 ### Trợ lý AI và kết nối MCP
 
 Trong bảng chi tiết công việc, Gợi ý checklist và Tóm tắt công việc dùng nút phụ gọn. Kết quả mở ngay bên dưới và chuyển focus vào tiêu đề để người dùng bàn phím đọc được nội dung.
