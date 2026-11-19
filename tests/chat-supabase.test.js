@@ -117,16 +117,17 @@ function createMockSupabase() {
           m.client_message_id === args.p_client_message_id
         );
         if (dup) return { data: dup, error: null };
+        const atts = Array.isArray(args.p_attachments) ? args.p_attachments : [];
         const next = {
           id: `msg-${messages.length + 1}`,
           organization_id: args.p_organization_id,
           conversation_id: args.p_conversation_id,
           sender_user_id: USER_A,
           client_message_id: args.p_client_message_id,
-          kind: 'text',
+          kind: atts.length ? 'attachment' : 'text',
           body: args.p_text,
           reply_to_message_id: args.p_reply_to_message_id || null,
-          metadata: {},
+          metadata: atts.length ? { attachments: atts } : {},
           reactions: [],
           created_at: new Date().toISOString(),
           edited_at: null,
@@ -151,7 +152,20 @@ function createMockSupabase() {
       }
       return { data: null, error: null };
     },
-    from(table) { return makeChain(table); }
+    from(table) { return makeChain(table); },
+    storage: {
+      from(bucket) {
+        assert.equal(bucket, 'chat-files');
+        return {
+          async upload(storagePath) {
+            return { data: { path: storagePath }, error: null };
+          },
+          async createSignedUrl(storagePath) {
+            return { data: { signedUrl: `https://example.invalid/signed/${storagePath}` }, error: null };
+          }
+        };
+      }
+    }
   };
 }
 
@@ -218,4 +232,41 @@ test('internal chat migration enforces composite tenant FKs, RLS, idempotency in
   assert.equal(/chat_messages_reply_fk/i.test(sql), true);
   assert.equal(/chat_messages_idempotency_uidx/i.test(sql), true);
   assert.equal(/public\.is_chat_participant/i.test(sql), true);
+});
+
+test('supabase chat adapter uploads attachments to scoped storage path and sends message', async () => {
+  const sb = createMockSupabase();
+  const ctx = { organizationId: ORG_A, userId: USER_A, displayName: 'Hữu', supabase: sb };
+  const adapter = createSupabaseChatAdapter(ctx);
+
+  await assert.rejects(
+    adapter.uploadAttachment(ctx, CONV_1, { name: 'too-big.zip', type: 'application/zip', size: 30 * 1024 * 1024 }),
+    { code: 'VALIDATION_ERROR' }
+  );
+
+  const uploaded = await adapter.uploadAttachment(ctx, CONV_1, {
+    name: '../../secret<dir>/spec.pdf',
+    type: 'application/pdf',
+    size: 4096
+  });
+  assert.equal(uploaded.fileName, 'spec.pdf');
+  assert.match(uploaded.storagePath, new RegExp(`^${ORG_A}/${CONV_1}/.*-spec\\.pdf$`));
+
+  const msg = await adapter.sendMessage(ctx, CONV_1, {
+    clientMessageId: crypto.randomUUID(),
+    text: '',
+    attachments: [uploaded]
+  });
+  assert.equal(msg.kind, 'attachment');
+  assert.equal(msg.attachments.length, 1);
+  assert.equal(msg.attachments[0].fileName, 'spec.pdf');
+
+  const signedUrl = await adapter.getAttachmentUrl(ctx, CONV_1, msg.attachments[0]);
+  assert.match(signedUrl, /^https:\/\/example\.invalid\/signed\//);
+
+  await assert.rejects(
+    adapter.getAttachmentUrl(ctx, CONV_1, { storagePath: `${ORG_B}/${CONV_1}/evil.pdf` }),
+    { code: 'FORBIDDEN' }
+  );
+  adapter.dispose();
 });

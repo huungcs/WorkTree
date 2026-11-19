@@ -5,6 +5,12 @@ const initials = name => String(name || '?').trim().split(/\s+/).slice(-2).map(p
 const fold = text => String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
 const time = date => new Intl.DateTimeFormat('vi', { hour: '2-digit', minute: '2-digit' }).format(new Date(date));
 const icon = name => ICONS[name] || ICONS.messageSquare;
+function formatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 function avatar(name, tone = 'purple', group = false, extra = '', portrait = null, photoUrl = null) {
   const color = ['purple', 'blue', 'green', 'amber'].includes(tone) ? tone : 'purple';
   const portraitClass = Number.isInteger(portrait) && portrait >= 0 && portrait < 6 ? `chat-portrait chat-portrait-${portrait}` : '';
@@ -46,6 +52,8 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   let localAvatarUrl = null;
   let profileAvatarUrl = null;
   let avatarRequest = 0;
+  let pendingAttachments = [];
+  let uploadingAttachment = false;
   const drafts = new Map();
   const failed = new Map();
   const taskSources = new Map();
@@ -219,7 +227,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   const aiOpenedIds = new Set();
   let aiSummarySignature = '';
   function extractChatActionItems(msgList) {
-    const textMsgs = (msgList || []).filter(m => m && m.kind === 'text' && !m.deletedAt && m.text?.trim());
+    const textMsgs = (msgList || []).filter(m => m && (m.kind === 'text' || m.kind === 'attachment') && !m.deletedAt && m.text?.trim() && !m.text.startsWith('📎 '));
     const actionPattern = /\b(nho|nhac|giao|can|chot|hoan thanh|gui|kiem tra|deadline|truoc|thu\s+[2-7]|ngay mai|hom nay|@)/i;
     const scored = textMsgs.map(m => {
       const f = fold(m.text);
@@ -303,13 +311,95 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
           <div class="chat-ai-summary-body"></div>
         </section>
       </div>
-      <div class="chat-composer-area"><div class="chat-reply-preview" data-chat-reply hidden></div><div class="chat-emoji-picker" data-chat-emoji-picker hidden role="group" aria-label="Chọn biểu tượng cảm xúc">${['😊', '👍', '❤️', '🎉', '👀', '🙌', '✨', '💜'].map(emoji => `<button type="button" data-chat-emoji="${emoji}" aria-label="Chèn ${emoji}">${emoji}</button>`).join('')}</div>
+      <div class="chat-composer-area"><div class="chat-reply-preview" data-chat-reply hidden></div><div class="chat-pending-attachments" data-chat-pending-attachments hidden></div><div class="chat-emoji-picker" data-chat-emoji-picker hidden role="group" aria-label="Chọn biểu tượng cảm xúc">${['😊', '👍', '❤️', '🎉', '👀', '🙌', '✨', '💜'].map(emoji => `<button type="button" data-chat-emoji="${emoji}" aria-label="Chèn ${emoji}">${emoji}</button>`).join('')}</div>
+        <input type="file" data-chat-attachment-file multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" hidden>
         <form class="chat-composer" data-chat-compose><textarea rows="1" maxlength="10000" data-chat-draft placeholder="Viết tin nhắn cho ${escapeHtml(current.title)}..." aria-label="Nội dung tin nhắn" aria-describedby="chatPreviewDetails" ${current.capabilities?.canSend === false ? 'disabled' : ''}>${escapeHtml(getDraft())}</textarea>
-          <div class="chat-composer-toolbar"><div>${iconButton('attachment-unavailable', 'Đính kèm tệp — chưa có trong bản xem trước', 'paperclip')}${iconButton('emoji-picker', 'Chèn biểu tượng cảm xúc', 'smile', 'aria-expanded="false"')}<span class="chat-compose-hint">Enter để gửi · Shift + Enter xuống dòng</span></div><button type="submit" class="chat-send" aria-label="Gửi tin nhắn" ${!getDraft().trim() || current.capabilities?.canSend === false ? 'disabled' : ''}>${icon('send')}</button></div>
+          <div class="chat-composer-toolbar"><div>${iconButton('attach-file', 'Đính kèm ảnh hoặc tệp', 'paperclip', current.capabilities?.canSend === false ? 'disabled' : '')}${iconButton('emoji-picker', 'Chèn biểu tượng cảm xúc', 'smile', 'aria-expanded="false"')}<span class="chat-compose-hint">Enter để gửi · Shift + Enter xuống dòng</span></div><button type="submit" class="chat-send" aria-label="Gửi tin nhắn" ${(!getDraft().trim() && !pendingAttachments.length) || current.capabilities?.canSend === false ? 'disabled' : ''}>${icon('send')}</button></div>
         </form>
       </div>`;
-    renderPinned(); renderReply(); resizeComposer();
+    renderPinned(); renderReply(); renderPendingAttachments(); resizeComposer();
     renderAiSummary(); renderMessages(true);
+  }
+  function updateSendButtonState() {
+    const btn = $('.chat-send');
+    if (!btn) return;
+    const hasText = Boolean($('[data-chat-draft]')?.value.trim());
+    btn.disabled = sending || uploadingAttachment || (!hasText && !pendingAttachments.length) || current?.capabilities?.canSend === false;
+  }
+  function renderPendingAttachments() {
+    const slot = $('[data-chat-pending-attachments]');
+    if (!slot) return;
+    slot.hidden = !pendingAttachments.length && !uploadingAttachment;
+    const chips = pendingAttachments.map(att => `
+      <span class="chat-pending-attachment">
+        ${icon('paperclip')}
+        <span class="chat-attachment-name">${escapeHtml(att.fileName)}</span>
+        <small>${escapeHtml(formatBytes(att.sizeBytes))}</small>
+        <button type="button" class="chat-pending-remove" data-chat-remove-attachment="${escapeHtml(att.id)}" aria-label="Bỏ ${escapeHtml(att.fileName)}">${icon('x')}</button>
+      </span>`).join('');
+    slot.innerHTML = `${chips}${uploadingAttachment ? '<span class="chat-pending-uploading">Đang tải tệp lên...</span>' : ''}`;
+    updateSendButtonState();
+  }
+  async function handleAttachmentFiles(fileList) {
+    if (!adapter?.uploadAttachment || !current || !selectedId || current.capabilities?.canSend === false) return;
+    const files = [...(fileList || [])];
+    if (!files.length) return;
+    const remaining = Math.max(0, 5 - pendingAttachments.length);
+    if (!remaining) {
+      notice('Tối đa 5 tệp đính kèm cho mỗi tin nhắn.', true);
+      return;
+    }
+    const captured = context;
+    const targetConvId = selectedId;
+    uploadingAttachment = true;
+    renderPendingAttachments();
+    try {
+      for (const file of files.slice(0, remaining)) {
+        const uploaded = await adapter.uploadAttachment(captured, targetConvId, file);
+        if (!valid(captured) || selectedId !== targetConvId) return;
+        pendingAttachments.push(uploaded);
+      }
+      if (files.length > remaining) {
+        notice(`Đã đính kèm ${remaining} tệp (giới hạn 5 tệp/tin nhắn).`);
+      }
+    } catch (error) {
+      if (valid(captured) && error.name !== 'AbortError') {
+        notice(error.message || 'Không thể tải tệp lên. Vui lòng thử lại.', true);
+      }
+    } finally {
+      if (valid(captured)) {
+        uploadingAttachment = false;
+        renderPendingAttachments();
+      }
+    }
+  }
+  async function openMessageAttachment(messageId, attachmentId) {
+    if (!adapter?.getAttachmentUrl || !current || !selectedId) return;
+    const msg = messages.find(m => m.id === messageId && !m.deletedAt);
+    const att = msg?.attachments?.find(a => a.id === attachmentId);
+    if (!att) return;
+    const captured = context;
+    try {
+      const url = await adapter.getAttachmentUrl(captured, selectedId, att);
+      if (!valid(captured) || !url) return;
+      if (url === '#preview-file') {
+        notice(`Tệp xem trước: ${att.fileName}`);
+        return;
+      }
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.download = att.fileName || 'download';
+        a.click();
+      }
+    } catch (error) {
+      if (valid(captured) && error.name !== 'AbortError') {
+        notice('Không thể mở tệp đính kèm lúc này.', true);
+      }
+    }
   }
   function personName(id) { return id === context?.userId ? 'Bạn' : participants.find(p => p.userId === id)?.displayName || 'Thành viên'; }
   function renderMessages(forceBottom = false) {
@@ -330,15 +420,18 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       const own = m.senderUserId === context?.userId;
       const sender = participants.find(p => p.userId === m.senderUserId);
       const replied = messages.find(item => item.id === m.replyToMessageId);
+      const hasAtts = !m.deletedAt && Array.isArray(m.attachments) && m.attachments.length > 0;
+      const isDefaultAttLabel = hasAtts && m.kind === 'attachment' && m.text === `📎 ${m.attachments[0]?.fileName || 'Tệp đính kèm'}`;
+      const canCreateTask = !m.deletedAt && (m.kind === 'text' || (m.kind === 'attachment' && !isDefaultAttLabel)) && m.text?.trim() && taskBridge?.canCreate();
       return `${divider}<article class="chat-message ${own ? 'is-own' : ''}" id="chat-message-${escapeHtml(m.id)}" data-message-id="${escapeHtml(m.id)}" aria-label="${escapeHtml(personName(m.senderUserId))}, ${time(m.createdAt)}">
         ${own && !(localAvatarUrl || profileAvatarUrl) ? '' : avatar(personName(m.senderUserId), sender?.tone, false, 'chat-message-avatar', sender?.portrait, own ? (localAvatarUrl || profileAvatarUrl) : null)}<div class="chat-message-main">${!own ? `<div class="chat-sender-name">${escapeHtml(personName(m.senderUserId))}</div>` : ''}
-        <div class="chat-bubble">${replied ? `<button type="button" class="chat-quoted-message" data-chat-jump="${escapeHtml(replied.id)}"><strong>${escapeHtml(personName(replied.senderUserId))}</strong><span>${escapeHtml(replied.deletedAt ? 'Tin nhắn đã được xóa' : replied.text)}</span></button>` : ''}<p>${escapeHtml(m.deletedAt ? 'Tin nhắn đã được xóa' : m.text)}</p></div>
+        <div class="chat-bubble">${replied ? `<button type="button" class="chat-quoted-message" data-chat-jump="${escapeHtml(replied.id)}"><strong>${escapeHtml(personName(replied.senderUserId))}</strong><span>${escapeHtml(replied.deletedAt ? 'Tin nhắn đã được xóa' : replied.text)}</span></button>` : ''}${!isDefaultAttLabel || m.deletedAt ? `<p>${escapeHtml(m.deletedAt ? 'Tin nhắn đã được xóa' : m.text)}</p>` : ''}${hasAtts ? `<div class="chat-message-attachments">${m.attachments.map(att => `<button type="button" class="chat-attachment-chip" data-chat-open-attachment="${escapeHtml(att.id)}" data-message="${escapeHtml(m.id)}" title="Mở hoặc tải xuống ${escapeHtml(att.fileName)}">${icon('paperclip')}<span class="chat-attachment-name">${escapeHtml(att.fileName)}</span><small class="chat-attachment-size">${escapeHtml(formatBytes(att.sizeBytes))}</small></button>`).join('')}</div>` : ''}</div>
         ${m.reactions?.length ? `<div class="chat-reactions">${m.reactions.map(r => `<button type="button" data-chat-reaction="${escapeHtml(r.emoji)}" data-message="${escapeHtml(m.id)}" aria-label="${escapeHtml(r.emoji)}, ${r.userIds.length} người" aria-pressed="${r.userIds.includes(context?.userId)}">${escapeHtml(r.emoji)} <span>${r.userIds.length}</span></button>`).join('')}</div>` : ''}
-        <div class="chat-message-meta"><time datetime="${escapeHtml(m.createdAt)}">${time(m.createdAt)}</time>${m.editedAt ? '<span>· Đã chỉnh sửa</span>' : ''}${own ? `<span class="chat-message-check" title="Chỉ lưu trong phiên xem trước">${icon('check')}</span>` : ''}${!m.deletedAt && m.kind === 'text' && m.text?.trim() && taskBridge?.canCreate() ? `<button type="button" class="chat-create-task" data-chat-action="create-task" data-message="${escapeHtml(m.id)}" aria-label="Tạo công việc từ tin nhắn" title="Tạo công việc từ tin nhắn">${icon('plus')}<span>Tạo công việc</span></button>` : ''}</div></div>
+        <div class="chat-message-meta"><time datetime="${escapeHtml(m.createdAt)}">${time(m.createdAt)}</time>${m.editedAt ? '<span>· Đã chỉnh sửa</span>' : ''}${own ? `<span class="chat-message-check" title="${adapter?.isPreview ? 'Chỉ lưu trong phiên xem trước' : 'Đã đồng bộ đám mây'}">${icon('check')}</span>` : ''}${canCreateTask ? `<button type="button" class="chat-create-task" data-chat-action="create-task" data-message="${escapeHtml(m.id)}" aria-label="Tạo công việc từ tin nhắn" title="Tạo công việc từ tin nhắn">${icon('plus')}<span>Tạo công việc</span></button>` : ''}</div></div>
         ${!m.deletedAt ? `<div class="chat-message-actions">${iconButton('reply', 'Trả lời tin nhắn', 'reply', `data-message="${escapeHtml(m.id)}"`)}<button type="button" class="icon-btn chat-icon-button" data-chat-reaction="👍" data-message="${escapeHtml(m.id)}" aria-label="Thích tin nhắn" title="Thích tin nhắn">${icon('smile')}</button>${current.capabilities?.canPinMessages ? iconButton('pin-message', 'Ghim tin nhắn', 'pin', `data-message="${escapeHtml(m.id)}"`) : ''}</div>` : ''}
         </article>`;
     }).join('') : empty(messageQuery ? 'Không có tin nhắn phù hợp' : 'Một lời chào, một khởi đầu', messageQuery ? 'Thử tìm bằng từ khóa khác.' : 'Gửi tin nhắn đầu tiên cho cuộc trò chuyện này.')}
-      ${failedItems.map(item => `<div class="chat-failed-message"><p>${escapeHtml(item.text)}</p><button type="button" class="btn" data-chat-retry="${item.clientMessageId}">Gửi lỗi · Thử lại</button></div>`).join('')}`;
+      ${failedItems.map(item => `<div class="chat-failed-message"><p>${escapeHtml(item.text || 'Tin nhắn kèm tệp')}</p><button type="button" class="btn" data-chat-retry="${item.clientMessageId}">Gửi lỗi · Thử lại</button></div>`).join('')}`;
     if (forceBottom || nearBottom) scroller.scrollTop = scroller.scrollHeight;
     else scroller.scrollTop = top;
   }
@@ -368,19 +461,26 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   function renderInfo() {
     if (!current) return;
     const focusedAction = info.contains(document.activeElement) ? document.activeElement.dataset.chatAction : null;
+    const sharedFiles = [];
+    for (const m of messages) {
+      if (!m.deletedAt && Array.isArray(m.attachments)) {
+        for (const att of m.attachments) sharedFiles.push({ messageId: m.id, att });
+      }
+    }
+    const isPrev = adapter?.isPreview === true;
     info.id = 'chatInfoPanel';
     info.innerHTML = `<header class="chat-info-heading"><h2 tabindex="-1">Thông tin ${current.type === 'group' ? 'nhóm' : 'hội thoại'}</h2>${iconButton('close-info', 'Đóng thông tin hội thoại', 'x')}</header>
       <div class="chat-info-scroll"><div class="chat-info-profile">${avatar(current.title, current.tone, current.type === 'group', 'chat-avatar-large', current.portrait)}<h3>${escapeHtml(current.title)}</h3><p>${current.type === 'group' ? `${participants.length} thành viên` : 'Cuộc trò chuyện cá nhân'}</p></div>
       <div class="chat-info-quick"><button type="button" data-chat-action="mute" aria-pressed="${!!current.muted}">${icon(current.muted ? 'volumeOff' : 'bell')}<span>${current.muted ? 'Đang tắt' : 'Thông báo'}</span></button><button type="button" data-chat-action="pin-conversation" aria-pressed="${!!current.pinned}">${icon('pin')}<span>${current.pinned ? 'Đã ghim' : 'Ghim chat'}</span></button>${current.capabilities?.canRename ? `<button type="button" data-chat-action="rename-group">${icon('edit')}<span>Đổi tên</span></button>` : ''}</div>
       ${current.description ? `<section class="chat-info-section"><h3>Giới thiệu</h3><p class="chat-group-description">${escapeHtml(current.description)}</p></section>` : ''}
       <section class="chat-info-section"><div class="chat-info-section-title"><h3>Thành viên <span>${participants.length}</span></h3>${current.capabilities?.canAddMembers ? iconButton('add-members', 'Thêm thành viên', 'plus') : ''}</div><div class="chat-members">${participants.map(p => `<div class="chat-member">${avatar(p.displayName, p.tone, false, '', p.portrait, p.userId === context?.userId ? (localAvatarUrl || profileAvatarUrl) : null)}<div><strong>${escapeHtml(p.userId === context?.userId ? `${p.displayName} (Bạn)` : p.displayName)}</strong><small>${p.groupRole === 'owner' ? 'Chủ nhóm' : escapeHtml(p.roleLabel || 'Thành viên')}</small></div></div>`).join('')}</div></section>
-      <section class="chat-info-section"><h3>Ảnh và tệp đã chia sẻ</h3><div class="chat-files-empty">${icon('paperclip')}<p>Những tài liệu chung sẽ ở đây.<small>Đính kèm tệp sẽ có ở bản kết nối.</small></p></div></section>
-      <div class="chat-info-privacy">${icon('info')}<p>Đây là nhóm minh họa. Thay đổi chỉ có hiệu lực trong phiên xem trước.</p></div></div>`;
+      <section class="chat-info-section"><div class="chat-info-section-title"><h3>Ảnh và tệp đã chia sẻ <span>${sharedFiles.length}</span></h3></div>${sharedFiles.length ? `<div class="chat-shared-files">${sharedFiles.slice(-20).reverse().map(({ messageId, att }) => `<button type="button" class="chat-attachment-chip" data-chat-open-attachment="${escapeHtml(att.id)}" data-message="${escapeHtml(messageId)}">${icon('paperclip')}<span class="chat-attachment-name">${escapeHtml(att.fileName)}</span><small class="chat-attachment-size">${escapeHtml(formatBytes(att.sizeBytes))}</small></button>`).join('')}</div>` : `<div class="chat-files-empty">${icon('paperclip')}<p>Chưa có tài liệu chung.<small>Bấm biểu tượng kẹp giấy để gửi ảnh hoặc tệp.</small></p></div>`}</section>
+      <div class="chat-info-privacy">${icon('info')}<p>${isPrev ? 'Đây là nhóm minh họa. Thay đổi chỉ có hiệu lực trong phiên xem trước.' : 'Hội thoại nội bộ được mã hóa bảo mật và cách ly riêng theo doanh nghiệp.'}</p></div></div>`;
     if (focusedAction) info.querySelector(`[data-chat-action="${focusedAction}"]`)?.focus({ preventScroll: true });
   }
   async function selectConversation(id, { updateRoute = true, focus = false } = {}) {
     if (!adapter) return;
-    selectedId = id; current = null; participants = []; messages = []; replyTo = null; messageQuery = ''; searchOpen = false;
+    selectedId = id; current = null; participants = []; messages = []; replyTo = null; pendingAttachments = []; uploadingAttachment = false; messageQuery = ''; searchOpen = false;
     document.body.classList.add('chat-conversation-open');
     setInfo(false, false); workbench.classList.add('has-conversation');
     thread.innerHTML = skeleton(); renderList();
@@ -437,7 +537,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   }
 
   function createTaskFromMessage(messageId) {
-    const message = messages.find(item => item.id === messageId && item.kind === 'text' && !item.deletedAt);
+    const message = messages.find(item => item.id === messageId && (item.kind === 'text' || item.kind === 'attachment') && !item.deletedAt);
     if (!message?.text?.trim() || !taskBridge?.canCreate()) return;
     const captured = context;
     const source = { conversationId: selectedId, messageId };
@@ -490,30 +590,41 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     textarea.style.height = 'auto'; textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
   }
   async function send(input) {
-    if (!adapter || sending || !current || current.capabilities?.canSend === false) return;
+    if (!adapter || sending || uploadingAttachment || !current || current.capabilities?.canSend === false) return;
     const textarea = $('[data-chat-draft]');
-    const payload = input || { kind: 'text', text: textarea.value.trim(), clientMessageId: crypto.randomUUID(), replyToMessageId: replyTo?.id || null };
-    if (!payload.text) return;
+    const attachmentsToSend = input ? (input.attachments || []) : pendingAttachments.slice(0, 5);
+    const payload = input || {
+      kind: attachmentsToSend.length ? 'attachment' : 'text',
+      text: textarea.value.trim(),
+      attachments: attachmentsToSend,
+      clientMessageId: crypto.randomUUID(),
+      replyToMessageId: replyTo?.id || null
+    };
+    if (!payload.text && !payload.attachments?.length) return;
     const captured = context; const id = selectedId; const scopedKey = draftKey(id);
     sending = true;
-    const sendButton = $('.chat-send'); if (sendButton) sendButton.disabled = true;
+    updateSendButtonState();
     try {
       await adapter.sendMessage(captured, id, payload);
       if (!valid(captured)) return;
       failed.delete(payload.clientMessageId);
       // Do not discard a draft typed while this request was pending.
-      if ((drafts.get(scopedKey) || '').trim() === payload.text.trim() || !input) {
-        if (!input && id === selectedId && textarea.value.trim() === payload.text.trim()) { textarea.value = ''; drafts.delete(scopedKey); resizeComposer(); }
+      if (!input && id === selectedId) {
+        if ((drafts.get(scopedKey) || '').trim() === payload.text.trim() && textarea.value.trim() === payload.text.trim()) {
+          textarea.value = ''; drafts.delete(scopedKey); resizeComposer();
+        }
+        pendingAttachments = [];
+        renderPendingAttachments();
       }
       if (id === selectedId) { replyTo = null; renderReply(); await refreshSelected(); $('[data-chat-scroll]').scrollTop = $('[data-chat-scroll]').scrollHeight; }
-      notice('Tin nhắn đã được lưu trong phiên xem trước.');
+      notice(adapter.isPreview ? 'Tin nhắn đã được lưu trong phiên xem trước.' : 'Đã gửi tin nhắn.');
     } catch (error) {
       if (!valid(captured) || error.name === 'AbortError') return;
       failed.set(payload.clientMessageId, { ...payload, conversationId: id });
       if (id === selectedId) renderMessages();
       notice('Chưa gửi được tin nhắn. Bạn có thể thử lại.', true);
     } finally {
-      if (valid(captured)) { sending = false; const btn = $('.chat-send'); if (btn) btn.disabled = !$('[data-chat-draft]')?.value.trim(); }
+      if (valid(captured)) { sending = false; updateSendButtonState(); }
     }
   }
 
@@ -586,6 +697,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (name === 'clear-filter') { filter = 'all'; query = ''; $('[data-chat-search]').value = ''; renderList(); return; }
     if (name === 'cancel-reply') { replyTo = null; renderReply(); return; }
     if (name === 'reply') { replyTo = messages.find(m => m.id === button.dataset.message); renderReply(); $('[data-chat-draft]')?.focus(); return; }
+    if (name === 'attach-file') { $('[data-chat-attachment-file]')?.click(); return; }
     if (name === 'attachment-unavailable') { notice('Đính kèm tệp sẽ khả dụng ở bản chat kết nối.'); return; }
     if (name === 'emoji-picker') { const picker = $('[data-chat-emoji-picker]'); picker.hidden = !picker.hidden; button.setAttribute('aria-expanded', String(!picker.hidden)); if (!picker.hidden) picker.querySelector('button').focus(); return; }
     if (name === 'jump-latest') { const scroll = $('[data-chat-scroll]'); scroll.scrollTop = scroll.scrollHeight; return; }
@@ -636,14 +748,31 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (aiClose && current) { setAiSummary(false); return; }
     const aiTaskBtn = event.target.closest('[data-chat-ai-task]');
     if (aiTaskBtn) { createTaskFromMessage(aiTaskBtn.dataset.chatAiTask); return; }
+    const removeAttBtn = event.target.closest('[data-chat-remove-attachment]');
+    if (removeAttBtn) {
+      pendingAttachments = pendingAttachments.filter(a => a.id !== removeAttBtn.dataset.chatRemoveAttachment);
+      renderPendingAttachments();
+      return;
+    }
+    const openAttBtn = event.target.closest('[data-chat-open-attachment]');
+    if (openAttBtn) {
+      void openMessageAttachment(openAttBtn.dataset.message, openAttBtn.dataset.chatOpenAttachment);
+      return;
+    }
   }
   document.addEventListener('click', onClick, { signal: events.signal });
   host.addEventListener('input', event => {
     if (event.target.matches('[data-chat-search]')) { query = event.target.value; renderList(); }
     if (event.target.matches('[data-chat-message-search]')) { messageQuery = event.target.value; renderMessages(); }
-    if (event.target.matches('[data-chat-draft]')) { drafts.set(draftKey(), event.target.value); const btn = $('.chat-send'); btn.disabled = sending || !event.target.value.trim() || current?.capabilities?.canSend === false; resizeComposer(); }
+    if (event.target.matches('[data-chat-draft]')) { drafts.set(draftKey(), event.target.value); updateSendButtonState(); resizeComposer(); }
   }, { signal: events.signal });
   host.addEventListener('change', event => {
+    if (event.target.matches('[data-chat-attachment-file]')) {
+      const files = [...(event.target.files || [])];
+      event.target.value = '';
+      void handleAttachmentFiles(files);
+      return;
+    }
     if (!event.target.matches('[data-chat-avatar-file]')) return;
     const file = event.target.files[0];
     event.target.value = '';
@@ -697,7 +826,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     clearOwnAvatar();
     abortController?.abort(); unsubscribeAdapter?.(); adapter?.dispose?.();
     abortController = new AbortController(); context = { ...next, signal: abortController.signal };
-    conversations = []; messages = []; participants = []; selectedId = null; current = null; replyTo = null;
+    conversations = []; messages = []; participants = []; selectedId = null; current = null; replyTo = null; pendingAttachments = []; uploadingAttachment = false;
     drafts.clear(); failed.clear(); taskSources.clear(); aiOpenedIds.clear(); sending = false; ++listRequest; ++detailRequest;
     clearTimeout(noticeTimer); live.textContent = ''; dialogPeople = []; selectedPeople.clear(); dialogMode = null;
     document.body.classList.remove('chat-conversation-open');

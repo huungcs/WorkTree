@@ -111,13 +111,43 @@ export function createMockChatAdapter(initialContext) {
       message(c.id, null, 'Bạn đã tạo nhóm. Cùng bắt đầu cuộc trò chuyện nhé!', 0, { kind: 'system' });
       sync(c); notify('conversationChanged', c.id); return clone(c);
     },
+    async uploadAttachment(context, id, file) {
+      conversation(context, id);
+      if (!file) throw new Error('Tệp không hợp lệ.');
+      const sizeBytes = Number(file.size) || 0;
+      if (sizeBytes <= 0 || sizeBytes > 25 * 1024 * 1024) throw new Error('Tệp đính kèm tối đa 25 MB.');
+      const url = (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && typeof Blob !== 'undefined' && file instanceof Blob)
+        ? URL.createObjectURL(file)
+        : '#preview-file';
+      return clone({
+        id: crypto.randomUUID(),
+        fileName: String(file.name || 'tep-dinh-kem.bin').slice(0, 180),
+        mimeType: String(file.type || 'application/octet-stream'),
+        sizeBytes,
+        url
+      });
+    },
+    async getAttachmentUrl(context, id, attachment) {
+      conversation(context, id);
+      return attachment?.url || '#preview-file';
+    },
     async sendMessage(context, id, input) {
       const c = conversation(context, id);
       const old = messages.get(id).find(m => m.clientMessageId === input.clientMessageId && m.senderUserId === scope.userId);
       if (old) return clone(old);
-      if (!input.clientMessageId || !input.text?.trim() || input.text.trim().length > 10000) throw new Error('Tin nhắn cần có từ 1 đến 10.000 ký tự.');
+      const attachments = Array.isArray(input.attachments) ? clone(input.attachments) : [];
+      const cleanText = String(input.text || '').trim();
+      if (!input.clientMessageId || cleanText.length > 10000 || attachments.length > 5 || (!cleanText.length && !attachments.length)) {
+        throw new Error('Tin nhắn cần có nội dung hoặc tối đa 5 tệp đính kèm.');
+      }
       if (input.replyToMessageId && !messages.get(id).some(m => m.id === input.replyToMessageId)) throw new Error('Tin trả lời không hợp lệ.');
-      const m = message(id, scope.userId, input.text.trim(), 0, { clientMessageId: input.clientMessageId, replyToMessageId: input.replyToMessageId || null });
+      const kind = attachments.length ? 'attachment' : (input.kind || 'text');
+      const m = message(id, scope.userId, cleanText || `📎 ${attachments[0]?.fileName || 'Tệp đính kèm'}`, 0, {
+        kind,
+        attachments,
+        clientMessageId: input.clientMessageId,
+        replyToMessageId: input.replyToMessageId || null
+      });
       sync(c); notify('messagesChanged', id); notify('conversationChanged', id); return clone(m);
     },
     async markRead(context, id, messageId) {

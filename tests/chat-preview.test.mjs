@@ -74,3 +74,22 @@ test('markup in message content remains literal text in the data contract', asyn
   assert.equal(result.text, text);
   adapter.dispose();
 });
+
+test('preview adapter uploads and sends message attachments within size limit', async () => {
+  const ctx = context(); const adapter = createMockChatAdapter(ctx);
+  await assert.rejects(
+    adapter.uploadAttachment(ctx, 'preview-design', { name: 'huge.zip', type: 'application/zip', size: 26 * 1024 * 1024 })
+  );
+  const att = await adapter.uploadAttachment(ctx, 'preview-design', { name: 'baocao.pdf', type: 'application/pdf', size: 1024 });
+  const msg = await adapter.sendMessage(ctx, 'preview-design', {
+    clientMessageId: crypto.randomUUID(),
+    text: '',
+    attachments: [att]
+  });
+  assert.equal(msg.kind, 'attachment');
+  assert.equal(msg.attachments.length, 1);
+  assert.equal(msg.attachments[0].fileName, 'baocao.pdf');
+  const url = await adapter.getAttachmentUrl(ctx, 'preview-design', msg.attachments[0]);
+  assert.equal(typeof url, 'string');
+  adapter.dispose();
+});

@@ -9,6 +9,15 @@ import { getSupabase } from '../../../lib/supabase/client.js';
 const TONES = ['purple', 'blue', 'green', 'amber'];
 const VALID_EMOJIS = new Set(['👍', '❤️', '🎉', '👀']);
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CHAT_STORAGE_BUCKET = 'chat-files';
+const CHAT_MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
+
+function sanitizeAttachmentFileName(fileName) {
+  const clean = String(fileName || 'tep-dinh-kem.bin')
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .split(/[\\/]/).filter(Boolean).pop() || 'tep-dinh-kem.bin';
+  return clean.replace(/\.\.+/g, '.').replace(/[<>:"|?*]/g, '_').slice(0, 180) || 'tep-dinh-kem.bin';
+}
 
 function clone(value) {
   return structuredClone(value);
@@ -386,19 +395,77 @@ export function createSupabaseChatAdapter(initialContext) {
       return detail.conversation;
     },
 
-    async sendMessage(context, id, input = {}) {
+    async uploadAttachment(context, conversationId, file) {
       assertContext(context);
-      if (!input.clientMessageId || !input.text?.trim() || input.text.trim().length > 10000) {
-        throw Object.assign(new Error('Tin nhắn cần có từ 1 đến 10.000 ký tự.'), { code: 'VALIDATION_ERROR' });
+      if (!UUID_REGEX.test(String(conversationId || '')) || !file) {
+        throw Object.assign(new Error('Tệp hoặc hội thoại không hợp lệ.'), { code: 'VALIDATION_ERROR' });
+      }
+      const sizeBytes = Number(file.size) || 0;
+      if (sizeBytes <= 0 || sizeBytes > CHAT_MAX_FILE_SIZE) {
+        throw Object.assign(new Error('Tệp đính kèm phải nhỏ hơn 25 MB.'), { code: 'VALIDATION_ERROR' });
       }
       const sb = await sbClient();
-      const { data, error } = await sb.rpc('send_chat_message', {
+      const attId = crypto.randomUUID();
+      const safeName = sanitizeAttachmentFileName(file.name);
+      const mimeType = String(file.type || 'application/octet-stream').slice(0, 120);
+      const storagePath = `${scope.organizationId}/${conversationId}/${attId}-${safeName}`;
+      const { error } = await sb.storage
+        .from(CHAT_STORAGE_BUCKET)
+        .upload(storagePath, file, {
+          upsert: false,
+          contentType: mimeType
+        });
+      if (error) throw mapAdapterError(error);
+      return clone({
+        id: attId,
+        fileName: safeName,
+        mimeType,
+        sizeBytes,
+        storagePath
+      });
+    },
+
+    async getAttachmentUrl(context, conversationId, attachment) {
+      assertContext(context);
+      if (attachment?.url) return attachment.url;
+      const storagePath = String(attachment?.storagePath || '');
+      const expectedPrefix = `${scope.organizationId}/${conversationId}/`;
+      if (!storagePath.startsWith(expectedPrefix) || storagePath.includes('..')) {
+        throw Object.assign(new Error('Đường dẫn tệp không hợp lệ.'), { code: 'FORBIDDEN' });
+      }
+      const sb = await sbClient();
+      const { data, error } = await sb.storage
+        .from(CHAT_STORAGE_BUCKET)
+        .createSignedUrl(storagePath, 3600);
+      if (error || !data?.signedUrl) throw mapAdapterError(error || new Error('NOT_FOUND'));
+      return data.signedUrl;
+    },
+
+    async sendMessage(context, id, input = {}) {
+      assertContext(context);
+      const attachments = Array.isArray(input.attachments) ? input.attachments : [];
+      const cleanText = String(input.text || '').trim();
+      if (!input.clientMessageId || cleanText.length > 10000 || attachments.length > 5 || (!cleanText.length && !attachments.length)) {
+        throw Object.assign(new Error('Tin nhắn cần có nội dung hoặc tối đa 5 tệp đính kèm.'), { code: 'VALIDATION_ERROR' });
+      }
+      const rpcParams = {
         p_organization_id: scope.organizationId,
         p_conversation_id: id,
         p_client_message_id: String(input.clientMessageId),
-        p_text: input.text.trim(),
+        p_text: cleanText || `📎 ${attachments[0]?.fileName || 'Tệp đính kèm'}`,
         p_reply_to_message_id: input.replyToMessageId || null
-      });
+      };
+      if (attachments.length > 0) {
+        rpcParams.p_attachments = attachments.map(a => ({
+          id: String(a.id || ''),
+          fileName: sanitizeAttachmentFileName(a.fileName),
+          mimeType: String(a.mimeType || 'application/octet-stream'),
+          sizeBytes: Number(a.sizeBytes) || 0,
+          storagePath: String(a.storagePath || '')
+        }));
+      }
+      const sb = await sbClient();
+      const { data, error } = await sb.rpc('send_chat_message', rpcParams);
       if (error || !data) throw mapAdapterError(error || new Error('NETWORK_ERROR'));
       const dto = clone(mapMessageDto(data));
       emit('messagesChanged', { conversationId: id });
