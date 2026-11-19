@@ -4284,7 +4284,10 @@ body[data-demo-workspace] #topAvatar {
   border: 1px solid var(--line-strong);
   background: var(--primary-soft);
   color: var(--primary-text);
-  font: 600 12.5px/1.2 inherit;
+  font: inherit;
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-title);
   cursor: pointer;
 }
 .insight-ai-btn:hover {
@@ -4300,7 +4303,7 @@ body[data-demo-workspace] #topAvatar {
 }
 .workload-rebalance-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -4354,32 +4357,22 @@ body[data-demo-workspace] #topAvatar {
   color: var(--text);
   box-shadow: var(--shadow, 0 18px 42px rgba(0, 0, 0, 0.28));
 }
-.ai-digest-dialog::backdrop {
-  background: rgba(13, 20, 35, 0.56);
-}
 .ai-digest-shell {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   max-height: min(86dvh, 720px);
 }
 .ai-digest-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
+  align-items: flex-start;
 }
-.ai-digest-head h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 15px;
-  font-weight: 650;
+.ai-digest-head > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .ai-digest-body {
-  overflow-y: auto;
+  min-height: 0;
+  overflow: auto;
   padding: 16px 18px;
   display: grid;
   gap: 14px;
@@ -6502,10 +6495,11 @@ function openAiExecutiveDigest(){
   dlg.id='aiDigestDialog';
   dlg.className='dialog ai-digest-dialog';
   dlg.setAttribute('aria-modal','true');
+  dlg.setAttribute('aria-labelledby','aiDigestTitle');
   dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close();});
   document.body.appendChild(dlg);
  }
- dlg.innerHTML=`<div class="ai-digest-shell"><div class="ai-digest-head"><h2>${icon('sparkles')}Bản tin điều hành AI · ${esc(nodeName(state.selected))}</h2><button type="button" class="icon-btn" id="aiDigestClose" aria-label="Đóng">${icon('x')}</button></div><div class="ai-digest-body"><div class="ai-digest-kpis"><div class="ai-digest-kpi"><strong>${active.length}</strong><span>Việc đang mở</span></div><div class="ai-digest-kpi"><strong>${lateCount}</strong><span>Việc quá hạn</span></div><div class="ai-digest-kpi"><strong>${stats.filter(s=>s.load>100).length}</strong><span>Nhân sự &gt;100% tải</span></div></div><div class="ai-digest-block"><h3>Nút cổ chai &amp; việc cần xử lý trước</h3><div class="ai-digest-list">${bottlenecks.length?bottlenecks.map(b=>`<div class="ai-digest-item"><div><strong>${esc(b.task.title)}</strong><div class="workload-rebalance-meta">${b.blocksCount?`Đang chặn ${b.blocksCount} việc khác · `:''}${b.late?'Quá hạn · ':''}${esc(b.task.priority)} · ${esc(nodeName(b.task.owner))}</div></div><button type="button" class="btn small" data-digest-open="${esc(b.task.id)}">Mở việc</button></div>`).join(''):'<div class="ai-digest-item">Không phát hiện nút cổ chai nghiêm trọng trong phạm vi này.</div>'}</div></div>${rebalances.length?`<div class="ai-digest-block"><h3>Gợi ý cân bằng tải nhân sự</h3><div class="ai-digest-list">${rebalances.map(r=>`<div class="ai-digest-item"><div><strong>${esc(r.from.person.name||r.from.person.full_name)} (${r.from.load}%) ➔ ${esc(r.to.person.name||r.to.person.full_name)} (${r.to.load}%)</strong><div class="workload-rebalance-meta">Chuyển giao: ${esc(r.task.title)}</div></div><button type="button" class="btn small primary" data-action="ai-rebalance-apply" data-id="${esc(r.task.id)}" data-target="${esc(r.to.person.id)}">Điều phối</button></div>`).join('')}</div></div>`:''}</div><div class="ai-digest-foot"><button type="button" class="btn" id="aiDigestCancel">Đóng</button><button type="button" class="btn primary" id="aiDigestAskDeep">${icon('sparkles')}Phân tích sâu với Trợ lý AI</button></div></div>`;
+ dlg.innerHTML=`<div class="ai-digest-shell"><div class="dialog-head ai-digest-head"><div><h2 id="aiDigestTitle">Bản tin điều hành AI</h2><p class="dialog-sub">${esc(nodeName(state.selected))}</p></div><button type="button" class="icon-btn" id="aiDigestClose" aria-label="Đóng bản tin">${icon('x')}</button></div><div class="ai-digest-body"><div class="ai-digest-kpis"><div class="ai-digest-kpi"><strong>${active.length}</strong><span>Việc đang mở</span></div><div class="ai-digest-kpi"><strong>${lateCount}</strong><span>Việc quá hạn</span></div><div class="ai-digest-kpi"><strong>${stats.filter(s=>s.load>100).length}</strong><span>Nhân sự &gt;100% tải</span></div></div><div class="ai-digest-block"><h3>Nút cổ chai &amp; việc cần xử lý trước</h3><div class="ai-digest-list">${bottlenecks.length?bottlenecks.map(b=>`<div class="ai-digest-item"><div><strong>${esc(b.task.title)}</strong><div class="workload-rebalance-meta">${b.blocksCount?`Đang chặn ${b.blocksCount} việc khác · `:''}${b.late?'Quá hạn · ':''}${esc(b.task.priority)} · ${esc(nodeName(b.task.owner))}</div></div><button type="button" class="btn small" data-digest-open="${esc(b.task.id)}">Mở việc</button></div>`).join(''):'<div class="ai-digest-item">Không phát hiện nút cổ chai nghiêm trọng trong phạm vi này.</div>'}</div></div>${rebalances.length?`<div class="ai-digest-block"><h3>Gợi ý cân bằng tải nhân sự</h3><div class="ai-digest-list">${rebalances.map(r=>`<div class="ai-digest-item"><div><strong>${esc(r.from.person.name||r.from.person.full_name)} (${r.from.load}%) ➔ ${esc(r.to.person.name||r.to.person.full_name)} (${r.to.load}%)</strong><div class="workload-rebalance-meta">Chuyển giao: ${esc(r.task.title)}</div></div><button type="button" class="btn small primary" data-action="ai-rebalance-apply" data-id="${esc(r.task.id)}" data-target="${esc(r.to.person.id)}">Điều phối</button></div>`).join('')}</div></div>`:''}</div><div class="dialog-foot ai-digest-foot"><button type="button" class="btn" id="aiDigestCancel">Đóng</button><button type="button" class="btn primary" id="aiDigestAskDeep">${icon('sparkles')}Phân tích sâu với Trợ lý AI</button></div></div>`;
  dlg.querySelector('#aiDigestClose')?.addEventListener('click',()=>dlg.close());
  dlg.querySelector('#aiDigestCancel')?.addEventListener('click',()=>dlg.close());
  dlg.querySelectorAll('[data-digest-open]').forEach(b=>b.addEventListener('click',()=>{dlg.close();openDrawer(parseEntityValue(b.dataset.digestOpen));}));
@@ -13063,6 +13057,6 @@ bootV8();
 </script>
 
 
-<script type="module" src="src/app/app.js?v=8.2.21"></script>
+<script type="module" src="src/app/app.js?v=8.2.27"></script>
 </body>
 </html>

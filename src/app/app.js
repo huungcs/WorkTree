@@ -1455,7 +1455,7 @@ async function navigateWorktreeTarget(rawHref, label = '') {
 function openWorkspaceAiAssistantDialog(options = {}) {
   const orgId = appState.activeOrganizationId;
   const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
-  const role = appState.activeMembership?.role || activeOrg?.role || 'member';
+  const role = appState.activeMembership?.role || activeOrg?.role || callLegacyGlobal('currentAccount')?.role || 'member';
   const fallbackName = typeof window !== 'undefined' && typeof window.currentWorkspaceLabel === 'function'
     ? window.currentWorkspaceLabel()
     : 'Workspace';

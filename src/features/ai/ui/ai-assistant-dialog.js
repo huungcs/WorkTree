@@ -20,6 +20,7 @@ const LINE_ICONS = {
 };
 
 const SAFE_WORKTREE_NAV_REGEX = /^worktree:\/\/(?:task|node|view|employee|hub)\/[a-zA-Z0-9_.\-%]+(?:\?[a-zA-Z0-9_=&%.\-,/+:]*)?$/;
+const ROLE_LABELS = { owner: "Chủ sở hữu", admin: "Quản trị viên", manager: "Quản lý", member: "Nhân viên", viewer: "Chỉ xem" };
 const MAX_SESSION_HISTORY = 24;
 const sessionHistoryByOrg = new Map();
 
@@ -103,43 +104,47 @@ function injectAiStyles() {
   const style = document.createElement('style');
   style.id = 'worktreeAiStyles';
   style.textContent = `
-    #aiAssistantDialog.ai-dialog{width:min(780px,calc(100vw - 24px));height:min(760px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);overflow:hidden;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #aiAssistantDialog.ai-dialog{width:min(780px,calc(100vw - 24px));height:min(760px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);overflow:hidden;font-family:var(--font-sans)}
     #aiAssistantDialog.ai-dialog[open]{display:flex;flex-direction:column}
     #aiAssistantDialog.ai-dialog>form.ai-composer{height:auto;max-height:none;width:100%;overflow:visible;flex:0 0 auto}
     #aiAssistantDialog .dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
+    .ai-heading{display:flex;align-items:flex-start;gap:12px;min-width:0}
+    .ai-heading-mark{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:8px;background:var(--primary-soft);color:var(--primary-text)}
+    .ai-heading-body{min-width:0;overflow-wrap:anywhere}
+    .ai-workspace{margin:3px 0 0;color:var(--muted);font-size:var(--text-label)}
     .ai-head-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
-    .ai-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--line);background:var(--surface-2);color:var(--muted)}
+    .ai-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:var(--text-sm);font-weight:600;border:1px solid var(--line);background:var(--surface-2);color:var(--muted)}
     .ai-pill.ok{background:var(--green-soft);color:var(--green)}
     .ai-pill.warn{background:var(--amber-soft);color:var(--amber)}
     .ai-pill .icon{width:13px;height:13px}
     .ai-head-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
     #aiAssistantDialog .btn .icon{width:14px;height:14px;flex-shrink:0}
     .ai-chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px 22px;border-bottom:1px solid var(--line);background:var(--surface-2);flex-shrink:0}
-    .ai-chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 11px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font-size:12px;font-weight:550;white-space:nowrap;cursor:pointer;transition:border-color .15s,background .15s}
+    .ai-chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 11px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font-size:var(--text-label);font-weight:var(--weight-medium);white-space:nowrap;cursor:pointer;transition:border-color .15s,background .15s}
     .ai-chip:hover:not(:disabled){border-color:var(--primary);background:var(--primary-soft);color:var(--primary-text)}
     .ai-chip:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
     .ai-chip:disabled{opacity:.55;cursor:not-allowed}
     .ai-chip .icon{width:14px;height:14px;color:var(--primary-text)}
     .ai-messages{flex:1 1 auto;min-height:0;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px;background:var(--bg)}
-    .ai-empty-card{border:1px dashed var(--line-strong);border-radius:12px;background:var(--surface);padding:18px;font-size:12.5px;color:var(--muted);line-height:1.6}
+    .ai-empty-card{border:1px dashed var(--line-strong);border-radius:12px;background:var(--surface);padding:18px;font-size:var(--text-control);color:var(--muted);line-height:1.6}
     .ai-empty-card strong{color:var(--text)}
     .ai-msg{display:flex;flex-direction:column;gap:6px;max-width:88%}
     .ai-msg.user{align-self:flex-end;align-items:flex-end}
     .ai-msg.assistant{align-self:flex-start;align-items:flex-start}
-    .ai-bubble{padding:11px 14px;border-radius:12px;font-size:13px;line-height:1.6;word-break:break-word;border:1px solid var(--line)}
+    .ai-bubble{padding:11px 14px;border-radius:12px;font-size:var(--text-control);line-height:1.6;word-break:break-word;border:1px solid var(--line)}
     .ai-msg.user .ai-bubble{background:var(--primary-soft);color:var(--text);border-color:var(--primary)}
     .ai-msg.assistant .ai-bubble{background:var(--surface);color:var(--text)}
     .ai-bubble code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11.5px;padding:1px 5px;border-radius:5px;background:var(--surface-2);color:var(--text);border:1px solid var(--line)}
-    .ai-rich-heading{font-size:13px;font-weight:700;color:var(--text);margin:10px 0 4px;letter-spacing:-.01em}
+    .ai-rich-heading{font-size:var(--text-control);font-weight:700;color:var(--text);margin:10px 0 4px;letter-spacing:-.01em}
     .ai-rich-heading:first-child{margin-top:0}
-    .ai-inline-link{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;margin:1px 2px;border-radius:6px;border:1px solid var(--line-strong);background:var(--primary-soft);color:var(--primary-text);font:inherit;font-size:12px;font-weight:600;line-height:1.45;cursor:pointer;vertical-align:baseline;text-align:left;transition:border-color .15s,background .15s}
+    .ai-inline-link{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;margin:1px 2px;border-radius:6px;border:1px solid var(--line-strong);background:var(--primary-soft);color:var(--primary-text);font:inherit;font-size:var(--text-label);font-weight:600;line-height:1.45;cursor:pointer;vertical-align:baseline;text-align:left;transition:border-color .15s,background .15s}
     .ai-inline-link:hover{border-color:var(--primary);background:var(--surface-2)}
     .ai-inline-link:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
     .ai-inline-link .icon{width:12px;height:12px;flex-shrink:0}
     .ai-quick-links{display:flex;flex-direction:column;gap:6px;width:100%;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2)}
-    .ai-quick-links-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+    .ai-quick-links-title{font-size:var(--text-sm);font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     .ai-quick-links-grid{display:flex;flex-wrap:wrap;gap:6px}
-    .ai-quick-link-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:32px;padding:5px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font:inherit;font-size:12px;cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
+    .ai-quick-link-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:32px;padding:5px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font:inherit;font-size:var(--text-label);cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
     .ai-quick-link-chip:hover{border-color:var(--primary);background:var(--primary-soft)}
     .ai-quick-link-chip:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
     .ai-quick-link-chip .icon{width:13px;height:13px;flex-shrink:0;color:var(--primary-text)}
@@ -150,30 +155,34 @@ function injectAiStyles() {
     .ai-quick-link-chip[data-tone="primary"]{border-color:var(--primary);background:var(--primary-soft)}
     .ai-quick-link-text{display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap;min-width:0}
     .ai-quick-link-label{font-weight:600;color:var(--text)}
-    .ai-quick-link-meta{font-size:11px;color:var(--muted)}
-    .ai-tools-row{display:flex;flex-wrap:wrap;gap:5px;font-size:11px;color:var(--muted)}
+    .ai-quick-link-meta{font-size:var(--text-sm);color:var(--muted)}
+    .ai-tools-row{display:flex;flex-wrap:wrap;gap:5px;font-size:var(--text-sm);color:var(--muted)}
     .ai-tool-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
     .ai-actions-stack{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:4px}
     .ai-action-card{border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:8px}
     .ai-action-card.destructive{border-color:var(--red)}
     .ai-action-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-    .ai-action-head strong{font-size:12.5px;color:var(--text)}
-    .ai-action-head code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;padding:2px 6px;border-radius:5px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
-    .ai-action-summary{font-size:12px;color:var(--muted);line-height:1.5}
+    .ai-action-head strong{font-size:var(--text-control);color:var(--text)}
+    .ai-action-head code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--text-sm);padding:2px 6px;border-radius:5px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+    .ai-action-summary{font-size:var(--text-label);color:var(--muted);line-height:1.5}
     .ai-action-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .ai-action-status{font-size:11.5px;font-weight:600}
     .ai-action-status.done{color:var(--green)}
     .ai-action-status.err{color:var(--red)}
     .ai-composer{padding:12px 22px 16px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
-    .ai-composer-row{display:flex;align-items:stretch;gap:10px}
+    .ai-composer-row{display:flex;align-items:flex-end;gap:10px}
     .ai-composer-row .btn.primary{min-height:42px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0}
-    .ai-composer textarea{flex:1;min-height:42px;max-height:130px;resize:vertical;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-2);color:var(--text);font-family:inherit;font-size:13px;line-height:1.45;box-sizing:border-box}
-    .ai-composer textarea:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
-    .ai-composer-note{font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-    .ai-error-box{padding:10px 12px;border-radius:10px;background:var(--red-soft);color:var(--red);border:1px solid var(--line);font-size:12px}
+    .ai-composer textarea{flex:1;min-width:0;min-height:42px;max-height:130px;resize:vertical;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-2);color:var(--text);font-family:inherit;font-size:var(--text-control);line-height:1.45;box-sizing:border-box}
+    .ai-composer textarea:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
+    .ai-composer-note{font-size:var(--text-sm);color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+    .ai-error-box{padding:10px 12px;border-radius:10px;background:var(--red-soft);color:var(--red);border:1px solid var(--line);font-size:var(--text-label)}
     @media(max-width:900px){
-      #aiAssistantDialog.ai-dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;border:0;left:0;transform:none}
-      #aiAssistantDialog .dialog-head{padding:14px 16px}
+      #aiAssistantDialog.ai-dialog{width:100vw;max-width:100vw;height:var(--m-vh,100dvh);max-height:var(--m-vh,100dvh);border-radius:0;border:0;left:0;transform:none}
+      #aiAssistantDialog .dialog-head{padding:calc(12px + env(safe-area-inset-top,0px)) 12px 12px}
+      .ai-heading{gap:8px}.ai-heading-mark{display:none}
+      .ai-composer textarea{font-size:var(--text-entry)}
+      .ai-composer-row .btn.primary{min-height:44px;padding:0 12px}
+      .ai-inline-link{min-height:44px}
       .ai-chips{padding:10px 16px;flex-wrap:nowrap;overflow-x:auto}
       .ai-messages{padding:14px 16px}
       .ai-composer{padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px))}
@@ -407,10 +416,10 @@ export async function openAiAssistantDialog({
     const statusBanner = organizationId && statusError
       ? `
         <div class="ai-error-box" role="alert">
-          <strong>Chưa kết nối được API Trợ lý AI:</strong> ${esc(statusError)}
+          <strong>Chưa kết nối được Trợ lý AI.</strong> ${esc(statusError)}
           <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button type="button" class="btn small" id="aiRetryStatusBtn">Thử kết nối lại</button>
-            <span style="font-size:11px">Nếu đang chạy máy cá nhân, hãy khởi động lại <code>npm start</code> và tải lại trang.</span>
+            <span style="font-size:var(--text-sm)">Nếu đang chạy máy cá nhân, hãy khởi động lại <code>npm start</code> và tải lại trang.</span>
           </div>
         </div>
       `
@@ -419,9 +428,8 @@ export async function openAiAssistantDialog({
     if (history.length === 0) {
       return statusBanner + `
         <div class="ai-empty-card">
-          <strong>Trợ lý AI WorkTree X đã sẵn sàng cho "${esc(organizationName)}".</strong><br>
-          AI tự động đọc báo cáo KPI, danh sách công việc, phụ thuộc và tải nhân sự đúng theo vai trò của bạn. Mọi thay đổi dữ liệu đều hiển thị thẻ để bạn <strong>xác nhận trước khi lưu</strong>.<br><br>
-          Chọn một gợi ý nhanh ở trên hoặc nhập yêu cầu bên dưới (ví dụ: <em>"Tổng hợp 5 việc khẩn cấp nhất tuần này và ai đang quá tải?"</em>).
+          <strong>Bạn muốn xem gì trong không gian làm việc?</strong><br>
+          Chọn một gợi ý hoặc hỏi về tiến độ, việc quá hạn và tải nhân sự. Trợ lý dùng dữ liệu trong phạm vi quyền của bạn.
         </div>
       `;
     }
@@ -478,7 +486,7 @@ export async function openAiAssistantDialog({
       `;
     }).join('') + (sending ? `
       <div class="ai-msg assistant">
-        <div class="ai-bubble">Claude đang đọc dữ liệu và phân tích...</div>
+        <div class="ai-bubble">Đang phân tích dữ liệu…</div>
       </div>
     ` : '');
   };
@@ -489,7 +497,7 @@ export async function openAiAssistantDialog({
     if (statusLoading) return `<span class="ai-pill">Đang kiểm tra kết nối AI...</span>`;
     if (statusError) return `<span class="ai-pill warn">${esc(statusError)}</span>`;
     if (configured) return `<span class="ai-pill ok">${LINE_ICONS.sparkles}<span>${esc(activeModel)} · Sẵn sàng</span></span>`;
-    return `<span class="ai-pill warn">${LINE_ICONS.alertCircle}<span>Chưa cấu hình AI_API_KEY ở server</span></span>`;
+    return `<span class="ai-pill warn">${LINE_ICONS.alertCircle}<span>Trợ lý AI chưa được cấu hình</span></span>`;
   };
 
   const render = () => {
@@ -505,16 +513,16 @@ export async function openAiAssistantDialog({
 
     dialog.innerHTML = `
       <div class="dialog-head">
-        <div>
-          <p class="overline">WORKTREE X · TRỢ LÝ AI NỘI BỘ</p>
-          <h2 id="aiAssistantTitle">Trợ lý AI điều hành (${esc(organizationName)})</h2>
-          <div class="ai-head-meta">
-            <span id="aiStatusBadgeSlot">${getStatusBadgeHtml()}</span>
-            <span class="ai-pill">${LINE_ICONS.shield}<span>Quyền: ${esc(role)}</span></span>
+        <div class="ai-heading">
+          <span class="ai-heading-mark" aria-hidden="true">${LINE_ICONS.sparkles}</span>
+          <div class="ai-heading-body">
+            <h2 id="aiAssistantTitle">Trợ lý AI</h2>
+            <p class="ai-workspace">${esc(organizationName)} · ${esc(ROLE_LABELS[role] || role)}</p>
+            <div class="ai-head-meta" id="aiStatusBadgeSlot">${getStatusBadgeHtml()}</div>
           </div>
         </div>
         <div class="ai-head-actions">
-          ${history.length > 0 ? `<button type="button" class="btn small" id="aiClearBtn" title="Làm mới cuộc trò chuyện">${LINE_ICONS.trash}<span>Mới</span></button>` : ''}
+          ${history.length > 0 ? `<button type="button" class="icon-btn" id="aiClearBtn" aria-label="Bắt đầu cuộc trò chuyện mới" title="Bắt đầu cuộc trò chuyện mới">${LINE_ICONS.trash}</button>` : ''}
           <button type="button" class="icon-btn" id="aiCloseBtn" aria-label="Đóng Trợ lý AI">${LINE_ICONS.x}</button>
         </div>
       </div>
@@ -533,7 +541,7 @@ export async function openAiAssistantDialog({
 
       <form class="ai-composer" id="aiComposerForm">
         <div class="ai-composer-row">
-          <textarea id="aiPromptInput" rows="2" placeholder="${(organizationId || hasLocalEngine) ? 'Hỏi về tiến độ, việc quá hạn, tải nhân sự hoặc nhờ chia checklist...' : 'Đăng nhập tài khoản Cloud để trò chuyện với dữ liệu công việc...'}" ${!canType ? 'disabled' : ''}>${esc(draftText)}</textarea>
+          <textarea id="aiPromptInput" aria-label="Nội dung gửi Trợ lý AI" rows="2" placeholder="${(organizationId || hasLocalEngine) ? 'Hỏi về tiến độ, việc quá hạn, tải nhân sự hoặc nhờ chia checklist...' : 'Đăng nhập tài khoản Cloud để trò chuyện với dữ liệu công việc...'}" ${!canType ? 'disabled' : ''}>${esc(draftText)}</textarea>
           <button type="submit" class="btn primary" id="aiSendBtn" ${!canSubmit ? 'disabled' : ''}>
             ${LINE_ICONS.send}<span>${sending ? 'Đang gửi' : 'Gửi'}</span>
           </button>

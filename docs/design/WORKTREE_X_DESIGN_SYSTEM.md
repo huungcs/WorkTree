@@ -464,6 +464,10 @@ Công việc, Tin nhắn và Quản trị & Cài đặt dùng khoảng đệm 18
 
 Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đa 50 sự kiện bảo mật gần nhất. Nhật ký có trạng thái tải, trống, lỗi và nút làm mới. Các hàng hiển thị thao tác, người thực hiện khi xác định được và thời điểm.
 
+### Trợ lý AI và kết nối MCP
+
+Hộp Trợ lý AI và Bản tin điều hành dùng tiêu đề ngắn, với tên workspace hoặc phạm vi bên dưới. Form MCP dùng cỡ chữ và viền focus của hệ thống. Lựa chọn quyền có trạng thái focus trên toàn thẻ và ô nhập trên điện thoại dùng cỡ chữ nhập liệu chung.
+
 ### Bản demo công khai
 
 Avatar trên thanh trên cùng mở danh sách vai trò mẫu. Vai trò đang xem được đánh dấu trong danh sách. Workspace mẫu duy nhất là NTH GROUP. Khách có thể thử thao tác với dữ liệu minh họa trong phiên, sau khi tải lại demo sẽ trở về vai trò Chủ sở hữu và dữ liệu ban đầu. Ngày của các công việc mẫu được tính theo ngày mở demo để biểu đồ Tiến độ có dữ liệu trong khoảng xem mặc định. Một công việc đã hoàn thành vẫn nằm trong lịch sử.
