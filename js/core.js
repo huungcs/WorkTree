@@ -723,7 +723,7 @@ function closeDialog(id,force=false){
  if(!force&&((id==='taskDialog'&&dirtyTask)||(id==='nodeDialog'&&dirtyNode))){
   ask('Bỏ thay đổi chưa lưu?','Nội dung đang nhập sẽ không được lưu. Công việc và dữ liệu đã lưu trước đó vẫn giữ nguyên.','Bỏ thay đổi',true).then(ok=>{if(ok)closeDialog(id,true);});return;
  }
- const el=$(id);if(!el?.open)return;el.close();if(id==='drawer'){drawerId=null;editingChecklistItem=null;if(window.RealtimeService)window.RealtimeService.unsubscribeTaskDetail();}
+ const el=$(id);if(!el?.open)return;el.close();if(id==='drawer'){drawerId=null;drawerAiDraft=null;editingChecklistItem=null;if(window.RealtimeService)window.RealtimeService.unsubscribeTaskDetail();}
  if(nodePickerState.target&&$(nodePickerState.target)?.closest('dialog')===el)nodePickerState.target=null;
  if((id==='taskDialog'&&ownerPickerState.target==='tOwner')||(id==='drawer'&&ownerPickerState.target==='drawerOwner'))ownerPickerState.target=null;
  if(id==='drawer')syncUrlWithState({replace:false});
@@ -1483,6 +1483,7 @@ function parseEntityValue(raw){
  return window.__worktree_is_cloud_workspace?String(raw):(/^\d+$/.test(String(raw))?Number(raw):raw);
 }
 let drawerAiDraft=null;
+const drawerAiSaving=new Set();
 
 function parseVietnameseChatDue(text){
  const f=fold(text||'');
@@ -1554,7 +1555,7 @@ function generateSmartChecklistForTask(t){
  const hay=fold(`${t.title} ${t.desc||''} ${(t.tags||[]).join(' ')} ${nodeName(t.node)||''}`);
  const existing=new Set((t.checklist||[]).map(c=>fold(Array.isArray(c)?c[0]:(c.content||''))));
  const detailList=(window.__taskDetailData&&String(window.__taskDetailData.taskId)===String(t.id)?window.__taskDetailData.checklist:[])||[];
- const cloudExisting=new Set(detailList.map(c=>fold(c.content||'')));
+ const cloudExisting=new Set(detailList.map(c=>fold(c.text||'')));
  let pool=[];
  let hours=Math.max(2,Number(t.estimate)||0);
 
@@ -1606,23 +1607,25 @@ function generateSmartChecklistForTask(t){
  }
 
  const suggestions=pool.filter(step=>!existing.has(fold(step))&&!cloudExisting.has(fold(step)));
- return {items:(suggestions.length?suggestions:pool.slice(0,4)).slice(0,6),suggestedHours:Math.min(24,Math.max(2,Math.round(hours)))};
+ return {items:suggestions.slice(0,6),suggestedHours:Math.min(24,Math.max(2,Math.round(hours)))};
 }
 
 function summarizeTaskContext(t){
  const cloudDetail=(window.__worktree_is_cloud_workspace&&window.__taskDetailData&&String(window.__taskDetailData.taskId)===String(t.id))?window.__taskDetailData:null;
- const checklist=cloudDetail?((cloudDetail.checklist||[]).map(c=>[c.content,!!c.completed])):(t.checklist||[]);
+ const checklist=cloudDetail&&!cloudDetail.loading?.checklist&&!cloudDetail.errors?.checklist
+  ?(cloudDetail.checklist||[]).map(c=>[c.text,c.done])
+  :(t.checklist||[]);
  const doneCount=checklist.filter(c=>c[1]).length;
  const pendingChecklist=checklist.filter(c=>!c[1]).map(c=>c[0]);
- const comments=cloudDetail?(cloudDetail.comments||[]):[];
+ const comments=cloudDetail?(cloudDetail.comments||[]):(t.comments||[]);
  const latestComment=comments.length?comments[comments.length-1]:null;
  const deps=blockers(t);
 
  const progressParts=[`Trạng thái **${t.status}** (${t.progress||0}%)`];
  if(checklist.length)progressParts.push(`Checklist đạt **${doneCount}/${checklist.length}** mục`);
  if(latestComment){
-  const body=String(latestComment.body||latestComment.content||'').trim().slice(0,110);
-  if(body)progressParts.push(`Trao đổi gần nhất: "${body}${body.length>=110?'...':''}"`);
+  const body=String(latestComment.text||'').trim();
+  if(body)progressParts.push(`Trao đổi gần nhất: "${body.slice(0,110)}${body.length>110?'...':''}"`);
  }
 
  let blockerText='Không có đầu việc phụ thuộc đang chặn.';
@@ -1652,58 +1655,88 @@ function summarizeTaskContext(t){
 
 function renderDrawerAiBoxHtml(t){
  if(!drawerAiDraft||String(drawerAiDraft.taskId)!==String(t.id))return '';
+ const saving=drawerAiSaving.has(t.id);
  if(drawerAiDraft.mode==='checklist'){
-  const itemsHtml=drawerAiDraft.items.map((item,idx)=>`<label class="drawer-ai-check-item"><input type="checkbox" data-ai-check-idx="${idx}" ${item.selected?'checked':''}><span>${esc(item.text)}</span></label>`).join('');
-  return `<div class="drawer-ai-head"><span class="drawer-ai-title">${icon('sparkles')}Gợi ý Checklist &amp; Ước lượng giờ</span><button type="button" class="icon-btn" data-action="ai-close-drawer-box" aria-label="Đóng gợi ý AI">${icon('x')}</button></div><p class="drawer-ai-sub">Chọn các bước phù hợp để thêm nhanh vào công việc:</p><div class="drawer-ai-checklist">${itemsHtml}</div><div class="drawer-ai-footer"><label class="drawer-ai-estimate"><input type="checkbox" id="aiApplyEstimateCheck" ${drawerAiDraft.applyEstimate?'checked':''}><span>Đặt ước lượng <strong>${drawerAiDraft.suggestedHours}h</strong></span></label><button type="button" class="btn small primary" data-action="ai-apply-drawer-checklist" data-id="${t.id}">${icon('check')}Áp dụng vào Task</button></div>`;
+  const itemsHtml=drawerAiDraft.items.map((item,idx)=>`<label class="drawer-ai-check-item"><input type="checkbox" data-ai-check-idx="${idx}" ${item.selected?'checked':''} ${saving?'disabled':''}><span>${esc(item.text)}</span></label>`).join('');
+  return `<div class="drawer-ai-head"><h3 class="drawer-ai-title" tabindex="-1">${icon('sparkles')}Gợi ý checklist</h3><button type="button" class="icon-btn" data-action="ai-close-drawer-box" aria-label="Đóng gợi ý AI" ${saving?'disabled':''}>${icon('x')}</button></div><p class="drawer-ai-sub">${itemsHtml?'Chọn các bước muốn thêm vào công việc.':'Các bước gợi ý đã có trong checklist.'}</p><div class="drawer-ai-checklist">${itemsHtml}</div><div class="drawer-ai-footer">${canManageTask(t)?`<label class="drawer-ai-estimate"><input type="checkbox" id="aiApplyEstimateCheck" ${drawerAiDraft.applyEstimate?'checked':''} ${saving?'disabled':''}><span>Đặt giờ ước tính <strong>${drawerAiDraft.suggestedHours} giờ</strong></span></label>`:''}<button type="button" class="btn small primary" data-action="ai-apply-drawer-checklist" data-id="${t.id}" ${saving||(!itemsHtml&&!canManageTask(t))?'disabled':''}>${icon('check')}${saving?'Đang lưu…':'Áp dụng'}</button></div>`;
  }
- const s=drawerAiDraft.summary;
- return `<div class="drawer-ai-head"><span class="drawer-ai-title">${icon('sparkles')}Tóm tắt ngữ cảnh 3 ý</span><button type="button" class="icon-btn" data-action="ai-close-drawer-box" aria-label="Đóng tóm tắt AI">${icon('x')}</button></div><div class="drawer-ai-summary-grid"><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">1. Đang làm đến đâu</span>${esc(s.progressText).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">2. Đang kẹt ở đâu</span>${esc(s.blockerText)}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">3. Bước tiếp theo</span>${esc(s.nextStepText)}</div></div>`;
+ const s=summarizeTaskContext(t);
+ return `<div class="drawer-ai-head"><h3 class="drawer-ai-title" tabindex="-1">${icon('sparkles')}Tóm tắt công việc</h3><button type="button" class="icon-btn" data-action="ai-close-drawer-box" aria-label="Đóng tóm tắt AI">${icon('x')}</button></div><div class="drawer-ai-summary-grid"><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">1. Đang làm đến đâu</span>${esc(s.progressText).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">2. Đang kẹt ở đâu</span>${esc(s.blockerText)}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">3. Bước tiếp theo</span>${esc(s.nextStepText)}</div></div>`;
 }
 
-function runDrawerAiChecklist(id){
- const pid=parseEntityValue(id),t=byTask.get(pid);if(!t)return;
- if(!canUpdateTask(t))return deny();
- const gen=generateSmartChecklistForTask(t);
- drawerAiDraft={taskId:t.id,mode:'checklist',items:gen.items.map(text=>({text,selected:true})),suggestedHours:gen.suggestedHours,applyEstimate:!t.estimate};
- const box=$('drawerAiResultBox');if(box){box.innerHTML=renderDrawerAiBoxHtml(t);box.hidden=false;}
+function setDrawerAiPreview(id,mode){
+ const t=byTask.get(parseEntityValue(id));
+ if(!t||!canReadTask(t))return deny();
+ if(drawerAiSaving.has(t.id))return;
+ if(mode==='checklist'&&!canUpdateTask(t))return deny();
+ if(drawerAiDraft?.taskId===t.id&&drawerAiDraft.mode===mode){closeDrawerAiPreview();return;}
+ if(mode==='checklist'){
+  const gen=generateSmartChecklistForTask(t);
+  drawerAiDraft={taskId:t.id,mode,items:gen.items.map(text=>({text,selected:true})),suggestedHours:gen.suggestedHours,applyEstimate:canManageTask(t)&&!t.estimate};
+ }else{
+  drawerAiDraft={taskId:t.id,mode};
+ }
+ const box=$('drawerAiResultBox');
+ if(!box)return;
+ box.innerHTML=renderDrawerAiBoxHtml(t);box.hidden=false;
+ for(const button of $$('.drawer-ai-bar button'))button.setAttribute('aria-expanded',String(button.dataset.action==='ai-drawer-'+mode));
+ box.querySelector('h3')?.focus({preventScroll:true});
+ box.querySelector('h3')?.scrollIntoView({block:'nearest'});
 }
-
-function runDrawerAiSummary(id){
- const pid=parseEntityValue(id),t=byTask.get(pid);if(!t)return;
- drawerAiDraft={taskId:t.id,mode:'summary',summary:summarizeTaskContext(t)};
- const box=$('drawerAiResultBox');if(box){box.innerHTML=renderDrawerAiBoxHtml(t);box.hidden=false;}
+function closeDrawerAiPreview(){
+ const trigger=$('drawer').querySelector('.drawer-ai-bar [aria-expanded="true"]');
+ if(drawerAiDraft&&drawerAiSaving.has(drawerAiDraft.taskId))return;
+ drawerAiDraft=null;
+ if($('drawerAiResultBox'))$('drawerAiResultBox').hidden=true;
+ trigger?.setAttribute('aria-expanded','false');
+ trigger?.focus({preventScroll:true});
 }
 
 async function applyDrawerAiChecklist(id){
  const pid=parseEntityValue(id),t=byTask.get(pid);
  if(!t||!requireLogin()||!canUpdateTask(t))return deny();
- const box=$('drawerAiResultBox');if(!box||!drawerAiDraft)return;
+ const box=$('drawerAiResultBox');if(!box||drawerAiDraft?.taskId!==t.id||drawerAiDraft.mode!=='checklist'||drawerAiSaving.has(t.id))return;
+ const draft=drawerAiDraft;
  const picked=[];
  box.querySelectorAll('input[data-ai-check-idx]').forEach(cb=>{
   const idx=Number(cb.dataset.aiCheckIdx);
-  if(cb.checked&&drawerAiDraft.items[idx])picked.push(drawerAiDraft.items[idx].text);
+  const item=draft.items[idx];
+  if(item){item.selected=cb.checked;if(item.selected)picked.push(item.text);}
  });
- const applyEst=!!box.querySelector('#aiApplyEstimateCheck')?.checked;
- const nextEst=drawerAiDraft.suggestedHours;
+ const applyEst=canManageTask(t)&&!!box.querySelector('#aiApplyEstimateCheck')?.checked;
+ draft.applyEstimate=applyEst;
+ const nextEst=draft.suggestedHours;
  if(!picked.length&&!applyEst){toast('Hãy chọn ít nhất 1 mục hoặc ước lượng giờ.','error');return;}
 
  if(window.__worktree_is_cloud_workspace&&window.ChecklistService){
+  const orgId=window.appState?.activeOrganizationId;
+  const inWorkspace=()=>window.appState?.activeOrganizationId===orgId;
+  const sameDraft=()=>inWorkspace()&&drawerAiDraft===draft&&drawerId===t.id&&$('drawer').open;
+  drawerAiSaving.add(t.id);
+  box.innerHTML=renderDrawerAiBoxHtml(t);
   try{
-   for(const content of picked){await window.ChecklistService.addItem({taskId:t.id,content});}
-   const items=await window.ChecklistService.getItems(t.id);
-   if(window.__taskDetailData&&String(window.__taskDetailData.taskId)===String(t.id)){
-    window.__taskDetailData.checklist=items||[];
-   }
-   t.checklistTotal=(items||[]).length;
-   t.checklistDone=(items||[]).filter(c=>c.completed).length;
-   if(applyEst&&window.TaskService){
+   if(applyEst){
     const updated=await window.TaskService.updateTask(t.id,{estimate_minutes:Math.round(nextEst*60)},t.updatedAt||null);
-    if(updated){const idx=data.tasks.findIndex(x=>String(x.id)===String(t.id));if(idx!==-1)data.tasks[idx]=updated;}
+    if(!inWorkspace()||!updated)return;
+    draft.applyEstimate=false;
+    const idx=data.tasks.findIndex(row=>String(row.id)===String(t.id));
+    if(idx!==-1){data.tasks[idx]=updated;rebuild();}
    }
-   drawerAiDraft=null;rebuild();renderView();refreshDrawer();
-   toast(`Đã thêm ${picked.length} bước checklist${applyEst?` & đặt ${nextEst}h`:''}.`);
-  }catch(err){
-   toast(err.message||'Không thể lưu checklist gợi ý.','error');
+   for(const content of picked){
+    if(!inWorkspace())return;
+    await window.ChecklistService.addItem({taskId:t.id,content});
+    draft.items=draft.items.filter(item=>item.text!==content);
+   }
+   if(sameDraft())drawerAiDraft=null;
+   if(inWorkspace())toast(`Đã thêm ${picked.length} mục checklist${applyEst?` và đặt ${nextEst} giờ ước tính`:''}.`);
+  }catch{
+   if(inWorkspace())toast('Chưa lưu hết thay đổi. Bạn có thể thử lại các mục còn lại.','error');
+  }finally{
+   drawerAiSaving.delete(t.id);
+   if(inWorkspace()&&drawerId===t.id&&$('drawer').open){
+    refreshDrawer();
+    await window.refreshDrawerChildQuietly('checklist');
+   }
   }
   return;
  }
@@ -2551,8 +2584,11 @@ function renderDrawer(){
   <span class="meta-label">${icon('clock')}Giờ thực hiện</span><span>${num(t.actual)} / ${num(t.estimate)} giờ <span class="muted">(đã làm / dự tính)</span></span>
   <span class="meta-label">${icon('bookmark')}Phân loại</span><div class="tags">${t.tags.length?t.tags.map(tag=>`<span class="tag">${esc(tag)}</span>`).join(''):'<span class="muted">Chưa có thẻ</span>'}</div></div>
   ${pending.length?`<div class="drawer-note">${icon('link')}<span>Đang chờ ${pending.length} công việc phụ thuộc. Cần hoàn thành các việc bên dưới trước khi đóng công việc này.</span></div>`:''}
-  <div class="drawer-ai-bar" role="group" aria-label="Công cụ AI cho công việc"><button type="button" class="btn" data-action="ai-drawer-checklist" data-id="${t.id}" ${canUpdateTask(t)?'':'disabled'}>${icon('sparkles')}Gợi ý Checklist &amp; Giờ</button><button type="button" class="btn" data-action="ai-drawer-summary" data-id="${t.id}">${icon('sparkles')}Tóm tắt ngữ cảnh Task</button></div>
-  <div id="drawerAiResultBox" class="drawer-ai-box" ${drawerAiDraft&&String(drawerAiDraft.taskId)===String(t.id)?'':'hidden'}>${drawerAiDraft&&String(drawerAiDraft.taskId)===String(t.id)?renderDrawerAiBoxHtml(t):''}</div>
+  <div class="drawer-ai-bar" role="group" aria-label="Công cụ AI cho công việc">
+   ${canUpdateTask(t)?`<button type="button" class="btn soft" data-action="ai-drawer-checklist" data-id="${t.id}" aria-controls="drawerAiResultBox" aria-expanded="${drawerAiDraft?.taskId===t.id&&drawerAiDraft.mode==='checklist'}">${icon('sparkles')}Gợi ý checklist</button>`:''}
+   <button type="button" class="btn soft" data-action="ai-drawer-summary" data-id="${t.id}" aria-controls="drawerAiResultBox" aria-expanded="${drawerAiDraft?.taskId===t.id&&drawerAiDraft.mode==='summary'}">${icon('file')}Tóm tắt công việc</button>
+  </div>
+  <div id="drawerAiResultBox" class="drawer-ai-box" ${drawerAiDraft?.taskId===t.id?'':'hidden'}>${renderDrawerAiBoxHtml(t)}</div>
   <section class="drawer-section"><h3>Mô tả</h3><div class="drawer-description">${t.desc?esc(t.desc):'<span class="muted">Chưa có mô tả. Bấm Chỉnh sửa để bổ sung mục tiêu và đầu ra.</span>'}</div><div data-task-message-source></div></section>
   <section class="drawer-section"><h3>Checklist <small>${checks}/${checkTotal} đã xong</small></h3>${checklistHTML}<form id="checklistForm" class="inline-form"><input id="newChecklist" aria-label="Mục checklist mới" required maxlength="400" placeholder="Thêm một bước nhỏ..."><button class="btn" type="submit">${icon('plus')}Thêm</button></form><label class="checkbox-label" style="margin-top:12px;font-size:10px;color:var(--muted)"><input type="checkbox" id="drawerAutoProgress" ${t.autoProgress?'checked':''}>Tự tính tiến độ theo checklist</label></section>
   <section class="drawer-section"><h3>Phụ thuộc</h3>${dependenciesHTML}${t.dependency&&t.dependency!=='Không có'?`<p class="view-note">Ghi chú: ${esc(t.dependency)}</p>`:''}${dependencyFormHTML}</section>
@@ -4887,10 +4923,10 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'workload-prev':state.workloadWeek=addDays(state.workloadWeek,-7);renderView();break;
    case 'workload-next':state.workloadWeek=addDays(state.workloadWeek,7);renderView();break;
    case 'workload-today':state.workloadWeek=weekStart(TODAY);renderView();break;
-   case 'ai-drawer-checklist':runDrawerAiChecklist(id);break;
-   case 'ai-drawer-summary':runDrawerAiSummary(id);break;
+   case 'ai-drawer-checklist':setDrawerAiPreview(id,'checklist');break;
+   case 'ai-drawer-summary':setDrawerAiPreview(id,'summary');break;
    case 'ai-apply-drawer-checklist':await applyDrawerAiChecklist(id);break;
-   case 'ai-close-drawer-box':drawerAiDraft=null;if($('drawerAiResultBox'))$('drawerAiResultBox').hidden=true;break;
+   case 'ai-close-drawer-box':closeDrawerAiPreview();break;
    case 'ai-digest-modal':openAiExecutiveDigest();break;
    case 'ai-rebalance-apply':{
     const targetId=parseEntityValue(btn.dataset.target);
@@ -4915,6 +4951,11 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
 });
 document.addEventListener('change',event=>{
  const el=event.target,id=el.id;
+ if(drawerAiDraft?.mode==='checklist'&&el.closest('#drawerAiResultBox')){
+  if(id==='aiApplyEstimateCheck')drawerAiDraft.applyEstimate=el.checked;
+  const item=drawerAiDraft.items[el.dataset.aiCheckIdx];
+  if(item)item.selected=el.checked;
+ }
  const filters={filterStatus:'status',filterPriority:'priority',filterOwner:'owner',filterDue:'due'};
  if(filters[id]){updateFilter(filters[id],el.value);return;}
  if(id==='filterPeriod'){
@@ -5615,7 +5656,7 @@ window.refreshDrawerChildQuietly = async function(childType) {
     t.checklist_total = window.__taskDetailData.checklist.length;
     t.checklist_done = window.__taskDetailData.checklist.filter(c => c.done).length;
    }
-   renderDrawer();
+   refreshDrawer();
    renderAll(false);
   } else if (childType === 'dependencies' && window.DependencyService) {
    const items = await window.DependencyService.getDependencies(currentTaskId, currentOrgId);
