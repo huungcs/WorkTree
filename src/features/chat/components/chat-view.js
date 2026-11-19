@@ -205,7 +205,6 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     }).join('');
   }
   const aiOpenedIds = new Set();
-  const aiDismissedIds = new Set();
   function extractChatActionItems(msgList) {
     const textMsgs = (msgList || []).filter(m => m && m.kind === 'text' && !m.deletedAt && m.text?.trim());
     const actionPattern = /\b(nho|nhac|giao|can|chot|hoan thanh|gui|kiem tra|deadline|truoc|thu\s+[2-7]|ngay mai|hom nay|@)/i;
@@ -222,42 +221,66 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       text: x.message.text.trim()
     }));
   }
-  function renderAiSummary(autoUnread = false) {
+  function renderAiSummary() {
     const slot = $('[data-chat-ai-summary]');
     const btn = $('[data-chat-ai-toggle]');
     if (!slot || !current) return;
-    if (autoUnread && current.unreadCount >= 3 && !aiDismissedIds.has(current.id)) {
-      aiOpenedIds.add(current.id);
-    }
     const isOpen = aiOpenedIds.has(current.id);
-    if (btn) btn.setAttribute('aria-expanded', String(isOpen));
+    const history = $('[data-chat-scroll]');
+    const atBottom = history.scrollHeight - history.scrollTop - history.clientHeight <= 2;
+    btn.setAttribute('aria-expanded', String(isOpen));
     slot.hidden = !isOpen;
-    if (!isOpen) { slot.innerHTML = ''; return; }
+    if (atBottom) history.scrollTop = history.scrollHeight;
+    if (!isOpen) return;
     const items = extractChatActionItems(messages);
-    const bodyHtml = items.length
-      ? items.map(it => `<div class="chat-ai-summary-item"><div><strong>${escapeHtml(it.sender)}:</strong> <span>${escapeHtml(it.text.slice(0, 120))}${it.text.length > 120 ? '...' : ''}</span></div>${taskBridge?.canCreate() ? `<button type="button" class="btn small" data-chat-ai-task="${escapeHtml(it.messageId)}">+ Tạo công việc</button>` : ''}</div>`).join('')
+    const canCreate = taskBridge?.canCreate();
+    const body = items.length
+      ? `<ul class="chat-ai-summary-list">${items.map(item => `
+        <li class="chat-ai-summary-item">
+          <div class="chat-ai-summary-copy"><strong>${escapeHtml(item.sender)}</strong><p>${escapeHtml(item.text)}</p></div>
+          ${canCreate ? `<button type="button" class="icon-btn chat-icon-button" data-chat-ai-task="${escapeHtml(item.messageId)}" aria-label="Tạo công việc từ tin nhắn của ${escapeHtml(item.sender)}" title="Tạo công việc">${icon('plus')}</button>` : ''}
+        </li>`).join('')}</ul>`
       : '<p class="chat-ai-summary-empty">Chưa đủ nội dung trao đổi để rút trích đầu việc.</p>';
-    slot.innerHTML = `<div class="chat-ai-summary-head"><strong class="chat-ai-summary-title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.4 6.1L20.5 11.5l-6.1 2.4L12 20l-2.4-6.1L3.5 11.5l6.1-2.4Z"/></svg><span>Tóm tắt AI · ${items.length} đầu việc đáng chú ý</span></strong><button type="button" class="chat-icon-button" data-chat-ai-close aria-label="Đóng tóm tắt AI">${icon('x')}</button></div><div class="chat-ai-summary-list">${bodyHtml}</div>`;
+    slot.innerHTML = `
+      <header class="chat-ai-summary-head">
+        <span class="chat-ai-summary-mark">${icon('sparkles')}</span>
+        <div class="chat-ai-summary-heading">
+          <h3 id="chatAiSummaryTitle" tabindex="-1">Tóm tắt AI</h3>
+          ${items.length ? `<p>${items.length} tin nhắn đáng chú ý</p>` : ''}
+        </div>
+        <button type="button" class="icon-btn chat-icon-button" data-chat-ai-close aria-label="Đóng tóm tắt AI" title="Đóng tóm tắt AI">${icon('x')}</button>
+      </header>
+      <div class="chat-ai-summary-body">${body}</div>`;
+  }
+  function setAiSummary(open) {
+    if (open) aiOpenedIds.add(current.id);
+    else aiOpenedIds.delete(current.id);
+    renderAiSummary();
+    $(open ? '#chatAiSummaryTitle' : '[data-chat-ai-toggle]')?.focus({ preventScroll: true });
   }
   function renderThread() {
     if (!current) { thread.innerHTML = empty('Cùng nhau làm được nhiều hơn', 'Chọn một cuộc trò chuyện hoặc gửi lời chào để bắt đầu.', 'new-message', 'Bắt đầu trò chuyện', true); return; }
     thread.innerHTML = `
       <header class="chat-thread-header">${iconButton('back', 'Quay lại danh sách', 'chevronLeft', 'class-extra="mobile"')}
         ${avatar(current.title, current.tone, current.type === 'group', '', current.portrait)}<div class="chat-thread-identity"><h2 tabindex="-1">${escapeHtml(current.title)}</h2><p>${current.type === 'group' ? `${participants.length} thành viên · Nhóm cộng tác` : 'Cuộc trò chuyện cá nhân'}</p></div>
-        <div class="chat-thread-tools"><button type="button" class="chat-ai-summary-btn" data-chat-ai-toggle aria-expanded="${aiOpenedIds.has(current.id)}" title="Tóm tắt hội thoại & đầu việc bằng AI"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.4 6.1L20.5 11.5l-6.1 2.4L12 20l-2.4-6.1L3.5 11.5l6.1-2.4Z"/></svg><span>Tóm tắt AI</span></button>${iconButton('search-messages', 'Tìm trong hội thoại', 'search', `aria-expanded="${searchOpen}"`)}${iconButton('toggle-info', 'Thông tin hội thoại', 'info', `aria-expanded="${infoOpen}" aria-controls="chatInfoPanel"`)}</div>
+        <div class="chat-thread-tools"><button type="button" class="icon-btn chat-icon-button chat-ai-summary-btn" data-chat-ai-toggle aria-expanded="${aiOpenedIds.has(current.id)}" aria-controls="chatAiSummary" aria-label="Tóm tắt AI" title="Tóm tắt AI">${icon('sparkles')}<span>Tóm tắt AI</span></button>${iconButton('search-messages', 'Tìm trong hội thoại', 'search', `aria-expanded="${searchOpen}"`)}${iconButton('toggle-info', 'Thông tin hội thoại', 'info', `aria-expanded="${infoOpen}" aria-controls="chatInfoPanel"`)}</div>
       </header>
       <div class="chat-message-search" ${searchOpen ? '' : 'hidden'}><label class="chat-search">${icon('search')}<input type="search" data-chat-message-search aria-label="Tìm nội dung trong hội thoại" placeholder="Tìm trong cuộc trò chuyện..." value="${escapeHtml(messageQuery)}"></label>${iconButton('close-message-search', 'Đóng tìm trong hội thoại', 'x')}</div>
       <div class="chat-pinned-message" data-chat-pinned hidden></div>
-      <div class="chat-ai-summary-card" data-chat-ai-summary hidden></div>
-      <div class="chat-message-scroll" data-chat-scroll tabindex="0" aria-label="Lịch sử tin nhắn"><div data-chat-messages></div></div>
-      <button type="button" class="chat-jump btn" data-chat-action="jump-latest" hidden>${icon('arrowDown')}Tin mới nhất</button>
+      <div class="chat-thread-content">
+        <div class="chat-history">
+          <div class="chat-message-scroll" data-chat-scroll tabindex="0" aria-label="Lịch sử tin nhắn"><div data-chat-messages></div></div>
+          <button type="button" class="chat-jump btn" data-chat-action="jump-latest" hidden>${icon('arrowDown')}Tin mới nhất</button>
+        </div>
+        <section class="chat-ai-summary-card" id="chatAiSummary" aria-labelledby="chatAiSummaryTitle" data-chat-ai-summary hidden></section>
+      </div>
       <div class="chat-composer-area"><div class="chat-reply-preview" data-chat-reply hidden></div><div class="chat-emoji-picker" data-chat-emoji-picker hidden role="group" aria-label="Chọn biểu tượng cảm xúc">${['😊', '👍', '❤️', '🎉', '👀', '🙌', '✨', '💜'].map(emoji => `<button type="button" data-chat-emoji="${emoji}" aria-label="Chèn ${emoji}">${emoji}</button>`).join('')}</div>
         <form class="chat-composer" data-chat-compose><textarea rows="1" maxlength="10000" data-chat-draft placeholder="Viết tin nhắn cho ${escapeHtml(current.title)}..." aria-label="Nội dung tin nhắn" aria-describedby="chatPreviewDetails" ${current.capabilities?.canSend === false ? 'disabled' : ''}>${escapeHtml(getDraft())}</textarea>
           <div class="chat-composer-toolbar"><div>${iconButton('attachment-unavailable', 'Đính kèm tệp — chưa có trong bản xem trước', 'paperclip')}${iconButton('emoji-picker', 'Chèn biểu tượng cảm xúc', 'smile', 'aria-expanded="false"')}<span class="chat-compose-hint">Enter để gửi · Shift + Enter xuống dòng</span></div><button type="submit" class="chat-send" aria-label="Gửi tin nhắn" ${!getDraft().trim() || current.capabilities?.canSend === false ? 'disabled' : ''}>${icon('send')}</button></div>
         </form>
       </div>`;
-    renderMessages(true); renderPinned(); renderAiSummary(true); renderReply();
-    resizeComposer();
+    renderPinned(); renderReply(); resizeComposer();
+    renderAiSummary(); renderMessages(true);
   }
   function personName(id) { return id === context?.userId ? 'Bạn' : participants.find(p => p.userId === id)?.displayName || 'Thành viên'; }
   function renderMessages(forceBottom = false) {
@@ -573,12 +596,10 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     const unselect = event.target.closest('[data-chat-unselect]'); if (unselect) { selectedPeople.delete(unselect.dataset.chatUnselect); renderPeople(dialog.querySelector('[data-chat-people-search]').value); return; }
     const aiToggle = event.target.closest('[data-chat-ai-toggle]');
     if (aiToggle && current) {
-      if (aiOpenedIds.has(current.id)) { aiOpenedIds.delete(current.id); aiDismissedIds.add(current.id); }
-      else { aiOpenedIds.add(current.id); aiDismissedIds.delete(current.id); }
-      renderAiSummary(); return;
+      setAiSummary(!aiOpenedIds.has(current.id)); return;
     }
     const aiClose = event.target.closest('[data-chat-ai-close]');
-    if (aiClose && current) { aiOpenedIds.delete(current.id); aiDismissedIds.add(current.id); renderAiSummary(); return; }
+    if (aiClose && current) { setAiSummary(false); return; }
     const aiTaskBtn = event.target.closest('[data-chat-ai-task]');
     if (aiTaskBtn) { createTaskFromMessage(aiTaskBtn.dataset.chatAiTask); return; }
   }
@@ -607,6 +628,10 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (event.key === 'Escape') {
       if (!$('[data-chat-emoji-picker]')?.hidden) { const picker = $('[data-chat-emoji-picker]'); if (picker) picker.hidden = true; $('[data-chat-action="emoji-picker"]')?.setAttribute('aria-expanded', 'false'); $('[data-chat-draft]')?.focus(); }
       else if (infoOpen) setInfo(false);
+      else if (current && aiOpenedIds.has(current.id) && event.target.closest('[data-chat-ai-summary], [data-chat-ai-toggle]')) {
+        event.preventDefault();
+        setAiSummary(false);
+      }
       else if (searchOpen) action('close-message-search');
     }
     // The slide-over panel is modal at narrow widths. Keep its focus inside.

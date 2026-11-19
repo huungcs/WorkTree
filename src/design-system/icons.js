@@ -20,6 +20,7 @@ export const ICONS = {
   volumeOff: createSvg('<path d="m11 5-6 4H2v6h3l6 4V5Zm6 4 5 6m0-6-5 6"/>'),
   search: createSvg('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
   plus: createSvg('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'),
+  sparkles: createSvg('<path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6zM20 2v4m-2-2h4"/>'),
   check: createSvg('<polyline points="20 6 9 17 4 12"/>'),
   x: createSvg('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'),
   chevronDown: createSvg('<polyline points="6 9 12 15 18 9"/>'),
