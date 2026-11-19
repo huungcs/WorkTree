@@ -432,6 +432,8 @@ Trên điện thoại, hai ô Người phụ trách và Người liên quan nằ
 
 ### Biểu mẫu công việc
 
+Khi tạo việc từ tin nhắn, Tin nhắn gốc mặc định thu gọn. Nội dung nguồn, các trường được gợi ý và nút chèn chỉ xuất hiện khi mở khối này. Sau khi chèn, biểu mẫu đưa focus về mô tả.
+
 Ô nhập và bộ chọn dùng cùng kiểu chữ, viền focus và góc bo như bảng chi tiết. Chiều cao tối thiểu là 44px trên desktop và 48px trên điện thoại.
 
 Trên điện thoại, ngày bắt đầu và hạn hoàn thành nằm ở phần chính. Thông tin bổ sung mở bên dưới và thứ tự Tab đi theo thứ tự hiển thị. Chân biểu mẫu hiển thị nơi lưu tương ứng với không gian làm việc hiện tại.
@@ -465,6 +467,8 @@ Công việc, Tin nhắn và Quản trị & Cài đặt dùng khoảng đệm 18
 Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đa 50 sự kiện bảo mật gần nhất. Nhật ký có trạng thái tải, trống, lỗi và nút làm mới. Các hàng hiển thị thao tác, người thực hiện khi xác định được và thời điểm.
 
 ### Trợ lý AI và kết nối MCP
+
+Trong bảng chi tiết công việc, Gợi ý checklist và Tóm tắt công việc dùng nút phụ gọn. Kết quả mở ngay bên dưới và chuyển focus vào tiêu đề để người dùng bàn phím đọc được nội dung.
 
 Hộp Trợ lý AI và Bản tin điều hành dùng tiêu đề ngắn, với tên workspace hoặc phạm vi bên dưới. Form MCP dùng cỡ chữ và viền focus của hệ thống. Lựa chọn quyền có trạng thái focus trên toàn thẻ và ô nhập trên điện thoại dùng cỡ chữ nhập liệu chung.
 

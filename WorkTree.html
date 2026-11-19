@@ -232,15 +232,10 @@ html[data-theme="dark"] .avatar.av-0{background:#554032;color:#edc5a3}html[data-
 .profile-avatar-editor{margin-top:14px}
 .profile-avatar-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
 .profile-avatar-editor [role=status]{min-height:1.5em;margin:8px 0 0}
-.task-message-source{padding:10px 12px;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px}
-.task-message-source summary{cursor:pointer;font-weight:650}
-.task-message-source blockquote{margin:10px 0;max-height:9em;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
-.task-message-source p{margin:0 0 8px}
 .chat-source-button{margin-top:10px}
 @media(max-width:900px){
  #taskForm.has-message-source .field:has(#tDesc){display:block}
  .task-message-source summary,.task-message-source .btn,.chat-source-button{min-height:44px}
- .task-message-source summary{align-content:center}
 }
 @media(max-width:900px){.profile-avatar-actions .btn{min-height:44px}}
 .main-shell{min-width:0}
@@ -4430,62 +4425,81 @@ body[data-demo-workspace] #topAvatar {
 }
 
 .task-message-source {
-  font-weight: var(--weight-regular);
-  padding: 12px 14px;
-  border-radius: 10px;
+  display: block;
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
 }
 .task-message-source summary {
-  font-weight: 650;
-  font-size: 12.5px;
-  color: var(--text);
-}
-.task-message-source blockquote {
-  margin: 10px 0 8px;
-  padding: 9px 12px;
-  border-left: 3px solid var(--primary);
-  border-radius: 0 8px 8px 0;
-  background: var(--surface);
-  font-weight: var(--weight-regular);
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text);
-}
-.task-message-source p.muted {
-  font-weight: var(--weight-regular);
-  font-size: 11.5px;
-  line-height: 1.45;
-  margin: 0;
-}
-.task-message-source-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  list-style: none;
+  cursor: pointer;
 }
+.task-message-source summary::-webkit-details-marker { display: none }
+.task-message-source summary:hover { background: var(--surface-3) }
+.task-message-source summary .icon {
+  width: 14px;
+  height: 14px;
+}
+.task-message-source-title,
 .ai-task-source-hint {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  margin-top: 0;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
+  gap: 5px;
+}
+.task-message-source-title { font-weight: var(--weight-semibold) }
+.ai-task-source-hint {
+  padding: 2px 6px;
+  border-radius: 6px;
   background: var(--primary-soft);
   color: var(--primary-text);
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: var(--text-sm);
 }
-.ai-task-source-hint svg.icon {
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
+.task-message-source-caret {
+  margin-inline-start: auto;
+  color: var(--muted);
 }
+.task-message-source[open] .task-message-source-caret { transform: rotate(180deg) }
+.task-message-source-content {
+  display: grid;
+  gap: 9px;
+  padding: 0 10px 10px;
+}
+.task-message-source blockquote {
+  margin: 0;
+  padding: 7px 9px;
+  border-inline-start: 2px solid var(--primary);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-control);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-copy);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.task-message-source-content p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-label);
+  line-height: var(--leading-copy);
+}
+.task-message-source-content p strong { color: var(--text) }
+.task-message-source-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.task-message-source-foot p { flex: 1 1 15em }
+.task-message-source-foot .btn { font-size: var(--text-label) }
 
 @media (max-width: 900px) {
   .drawer-ai-bar .btn {
@@ -4496,13 +4510,6 @@ body[data-demo-workspace] #topAvatar {
   .drawer-ai-check-item,
   .drawer-ai-estimate { min-height: 44px; align-items: center }
   .insight-ai-btn {
-    min-height: 44px;
-  }
-  .task-message-source-foot {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .task-message-source-foot .btn {
     min-height: 44px;
   }
   .workload-rebalance-grid {
@@ -6615,13 +6622,20 @@ function showTaskMessageSource(source, extractedFields = []) {
  taskMessageSource = source;
  const details = document.createElement('details');
  details.className = 'task-message-source field full';
- details.innerHTML = '<summary>Tin nhắn gốc</summary><blockquote></blockquote><p class="muted">Chỉ người có quyền xem công việc mới đọc được mô tả. Hãy kiểm tra nội dung bạn muốn chia sẻ.</p><div class="task-message-source-foot"><button type="button" class="btn small">Đưa nội dung vào mô tả</button></div>';
- if (Array.isArray(extractedFields) && extractedFields.length > 0) {
-  const hint = document.createElement('div');
-  hint.className = 'ai-task-source-hint';
-  hint.innerHTML = `${icon('sparkles')}<span>AI đã gợi ý sẵn: ${esc(extractedFields.join(', '))} (rà lại trước khi lưu)</span>`;
-  details.querySelector('.task-message-source-foot')?.appendChild(hint);
- }
+ const hasSuggestions=Array.isArray(extractedFields)&&extractedFields.length>0;
+ details.innerHTML=`<summary>
+  <span class="task-message-source-title">${icon('message')}Tin nhắn gốc</span>
+  ${hasSuggestions?`<span class="ai-task-source-hint">${icon('sparkles')}Có gợi ý AI</span>`:''}
+  <span class="task-message-source-caret" aria-hidden="true">${icon('chevron-down')}</span>
+ </summary>
+ <div class="task-message-source-content">
+  <blockquote></blockquote>
+  ${hasSuggestions?`<p class="task-message-source-suggestions"><strong>Đã điền gợi ý</strong> · ${esc(extractedFields.join(', '))}</p>`:''}
+  <div class="task-message-source-foot">
+   <p>Người có quyền xem công việc có thể đọc nội dung được chèn.</p>
+   <button type="button" class="btn small">Chèn vào mô tả</button>
+  </div>
+ </div>`;
  details.querySelector('blockquote').textContent = source.text;
  details.querySelector('button').addEventListener('click', () => {
   if (!source.isCurrent()) return;
@@ -6629,9 +6643,15 @@ function showTaskMessageSource(source, extractedFields = []) {
   const current = description.value.trim();
   const text = source.text.trim();
   if (current !== text && !current.endsWith('\n\n' + text)) {
-   description.value = [current, text].filter(Boolean).join('\n\n').slice(0, description.maxLength);
+   const next=[description.value.trimEnd(),text].filter(Boolean).join('\n\n');
+   if(description.maxLength>=0&&next.length>description.maxLength){
+    toast('Mô tả không đủ chỗ để chèn toàn bộ tin nhắn.','error');
+    return;
+   }
+   description.value=next;
    description.dispatchEvent(new Event('input', { bubbles: true }));
   }
+  details.open=false;
   description.focus();
  });
  $('tDesc').closest('.field').before(details);
