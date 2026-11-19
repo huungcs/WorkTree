@@ -27,8 +27,8 @@ button,a,input,select,textarea,summary{-webkit-tap-highlight-color:transparent}
 button{color:inherit}
 button:disabled{cursor:not-allowed;opacity:.42}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
-/* Route focus announces the landmark without outlining the entire page. */
-#systemHubContent:focus{outline:none}
+/* Programmatic focus on workspace landmarks and headings does not outline their full row. */
+:is(.main-shell > main, h1, h2, h3, h4, .tree-heading)[tabindex="-1"]:focus{outline:none}
 input,select,textarea{color:var(--text);background:var(--surface)}
 input::placeholder,textarea::placeholder{color:var(--muted);opacity:.85}
 input[type="checkbox"]{accent-color:var(--primary);width:16px;height:16px;flex-shrink:0;cursor:pointer}

@@ -40,6 +40,9 @@ function toneForId(id) {
 
 function mapAdapterError(err) {
   const msg = String(err?.message || err || 'Lỗi kết nối máy chủ chat.');
+  if (err?.code === 'PGRST202' && msg.includes('send_chat_message_with_mentions')) {
+    return Object.assign(new Error('Tính năng nhắc tên đang chờ cập nhật máy chủ.'), { code: 'MIGRATION_REQUIRED' });
+  }
   if (err?.code === 'PGRST205' || err?.code === '42P01' || /chat_(conversations|messages|participants)/i.test(msg)) {
     return Object.assign(
       new Error('Cơ sở dữ liệu chưa cập nhật bảng Chat nội bộ (vui lòng chạy migration 20261119110000_add_internal_chat.sql).'),
@@ -73,6 +76,7 @@ function mapMessageDto(row) {
     text: row.deleted_at ? '' : (row.body || ''),
     replyToMessageId: row.reply_to_message_id || null,
     attachments: Array.isArray(row.metadata?.attachments) ? clone(row.metadata.attachments) : [],
+    mentions: Array.isArray(row.metadata?.mentions) ? clone(row.metadata.mentions) : [],
     reactions: Array.isArray(row.reactions) ? clone(row.reactions) : [],
     createdAt: row.created_at,
     editedAt: row.edited_at || null,
@@ -411,7 +415,8 @@ export function createSupabaseChatAdapter(initialContext) {
       const attId = crypto.randomUUID();
       const safeName = sanitizeAttachmentFileName(file.name);
       const mimeType = String(file.type || 'application/octet-stream').slice(0, 120);
-      const storagePath = `${scope.organizationId}/${conversationId}/${attId}-${safeName}`;
+      const extension = /\.[a-z0-9]{1,12}$/i.exec(safeName)?.[0].toLowerCase() || '';
+      const storagePath = `${scope.organizationId}/${conversationId}/${attId}${extension}`;
       const { error } = await sb.storage
         .from(CHAT_STORAGE_BUCKET)
         .upload(storagePath, file, {
@@ -430,7 +435,6 @@ export function createSupabaseChatAdapter(initialContext) {
 
     async getAttachmentUrl(context, conversationId, attachment) {
       assertContext(context);
-      if (attachment?.url) return attachment.url;
       const storagePath = String(attachment?.storagePath || '');
       const expectedPrefix = `${scope.organizationId}/${conversationId}/`;
       if (!storagePath.startsWith(expectedPrefix) || storagePath.includes('..')) {
@@ -446,6 +450,7 @@ export function createSupabaseChatAdapter(initialContext) {
 
     async sendMessage(context, id, input = {}) {
       assertContext(context);
+      const mentions = Array.isArray(input.mentions) ? input.mentions : [];
       const attachments = Array.isArray(input.attachments) ? input.attachments : [];
       const cleanText = String(input.text || '').trim();
       if (!input.clientMessageId || cleanText.length > 10000 || attachments.length > 5 || (!cleanText.length && !attachments.length)) {
@@ -468,7 +473,9 @@ export function createSupabaseChatAdapter(initialContext) {
         }));
       }
       const sb = await sbClient();
-      const { data, error } = await sb.rpc('send_chat_message', rpcParams);
+      const rpc = mentions.length ? 'send_chat_message_with_mentions' : 'send_chat_message';
+      if (mentions.length) rpcParams.p_mentions = mentions;
+      const { data, error } = await sb.rpc(rpc, rpcParams);
       if (error || !data) throw mapAdapterError(error || new Error('NETWORK_ERROR'));
       const dto = clone(mapMessageDto(data));
       emit('messagesChanged', { conversationId: id });

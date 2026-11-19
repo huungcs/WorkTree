@@ -4041,10 +4041,11 @@ window.renderNotificationCenter = function(targetTab) {
   html += `<div class="notification-list" style="display:grid;gap:6px">`;
   displayedNotifications.forEach(n => {
    const isUnread = !n.read_at;
+   const chatId = n.kind === 'chat_mention' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(n.metadata?.conversation_id || '') ? n.metadata.conversation_id : '';
    const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
-   const iconName = n.kind === 'task_assigned' ? 'user' : n.kind === 'task_comment' ? 'message-square' : n.kind === 'task_completed' ? 'check' : (n.kind === 'due_soon' || n.kind === 'overdue' || n.kind === 'task_status_changed') ? 'alert' : 'bell';
+   const iconName = n.kind === 'task_assigned' ? 'user' : ['task_comment', 'chat_mention'].includes(n.kind) ? 'message-square' : n.kind === 'task_completed' ? 'check' : (n.kind === 'due_soon' || n.kind === 'overdue' || n.kind === 'task_status_changed') ? 'alert' : 'bell';
    html += `
-    <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" style="position:relative;cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px;transition:all .15s ease">
+    <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" data-chat-id="${chatId}" style="position:relative;cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px;transition:all .15s ease">
      <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px;flex-shrink:0">${icon(iconName)}</span>
      <div class="notif-item-content" style="flex:1;min-width:0">
       <strong class="notif-item-title" style="display:block;font-size:12px;color:var(--text);font-weight:${isUnread ? '650' : '500'};line-height:1.45">${esc(n.title)}</strong>
@@ -4947,7 +4948,12 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
       window.NotificationService.markAsRead(notifId).catch(console.error);
      }
     }
-    if (taskId) {
+    if (el.dataset.chatId) {
+     closeDialog('infoDialog');
+     const chatHash = '#messages/' + encodeURIComponent(el.dataset.chatId);
+     if (location.hash === chatHash) window.dispatchEvent(new Event('hashchange'));
+     else location.hash = chatHash;
+    } else if (taskId) {
      closeDialog('infoDialog');
      let targetTaskId = (taskId && byTask.has(taskId)) ? taskId : (byTask.has(Number(taskId)) ? Number(taskId) : null);
      if (taskId && !targetTaskId && window.__worktree_is_cloud_workspace) {

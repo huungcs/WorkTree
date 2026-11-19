@@ -137,6 +137,16 @@ export function createMockChatAdapter(initialContext) {
       if (old) return clone(old);
       const attachments = Array.isArray(input.attachments) ? clone(input.attachments) : [];
       const cleanText = String(input.text || '').trim();
+      const mentions = Array.isArray(input.mentions) ? clone(input.mentions) : [];
+      const chars = Array.from(cleanText);
+      let previousEnd = 0;
+      if (mentions.length > 10 || mentions.some(({ userId, start, length }) => {
+        const valid = c.type === 'group' && userId !== scope.userId && c.memberIds.includes(userId)
+          && Number.isInteger(start) && Number.isInteger(length) && start >= previousEnd && length >= 2
+          && start + length <= chars.length && chars[start] === '@';
+        previousEnd = start + length;
+        return !valid;
+      })) throw new Error('Thành viên hoặc vị trí nhắc tên không hợp lệ.');
       if (!input.clientMessageId || cleanText.length > 10000 || attachments.length > 5 || (!cleanText.length && !attachments.length)) {
         throw new Error('Tin nhắn cần có nội dung hoặc tối đa 5 tệp đính kèm.');
       }
@@ -145,6 +155,7 @@ export function createMockChatAdapter(initialContext) {
       const m = message(id, scope.userId, cleanText || `📎 ${attachments[0]?.fileName || 'Tệp đính kèm'}`, 0, {
         kind,
         attachments,
+        mentions,
         clientMessageId: input.clientMessageId,
         replyToMessageId: input.replyToMessageId || null
       });

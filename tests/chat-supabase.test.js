@@ -275,7 +275,12 @@ test('supabase chat adapter uploads attachments to scoped storage path and sends
     size: 4096
   });
   assert.equal(uploaded.fileName, 'spec.pdf');
-  assert.match(uploaded.storagePath, new RegExp(`^${ORG_A}/${CONV_1}/.*-spec\\.pdf$`));
+  assert.match(uploaded.storagePath, new RegExp(`^${ORG_A}/${CONV_1}/[0-9a-f-]{36}\\.pdf$`));
+  const photo = await adapter.uploadAttachment(ctx, CONV_1, {
+    name: 'Ảnh công việc #1.PNG', type: 'image/png', size: 200
+  });
+  assert.equal(photo.fileName, 'Ảnh công việc #1.PNG');
+  assert.match(photo.storagePath, new RegExp(`^${ORG_A}/${CONV_1}/[0-9a-f-]{36}\\.png$`));
 
   const msg = await adapter.sendMessage(ctx, CONV_1, {
     clientMessageId: crypto.randomUUID(),

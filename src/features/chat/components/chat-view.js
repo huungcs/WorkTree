@@ -1,4 +1,5 @@
 import { ICONS } from '../../../design-system/icons.js';
+import { mentionQuery, renderMentionText, serializeMentions, updateMentionRanges } from '../services/chat-mentions.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 const initials = name => String(name || '?').trim().split(/\s+/).slice(-2).map(part => part[0]).join('').toUpperCase();
@@ -10,6 +11,11 @@ function formatBytes(bytes) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+function isChatPhoto({ mimeType, fileName }) {
+  const type = String(mimeType || '').toLowerCase();
+  return /^image\/(jpeg|png|webp|gif|avif|bmp)$/.test(type)
+    || ((!type || type === 'application/octet-stream') && /\.(jpe?g|png|webp|gif|avif|bmp)$/i.test(fileName || ''));
 }
 function avatar(name, tone = 'purple', group = false, extra = '', portrait = null, photoUrl = null) {
   const color = ['purple', 'blue', 'green', 'amber'].includes(tone) ? tone : 'purple';
@@ -53,6 +59,12 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   let profileAvatarUrl = null;
   let avatarRequest = 0;
   let pendingAttachments = [];
+  let attachmentUploadError = '';
+  const imageUrls = new Map();
+  let imageObserver;
+  const draftMentions = new Map();
+  let mentionChoices = [];
+  let activeMention = 0;
   let uploadingAttachment = false;
   const drafts = new Map();
   const failed = new Map();
@@ -91,6 +103,8 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   const thread = $('[data-chat-thread]');
   const info = $('[data-chat-info]');
   const workbench = $('.chat-workbench');
+  const narrowChat = matchMedia('(max-width: 900px)');
+  const composeKeys = 'Enter để gửi · Shift + Enter xuống dòng';
   const dialog = document.createElement('dialog');
   dialog.className = 'dialog chat-dialog';
   dialog.setAttribute('aria-labelledby', 'chatDialogTitle');
@@ -109,6 +123,61 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   function valid(captured) { return !disposed && captured === context && !captured?.signal?.aborted; }
   function draftKey(id = selectedId) { return `${context?.organizationId}:${context?.userId}:${id}`; }
   function getDraft() { return drafts.get(draftKey()) || ''; }
+  function closeMentions() {
+    mentionChoices = [];
+    activeMention = 0;
+    const menu = $('[data-chat-mention-menu]');
+    if (menu) menu.hidden = true;
+    $('[data-chat-draft]')?.removeAttribute('aria-activedescendant');
+  }
+  function highlightMention() {
+    $('[data-chat-mention-menu]').querySelectorAll('[role="option"]').forEach((option, index) => {
+      option.setAttribute('aria-selected', String(index === activeMention));
+      if (index === activeMention) {
+        $('[data-chat-draft]').setAttribute('aria-activedescendant', option.id);
+        option.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+  function showMentions(textarea) {
+    const match = mentionQuery(textarea.value, textarea.selectionStart);
+    if (current?.type !== 'group' || !match || textarea.selectionStart !== textarea.selectionEnd ||
+        draftMentions.get(draftKey())?.some(item => item.start === match.start)) {
+      closeMentions();
+      return;
+    }
+    const query = fold(match.query.trim());
+    mentionChoices = participants.filter(person => person.userId !== context.userId && fold(person.displayName).includes(query)).slice(0, 8);
+    if (!mentionChoices.length) { closeMentions(); return; }
+    activeMention = 0;
+    const menu = $('[data-chat-mention-menu]');
+    menu.innerHTML = mentionChoices.map((person, index) => `<div role="option" id="chatMentionOption${index}" data-chat-mention-option="${index}">${avatar(person.displayName, person.tone, false, '', person.portrait)}<span><strong>${escapeHtml(person.displayName)}</strong><small>${escapeHtml(person.roleLabel || 'Thành viên')}</small></span></div>`).join('');
+    menu.hidden = false;
+    highlightMention();
+  }
+  function chooseMention(index) {
+    const person = mentionChoices[index];
+    const textarea = $('[data-chat-draft]');
+    const match = textarea && mentionQuery(textarea.value, textarea.selectionStart);
+    if (!person || !match) return;
+    const key = draftKey();
+    const entries = draftMentions.get(key) || [];
+    const label = '@' + person.displayName.trim();
+    if (entries.length >= 10 || textarea.value.length - (match.end - match.start) + label.length + 1 > textarea.maxLength) {
+      notice('Mỗi tin nhắn có thể nhắc tối đa 10 lượt và dài tối đa 10.000 ký tự.', true);
+      return;
+    }
+    const before = textarea.value;
+    textarea.setRangeText(label + ' ', match.start, match.end, 'end');
+    const updated = updateMentionRanges(before, textarea.value, entries);
+    updated.push({ userId: person.userId, start: match.start, end: match.start + label.length });
+    draftMentions.set(key, updated.sort((a, b) => a.start - b.start));
+    drafts.set(key, textarea.value);
+    closeMentions();
+    textarea.focus();
+    resizeComposer();
+    updateSendButtonState();
+  }
   function renderOwnAvatar() {
     const button = $('[data-chat-action="choose-avatar"]');
     button.hidden = adapter?.isPreview !== true;
@@ -372,6 +441,8 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     const atBottom = history.scrollHeight - history.scrollTop - history.clientHeight <= 2;
     btn.setAttribute('aria-expanded', String(isOpen));
     slot.hidden = !isOpen;
+    syncAiSheet();
+    resizeComposer();
     if (atBottom) history.scrollTop = history.scrollHeight;
     if (!isOpen) return;
 
@@ -500,11 +571,31 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       (action || $('#chatAiSummaryTitle')).focus({ preventScroll: true });
     }
   }
+  function syncAiSheet() {
+    const sheet = $('[data-chat-ai-summary]');
+    if (!sheet) return;
+    const modal = narrowChat.matches && !sheet.hidden;
+    $('[data-chat-ai-scrim]').hidden = !modal;
+    for (const region of thread.querySelectorAll(':scope > :not(.chat-thread-content), .chat-conversation-pane')) {
+      region.inert = modal;
+    }
+    if (modal) {
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+      if (!sheet.contains(document.activeElement)) $('#chatAiSummaryTitle').focus({ preventScroll: true });
+    } else {
+      sheet.removeAttribute('role');
+      sheet.removeAttribute('aria-modal');
+    }
+  }
   function setAiSummary(open) {
     if (!current) return;
-    if (open) aiOpenedIds.add(current.id);
-    else aiOpenedIds.delete(current.id);
     if (open) {
+      aiOpenedIds.add(current.id);
+      closeMentions();
+      const picker = $('[data-chat-emoji-picker]');
+      if (picker) picker.hidden = true;
+      $('[data-chat-action="emoji-picker"]')?.setAttribute('aria-expanded', 'false');
       const canCloudAi = Boolean(aiBridge?.isCloudAvailable?.() && typeof aiBridge.summarizeConversation === 'function');
       if (!canCloudAi || !aiSummaries.has(current.id)) {
         void requestAiSummary(current.id, { force: !canCloudAi });
@@ -512,12 +603,16 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
         renderAiSummary();
       }
     } else {
+      aiOpenedIds.delete(current.id);
       renderAiSummary();
     }
     $(open ? '#chatAiSummaryTitle' : '[data-chat-ai-toggle]')?.focus({ preventScroll: true });
   }
   function renderThread() {
     aiSummarySignature = '';
+    closeMentions();
+    imageObserver?.disconnect();
+    imageUrls.clear();
     if (!current) { thread.innerHTML = empty('Cùng nhau làm được nhiều hơn', 'Chọn một cuộc trò chuyện hoặc gửi lời chào để bắt đầu.', 'new-message', 'Bắt đầu trò chuyện', true); return; }
     thread.innerHTML = `
       <header class="chat-thread-header">${iconButton('back', 'Quay lại danh sách', 'chevronLeft', 'class-extra="mobile"')}
@@ -527,11 +622,25 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       <div class="chat-message-search" ${searchOpen ? '' : 'hidden'}><label class="chat-search">${icon('search')}<input type="search" data-chat-message-search aria-label="Tìm nội dung trong hội thoại" placeholder="Tìm trong cuộc trò chuyện..." value="${escapeHtml(messageQuery)}"></label>${iconButton('close-message-search', 'Đóng tìm trong hội thoại', 'x')}</div>
       <div class="chat-pinned-message" data-chat-pinned hidden></div>
       <div class="chat-thread-content">
+        <div class="chat-conversation-pane">
         <div class="chat-history">
           <div class="chat-message-scroll" data-chat-scroll tabindex="0" aria-label="Lịch sử tin nhắn"><div data-chat-messages></div></div>
           <button type="button" class="chat-jump btn" data-chat-action="jump-latest" hidden>${icon('arrowDown')}Tin mới nhất</button>
         </div>
+        <div class="chat-composer-area"><div class="chat-reply-preview" data-chat-reply hidden></div><div class="chat-pending-attachments" data-chat-pending-attachments hidden></div><div class="chat-emoji-picker" data-chat-emoji-picker hidden role="group" aria-label="Chọn biểu tượng cảm xúc">${['😊', '👍', '❤️', '🎉', '👀', '🙌', '✨', '💜'].map(emoji => `<button type="button" data-chat-emoji="${emoji}" aria-label="Chèn ${emoji}">${emoji}</button>`).join('')}</div>
+          <input type="file" data-chat-attachment-file multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" hidden>
+          <form class="chat-composer" data-chat-compose>
+            <div class="chat-composer-tools">${iconButton('attach-file', 'Đính kèm ảnh hoặc tệp', 'paperclip', current.capabilities?.canSend === false ? 'disabled' : '')}${iconButton('emoji-picker', 'Chèn biểu tượng cảm xúc', 'smile', current.capabilities?.canSend === false ? 'aria-expanded="false" disabled' : 'aria-expanded="false"')}</div>
+            <textarea rows="1" maxlength="10000" data-chat-draft placeholder="${current.type === 'group' ? 'Viết tin nhắn hoặc gõ @…' : 'Viết tin nhắn…'}" aria-label="Nội dung tin nhắn" aria-describedby="chatPreviewDetails${narrowChat.matches ? '' : ' chatComposeKeys'}" ${current.type === 'group' ? 'aria-autocomplete="list" aria-controls="chatMentionMenu"' : ''} ${current.capabilities?.canSend === false ? 'disabled' : ''}>${escapeHtml(getDraft())}</textarea>
+            <span id="chatComposeKeys" class="sr-only">${composeKeys}</span>
+            <button type="submit" class="chat-send" aria-label="Gửi tin nhắn" title="${narrowChat.matches ? 'Gửi tin nhắn' : composeKeys}" ${(!getDraft().trim() && !pendingAttachments.length) || current.capabilities?.canSend === false ? 'disabled' : ''}>${icon('send')}</button>
+          </form>
+          <div id="chatMentionMenu" class="chat-mention-menu" data-chat-mention-menu role="listbox" aria-label="Thành viên để nhắc tên" hidden></div>
+        </div>
+        </div>
+        <div class="chat-ai-sheet-scrim" data-chat-ai-scrim aria-hidden="true" hidden></div>
         <section class="chat-ai-summary-card" id="chatAiSummary" aria-labelledby="chatAiSummaryTitle" data-chat-ai-summary hidden>
+          <div class="chat-ai-sheet-handle" data-chat-ai-handle aria-hidden="true"></div>
           <header class="chat-ai-summary-head">
             <span class="chat-ai-summary-mark">${icon('sparkles')}</span>
             <div class="chat-ai-summary-heading">
@@ -545,12 +654,6 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
           </header>
           <div class="chat-ai-summary-body"></div>
         </section>
-      </div>
-      <div class="chat-composer-area"><div class="chat-reply-preview" data-chat-reply hidden></div><div class="chat-pending-attachments" data-chat-pending-attachments hidden></div><div class="chat-emoji-picker" data-chat-emoji-picker hidden role="group" aria-label="Chọn biểu tượng cảm xúc">${['😊', '👍', '❤️', '🎉', '👀', '🙌', '✨', '💜'].map(emoji => `<button type="button" data-chat-emoji="${emoji}" aria-label="Chèn ${emoji}">${emoji}</button>`).join('')}</div>
-        <input type="file" data-chat-attachment-file multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" hidden>
-        <form class="chat-composer" data-chat-compose><textarea rows="1" maxlength="10000" data-chat-draft placeholder="Viết tin nhắn cho ${escapeHtml(current.title)}..." aria-label="Nội dung tin nhắn" aria-describedby="chatPreviewDetails" ${current.capabilities?.canSend === false ? 'disabled' : ''}>${escapeHtml(getDraft())}</textarea>
-          <div class="chat-composer-toolbar"><div>${iconButton('attach-file', 'Đính kèm ảnh hoặc tệp', 'paperclip', current.capabilities?.canSend === false ? 'disabled' : '')}${iconButton('emoji-picker', 'Chèn biểu tượng cảm xúc', 'smile', 'aria-expanded="false"')}<span class="chat-compose-hint">Enter để gửi · Shift + Enter xuống dòng</span></div><button type="submit" class="chat-send" aria-label="Gửi tin nhắn" ${(!getDraft().trim() && !pendingAttachments.length) || current.capabilities?.canSend === false ? 'disabled' : ''}>${icon('send')}</button></div>
-        </form>
       </div>`;
     renderPinned(); renderReply(); renderPendingAttachments(); resizeComposer();
     renderAiSummary(); renderMessages(true);
@@ -564,7 +667,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   function renderPendingAttachments() {
     const slot = $('[data-chat-pending-attachments]');
     if (!slot) return;
-    slot.hidden = !pendingAttachments.length && !uploadingAttachment;
+    slot.hidden = !pendingAttachments.length && !uploadingAttachment && !attachmentUploadError;
     const chips = pendingAttachments.map(att => `
       <span class="chat-pending-attachment">
         ${icon('paperclip')}
@@ -573,10 +676,20 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
         <button type="button" class="chat-pending-remove" data-chat-remove-attachment="${escapeHtml(att.id)}" aria-label="Bỏ ${escapeHtml(att.fileName)}">${icon('x')}</button>
       </span>`).join('');
     slot.innerHTML = `${chips}${uploadingAttachment ? '<span class="chat-pending-uploading">Đang tải tệp lên...</span>' : ''}`;
+    if (!uploadingAttachment && pendingAttachments.length) {
+      slot.insertAdjacentHTML('afterbegin', '<p class="chat-pending-ready" role="status">Đã đính kèm · Bấm Gửi để gửi tin nhắn</p>');
+    }
+    if (attachmentUploadError) {
+      const error = document.createElement('p');
+      error.className = 'chat-pending-error';
+      error.setAttribute('role', 'alert');
+      error.textContent = attachmentUploadError;
+      slot.prepend(error);
+    }
     updateSendButtonState();
   }
   async function handleAttachmentFiles(fileList) {
-    if (!adapter?.uploadAttachment || !current || !selectedId || current.capabilities?.canSend === false) return;
+    if (!adapter?.uploadAttachment || !current || !selectedId || uploadingAttachment || sending || current.capabilities?.canSend === false) return;
     const files = [...(fileList || [])];
     if (!files.length) return;
     const remaining = Math.max(0, 5 - pendingAttachments.length);
@@ -586,50 +699,111 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     }
     const captured = context;
     const targetConvId = selectedId;
+    const request = detailRequest;
+    const isCurrent = () => valid(captured) && detailRequest === request && selectedId === targetConvId;
+    attachmentUploadError = '';
     uploadingAttachment = true;
     renderPendingAttachments();
     try {
       for (const file of files.slice(0, remaining)) {
         const uploaded = await adapter.uploadAttachment(captured, targetConvId, file);
-        if (!valid(captured) || selectedId !== targetConvId) return;
+        if (!isCurrent()) return;
         pendingAttachments.push(uploaded);
       }
       if (files.length > remaining) {
         notice(`Đã đính kèm ${remaining} tệp (giới hạn 5 tệp/tin nhắn).`);
       }
     } catch (error) {
-      if (valid(captured) && error.name !== 'AbortError') {
-        notice(error.message || 'Không thể tải tệp lên. Vui lòng thử lại.', true);
+      if (isCurrent() && error.name !== 'AbortError') {
+        attachmentUploadError = error.code === 'VALIDATION_ERROR' ? error.message : 'Tải tệp thất bại. Bấm kẹp giấy để chọn lại.';
       }
     } finally {
-      if (valid(captured)) {
+      if (isCurrent()) {
         uploadingAttachment = false;
         renderPendingAttachments();
       }
     }
   }
+  function findMessageAttachment(messageId, attachmentId) {
+    const msg = messages.find(m => m.id === messageId && !m.deletedAt);
+    return msg?.attachments?.find(a => a.id === attachmentId);
+  }
+  function renderAttachment(att, messageId, showImage = false) {
+    const name = escapeHtml(att.fileName || 'Tệp đính kèm');
+    const attributes = `data-chat-open-attachment="${escapeHtml(att.id)}" data-message="${escapeHtml(messageId)}"`;
+    if (showImage && isChatPhoto(att)) {
+      return `<button type="button" class="chat-image-attachment" ${attributes} data-chat-image title="Mở ảnh ${name}" aria-label="Mở ảnh ${name}">
+        <span class="chat-image-placeholder">${icon('image')}<span>${name}</span></span>
+        <img alt="" decoding="async" referrerpolicy="no-referrer" hidden>
+      </button>`;
+    }
+    return `<button type="button" class="chat-attachment-chip" ${attributes} title="Mở hoặc tải xuống ${name}">${icon('paperclip')}<span class="chat-attachment-name">${name}</span><small class="chat-attachment-size">${escapeHtml(formatBytes(att.sizeBytes))}</small></button>`;
+  }
+  function observeMessagePhotos(scroller) {
+    imageObserver?.disconnect();
+    if (!adapter?.getAttachmentUrl) return;
+    const photos = scroller.querySelectorAll('[data-chat-image]');
+    if (!photos.length) return;
+    const captured = context;
+    const conversationId = selectedId;
+    const load = async button => {
+      if (!button.isConnected || !valid(captured) || selectedId !== conversationId) return;
+      const att = findMessageAttachment(button.dataset.message, button.dataset.chatOpenAttachment);
+      if (!att) return;
+      const key = att.storagePath || att.id;
+      let cached = imageUrls.get(key);
+      if (!cached || cached.expires <= Date.now()) {
+        cached = { promise: adapter.getAttachmentUrl(captured, conversationId, att), expires: Date.now() + 55 * 60 * 1000 };
+        if (imageUrls.size >= 120) imageUrls.delete(imageUrls.keys().next().value);
+        imageUrls.set(key, cached);
+      }
+      const fallback = () => {
+        if (imageUrls.get(key) === cached) imageUrls.delete(key);
+        if (button.isConnected) button.querySelector('.chat-image-placeholder span').textContent = 'Bấm để mở ảnh';
+      };
+      try {
+        const url = await cached.promise;
+        if (!button.isConnected || !valid(captured) || selectedId !== conversationId) return;
+        if (!url || url === '#preview-file') { fallback(); return; }
+        const image = button.querySelector('img');
+        image.addEventListener('load', () => {
+          image.hidden = false;
+          button.querySelector('.chat-image-placeholder').hidden = true;
+        }, { once: true });
+        image.addEventListener('error', fallback, { once: true });
+        image.src = url;
+      } catch {
+        fallback();
+      }
+    };
+    if (typeof IntersectionObserver !== 'function') { photos.forEach(load); return; }
+    imageObserver = new IntersectionObserver((entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        void load(entry.target);
+      }
+    }, { root: scroller, rootMargin: '160px 0px' });
+    photos.forEach(photo => imageObserver.observe(photo));
+  }
   async function openMessageAttachment(messageId, attachmentId) {
     if (!adapter?.getAttachmentUrl || !current || !selectedId) return;
-    const msg = messages.find(m => m.id === messageId && !m.deletedAt);
-    const att = msg?.attachments?.find(a => a.id === attachmentId);
+    const att = findMessageAttachment(messageId, attachmentId);
     if (!att) return;
     const captured = context;
+    const conversationId = selectedId;
     try {
-      const url = await adapter.getAttachmentUrl(captured, selectedId, att);
-      if (!valid(captured) || !url) return;
+      const url = await adapter.getAttachmentUrl(captured, conversationId, att);
+      if (!valid(captured) || selectedId !== conversationId || !url) return;
       if (url === '#preview-file') {
         notice(`Tệp xem trước: ${att.fileName}`);
         return;
       }
-      const win = window.open(url, '_blank', 'noopener,noreferrer');
-      if (!win) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.download = att.fileName || 'download';
-        a.click();
-      }
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.click();
     } catch (error) {
       if (valid(captured) && error.name !== 'AbortError') {
         notice('Không thể mở tệp đính kèm lúc này.', true);
@@ -655,12 +829,16 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       const own = m.senderUserId === context?.userId;
       const sender = participants.find(p => p.userId === m.senderUserId);
       const replied = messages.find(item => item.id === m.replyToMessageId);
+      const body = m.deletedAt ? 'Tin nhắn đã được xóa' : renderMentionText(m.text, m.mentions, escapeHtml);
       const hasAtts = !m.deletedAt && Array.isArray(m.attachments) && m.attachments.length > 0;
       const isDefaultAttLabel = hasAtts && m.kind === 'attachment' && m.text === `📎 ${m.attachments[0]?.fileName || 'Tệp đính kèm'}`;
       const canCreateTask = !m.deletedAt && (m.kind === 'text' || (m.kind === 'attachment' && !isDefaultAttLabel)) && m.text?.trim() && taskBridge?.canCreate();
       return `${divider}<article class="chat-message ${own ? 'is-own' : ''}" id="chat-message-${escapeHtml(m.id)}" data-message-id="${escapeHtml(m.id)}" aria-label="${escapeHtml(personName(m.senderUserId))}, ${time(m.createdAt)}">
         ${own && !(localAvatarUrl || profileAvatarUrl) ? '' : avatar(personName(m.senderUserId), sender?.tone, false, 'chat-message-avatar', sender?.portrait, own ? (localAvatarUrl || profileAvatarUrl) : null)}<div class="chat-message-main">${!own ? `<div class="chat-sender-name">${escapeHtml(personName(m.senderUserId))}</div>` : ''}
-        <div class="chat-bubble">${replied ? `<button type="button" class="chat-quoted-message" data-chat-jump="${escapeHtml(replied.id)}"><strong>${escapeHtml(personName(replied.senderUserId))}</strong><span>${escapeHtml(replied.deletedAt ? 'Tin nhắn đã được xóa' : replied.text)}</span></button>` : ''}${!isDefaultAttLabel || m.deletedAt ? `<p>${escapeHtml(m.deletedAt ? 'Tin nhắn đã được xóa' : m.text)}</p>` : ''}${hasAtts ? `<div class="chat-message-attachments">${m.attachments.map(att => `<button type="button" class="chat-attachment-chip" data-chat-open-attachment="${escapeHtml(att.id)}" data-message="${escapeHtml(m.id)}" title="Mở hoặc tải xuống ${escapeHtml(att.fileName)}">${icon('paperclip')}<span class="chat-attachment-name">${escapeHtml(att.fileName)}</span><small class="chat-attachment-size">${escapeHtml(formatBytes(att.sizeBytes))}</small></button>`).join('')}</div>` : ''}</div>
+        <div class="chat-bubble">${replied ? `<button type="button" class="chat-quoted-message" data-chat-jump="${escapeHtml(replied.id)}"><strong>${escapeHtml(personName(replied.senderUserId))}</strong><span>${escapeHtml(replied.deletedAt ? 'Tin nhắn đã được xóa' : replied.text)}</span></button>` : ''}
+          ${!isDefaultAttLabel || m.deletedAt ? `<p>${body}</p>` : ''}
+          ${hasAtts ? `<div class="chat-message-attachments">${m.attachments.map(att => renderAttachment(att, m.id, true)).join('')}</div>` : ''}
+        </div>
         ${m.reactions?.length ? `<div class="chat-reactions">${m.reactions.map(r => `<button type="button" data-chat-reaction="${escapeHtml(r.emoji)}" data-message="${escapeHtml(m.id)}" aria-label="${escapeHtml(r.emoji)}, ${r.userIds.length} người" aria-pressed="${r.userIds.includes(context?.userId)}">${escapeHtml(r.emoji)} <span>${r.userIds.length}</span></button>`).join('')}</div>` : ''}
         <div class="chat-message-meta"><time datetime="${escapeHtml(m.createdAt)}">${time(m.createdAt)}</time>${m.editedAt ? '<span>· Đã chỉnh sửa</span>' : ''}${own ? `<span class="chat-message-check" title="${adapter?.isPreview ? 'Chỉ lưu trong phiên xem trước' : 'Đã đồng bộ đám mây'}">${icon('check')}</span>` : ''}${canCreateTask ? `<button type="button" class="chat-create-task" data-chat-action="create-task" data-message="${escapeHtml(m.id)}" aria-label="Tạo công việc từ tin nhắn" title="Tạo công việc từ tin nhắn">${icon('plus')}<span>Tạo công việc</span></button>` : ''}</div></div>
         ${!m.deletedAt ? `<div class="chat-message-actions">${iconButton('reply', 'Trả lời tin nhắn', 'reply', `data-message="${escapeHtml(m.id)}"`)}<button type="button" class="icon-btn chat-icon-button" data-chat-reaction="👍" data-message="${escapeHtml(m.id)}" aria-label="Thích tin nhắn" title="Thích tin nhắn">${icon('smile')}</button>${current.capabilities?.canPinMessages ? iconButton('pin-message', 'Ghim tin nhắn', 'pin', `data-message="${escapeHtml(m.id)}"`) : ''}</div>` : ''}
@@ -669,6 +847,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       ${failedItems.map(item => `<div class="chat-failed-message"><p>${escapeHtml(item.text || 'Tin nhắn kèm tệp')}</p><button type="button" class="btn" data-chat-retry="${item.clientMessageId}">Gửi lỗi · Thử lại</button></div>`).join('')}`;
     if (forceBottom || nearBottom) scroller.scrollTop = scroller.scrollHeight;
     else scroller.scrollTop = top;
+    observeMessagePhotos(scroller);
   }
   function renderPinned() {
     const target = $('[data-chat-pinned]'); if (!target) return;
@@ -709,13 +888,13 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       <div class="chat-info-quick"><button type="button" data-chat-action="mute" aria-pressed="${!!current.muted}">${icon(current.muted ? 'volumeOff' : 'bell')}<span>${current.muted ? 'Đang tắt' : 'Thông báo'}</span></button><button type="button" data-chat-action="pin-conversation" aria-pressed="${!!current.pinned}">${icon('pin')}<span>${current.pinned ? 'Đã ghim' : 'Ghim chat'}</span></button>${current.capabilities?.canRename ? `<button type="button" data-chat-action="rename-group">${icon('edit')}<span>Đổi tên</span></button>` : ''}</div>
       ${current.description ? `<section class="chat-info-section"><h3>Giới thiệu</h3><p class="chat-group-description">${escapeHtml(current.description)}</p></section>` : ''}
       <section class="chat-info-section"><div class="chat-info-section-title"><h3>Thành viên <span>${participants.length}</span></h3>${current.capabilities?.canAddMembers ? iconButton('add-members', 'Thêm thành viên', 'plus') : ''}</div><div class="chat-members">${participants.map(p => `<div class="chat-member">${avatar(p.displayName, p.tone, false, '', p.portrait, p.userId === context?.userId ? (localAvatarUrl || profileAvatarUrl) : null)}<div><strong>${escapeHtml(p.userId === context?.userId ? `${p.displayName} (Bạn)` : p.displayName)}</strong><small>${p.groupRole === 'owner' ? 'Chủ nhóm' : escapeHtml(p.roleLabel || 'Thành viên')}</small></div></div>`).join('')}</div></section>
-      <section class="chat-info-section"><div class="chat-info-section-title"><h3>Ảnh và tệp đã chia sẻ <span>${sharedFiles.length}</span></h3></div>${sharedFiles.length ? `<div class="chat-shared-files">${sharedFiles.slice(-20).reverse().map(({ messageId, att }) => `<button type="button" class="chat-attachment-chip" data-chat-open-attachment="${escapeHtml(att.id)}" data-message="${escapeHtml(messageId)}">${icon('paperclip')}<span class="chat-attachment-name">${escapeHtml(att.fileName)}</span><small class="chat-attachment-size">${escapeHtml(formatBytes(att.sizeBytes))}</small></button>`).join('')}</div>` : `<div class="chat-files-empty">${icon('paperclip')}<p>Chưa có tài liệu chung.<small>Bấm biểu tượng kẹp giấy để gửi ảnh hoặc tệp.</small></p></div>`}</section>
+      <section class="chat-info-section"><div class="chat-info-section-title"><h3>Ảnh và tệp đã chia sẻ <span>${sharedFiles.length}</span></h3></div>${sharedFiles.length ? `<div class="chat-shared-files">${sharedFiles.slice(-20).reverse().map(({ messageId, att }) => renderAttachment(att, messageId)).join('')}</div>` : `<div class="chat-files-empty">${icon('paperclip')}<p>Chưa có tài liệu chung.<small>Bấm biểu tượng kẹp giấy để gửi ảnh hoặc tệp.</small></p></div>`}</section>
       <div class="chat-info-privacy">${icon('info')}<p>${isPrev ? 'Đây là nhóm minh họa. Thay đổi chỉ có hiệu lực trong phiên xem trước.' : 'Hội thoại nội bộ được mã hóa bảo mật và cách ly riêng theo doanh nghiệp.'}</p></div></div>`;
     if (focusedAction) info.querySelector(`[data-chat-action="${focusedAction}"]`)?.focus({ preventScroll: true });
   }
   async function selectConversation(id, { updateRoute = true, focus = false } = {}) {
     if (!adapter) return;
-    selectedId = id; current = null; participants = []; messages = []; replyTo = null; pendingAttachments = []; uploadingAttachment = false; messageQuery = ''; searchOpen = false;
+    selectedId = id; current = null; participants = []; messages = []; replyTo = null; pendingAttachments = []; uploadingAttachment = false; attachmentUploadError = ''; messageQuery = ''; searchOpen = false;
     document.body.classList.add('chat-conversation-open');
     setInfo(false, false); workbench.classList.add('has-conversation');
     thread.innerHTML = skeleton(); renderList();
@@ -852,7 +1031,10 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   }
   function resizeComposer() {
     const textarea = $('[data-chat-draft]'); if (!textarea) return;
+    const history = $('[data-chat-scroll]');
+    const atBottom = history && history.scrollHeight - history.scrollTop - history.clientHeight <= 2;
     textarea.style.height = 'auto'; textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
+    if (atBottom) history.scrollTop = history.scrollHeight;
   }
   async function send(input) {
     if (!adapter || sending || uploadingAttachment || !current || current.capabilities?.canSend === false) return;
@@ -861,6 +1043,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     const payload = input || {
       kind: attachmentsToSend.length ? 'attachment' : 'text',
       text: textarea.value.trim(),
+      mentions: serializeMentions(textarea.value, draftMentions.get(draftKey()) || []),
       attachments: attachmentsToSend,
       clientMessageId: crypto.randomUUID(),
       replyToMessageId: replyTo?.id || null
@@ -868,6 +1051,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (!payload.text && !payload.attachments?.length) return;
     const captured = context; const id = selectedId; const scopedKey = draftKey(id);
     sending = true;
+    closeMentions();
     updateSendButtonState();
     try {
       await adapter.sendMessage(captured, id, payload);
@@ -876,7 +1060,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       // Do not discard a draft typed while this request was pending.
       if (!input && id === selectedId) {
         if ((drafts.get(scopedKey) || '').trim() === payload.text.trim() && textarea.value.trim() === payload.text.trim()) {
-          textarea.value = ''; drafts.delete(scopedKey); resizeComposer();
+          textarea.value = ''; drafts.delete(scopedKey); draftMentions.delete(scopedKey); resizeComposer();
         }
         pendingAttachments = [];
         renderPendingAttachments();
@@ -887,7 +1071,8 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       if (!valid(captured) || error.name === 'AbortError') return;
       failed.set(payload.clientMessageId, { ...payload, conversationId: id });
       if (id === selectedId) renderMessages();
-      notice('Chưa gửi được tin nhắn. Bạn có thể thử lại.', true);
+      const mentionError = payload.mentions?.length && ['VALIDATION_ERROR', 'MIGRATION_REQUIRED'].includes(error.code);
+      notice(mentionError ? error.message : 'Chưa gửi được tin nhắn. Bạn có thể thử lại.', true);
     } finally {
       if (valid(captured)) { sending = false; updateSendButtonState(); }
     }
@@ -1039,7 +1224,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (aiRefresh && current) {
       void requestAiSummary(current.id, { force: true }); return;
     }
-    const aiClose = event.target.closest('[data-chat-ai-close]');
+    const aiClose = event.target.closest('[data-chat-ai-close], [data-chat-ai-scrim]');
     if (aiClose && current) { setAiSummary(false); return; }
     const aiIdxBtn = event.target.closest('[data-chat-ai-task-idx]');
     if (aiIdxBtn) { createTaskFromAiItem(aiIdxBtn.dataset.chatAiTaskIdx); return; }
@@ -1061,7 +1246,16 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   host.addEventListener('input', event => {
     if (event.target.matches('[data-chat-search]')) { query = event.target.value; renderList(); }
     if (event.target.matches('[data-chat-message-search]')) { messageQuery = event.target.value; renderMessages(); }
-    if (event.target.matches('[data-chat-draft]')) { drafts.set(draftKey(), event.target.value); updateSendButtonState(); resizeComposer(); }
+    if (event.target.matches('[data-chat-draft]')) {
+      const key = draftKey();
+      const entries = updateMentionRanges(getDraft(), event.target.value, draftMentions.get(key) || []);
+      if (entries.length) draftMentions.set(key, entries);
+      else draftMentions.delete(key);
+      drafts.set(key, event.target.value);
+      if (!event.isComposing) showMentions(event.target);
+      updateSendButtonState();
+      resizeComposer();
+    }
   }, { signal: events.signal });
   host.addEventListener('change', event => {
     if (event.target.matches('[data-chat-attachment-file]')) {
@@ -1084,7 +1278,28 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   dialog.addEventListener('change', event => { if (!event.target.matches('[data-chat-people] input')) return; if (dialogMode === 'new-message') selectedPeople.clear(); if (event.target.checked) selectedPeople.add(event.target.value); else selectedPeople.delete(event.target.value); renderSelectedPeople(); }, { signal: events.signal });
   dialog.addEventListener('close', () => { if (modalTrigger?.isConnected) modalTrigger.focus({ preventScroll: true }); }, { signal: events.signal });
   host.addEventListener('keydown', event => {
-    if (event.target.matches('[data-chat-draft]') && event.key === 'Enter' && !event.shiftKey && !event.isComposing && !matchMedia('(max-width: 900px)').matches) { event.preventDefault(); send(); }
+    if (event.target.matches('[data-chat-draft]') && mentionChoices.length && !event.isComposing) {
+      if (event.key === 'Escape') { event.preventDefault(); closeMentions(); return; }
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chooseMention(activeMention); return; }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        activeMention = (activeMention + (event.key === 'ArrowDown' ? 1 : -1) + mentionChoices.length) % mentionChoices.length;
+        highlightMention();
+        return;
+      }
+    }
+    if (event.target.matches('[data-chat-draft]') && event.key === 'Enter' && !event.shiftKey && !event.isComposing && !narrowChat.matches) { event.preventDefault(); send(); }
+    const sheet = event.target.closest('[data-chat-ai-summary][aria-modal="true"]');
+    if (sheet && event.key === 'Tab') {
+      const actions = [...sheet.querySelectorAll('button:not(:disabled)')].filter(button => button.getClientRects().length);
+      if (event.shiftKey && !actions.slice(1).includes(event.target)) {
+        event.preventDefault();
+        actions.at(-1)?.focus();
+      } else if (!event.shiftKey && event.target === actions.at(-1)) {
+        event.preventDefault();
+        actions[0]?.focus();
+      }
+    }
     if (event.key === 'Escape') {
       if (!$('[data-chat-emoji-picker]')?.hidden) { const picker = $('[data-chat-emoji-picker]'); if (picker) picker.hidden = true; $('[data-chat-action="emoji-picker"]')?.setAttribute('aria-expanded', 'false'); $('[data-chat-draft]')?.focus(); }
       else if (infoOpen) setInfo(false);
@@ -1101,6 +1316,34 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       else if (!event.shiftKey && event.target === focusable.at(-1)) { event.preventDefault(); focusable[0]?.focus(); }
     }
   }, { signal: events.signal });
+  host.addEventListener('pointerdown', event => {
+    if (event.target.closest('[data-chat-mention-option]')) event.preventDefault();
+  }, { signal: events.signal });
+  host.addEventListener('click', event => {
+    const item = event.target.closest('[data-chat-mention-option]');
+    if (item) chooseMention(Number(item.dataset.chatMentionOption));
+    else if (event.target.matches('[data-chat-draft]')) showMentions(event.target);
+  }, { signal: events.signal });
+  host.addEventListener('focusout', event => {
+    if (event.target.matches('[data-chat-draft]')) closeMentions();
+  }, { signal: events.signal });
+  host.addEventListener('compositionend', event => {
+    if (event.target.matches('[data-chat-draft]')) showMentions(event.target);
+  }, { signal: events.signal });
+  let sheetDrag = null;
+  host.addEventListener('pointerdown', event => {
+    const handle = event.target.closest('[data-chat-ai-handle]');
+    if (!handle || !narrowChat.matches || event.pointerType !== 'touch') return;
+    sheetDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    handle.setPointerCapture(event.pointerId);
+  }, { signal: events.signal });
+  host.addEventListener('pointerup', event => {
+    if (sheetDrag?.id !== event.pointerId) return;
+    const distance = event.clientY - sheetDrag.y;
+    if (distance >= 40 && distance > Math.abs(event.clientX - sheetDrag.x)) setAiSummary(false);
+    sheetDrag = null;
+  }, { signal: events.signal });
+  host.addEventListener('pointercancel', () => { sheetDrag = null; }, { signal: events.signal });
   document.addEventListener('worktree:navigate', close, { signal: events.signal });
   if (taskBridge) document.addEventListener('worktree:task-drawer-rendered', attachSourceButton, { signal: events.signal });
   document.addEventListener('worktree:open-messages', () => { setRoute(selectedId); open(selectedId); }, { signal: events.signal });
@@ -1108,11 +1351,15 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (!active) return;
     const overlay = infoOpen && matchMedia('(max-width: 1449px)').matches;
     thread.inert = overlay; $('.chat-inbox').inert = overlay;
-    if (window.visualViewport && matchMedia('(max-width: 900px)').matches) {
+    if (window.visualViewport && narrowChat.matches) {
       const height = `${window.visualViewport.height}px`;
       host.style.setProperty('--chat-visible-height', height);
       dialog.style.setProperty('--chat-visible-height', height);
     }
+    $('[data-chat-draft]')?.setAttribute('aria-describedby', narrowChat.matches ? 'chatPreviewDetails' : 'chatPreviewDetails chatComposeKeys');
+    $('.chat-send')?.setAttribute('title', narrowChat.matches ? 'Gửi tin nhắn' : composeKeys);
+    syncAiSheet();
+    resizeComposer();
   };
   window.visualViewport?.addEventListener('resize', updateViewport, { signal: events.signal });
   window.addEventListener('resize', updateViewport, { signal: events.signal });
@@ -1123,8 +1370,8 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     clearOwnAvatar();
     abortController?.abort(); unsubscribeAdapter?.(); adapter?.dispose?.();
     abortController = new AbortController(); context = { ...next, signal: abortController.signal };
-    conversations = []; messages = []; participants = []; selectedId = null; current = null; replyTo = null; pendingAttachments = []; uploadingAttachment = false;
-    drafts.clear(); failed.clear(); taskSources.clear(); clearConversationAiState(); sending = false; ++listRequest; ++detailRequest;
+    conversations = []; messages = []; participants = []; selectedId = null; current = null; replyTo = null; pendingAttachments = []; uploadingAttachment = false; attachmentUploadError = '';
+    drafts.clear(); draftMentions.clear(); failed.clear(); taskSources.clear(); clearConversationAiState(); sending = false; ++listRequest; ++detailRequest;
     clearTimeout(noticeTimer); live.textContent = ''; dialogPeople = []; selectedPeople.clear(); dialogMode = null;
     document.body.classList.remove('chat-conversation-open');
     workbench.classList.remove('has-conversation'); setInfo(false, false); if (dialog.open) dialog.close();
@@ -1138,7 +1385,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       membershipRevoked: event => {
         if (!valid(captured)) return;
         if (event?.conversationId) {
-          drafts.delete(draftKey(event.conversationId));
+          drafts.delete(draftKey(event.conversationId)); draftMentions.delete(draftKey(event.conversationId));
           clearConversationAiState(event.conversationId);
           conversations = conversations.filter(c => c.id !== event.conversationId);
           for (const [key, item] of failed) if (item.conversationId === event.conversationId) failed.delete(key);
@@ -1148,7 +1395,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
           }
           if (dialog.open) dialog.close(); renderList(); updateNavigation();
         } else {
-          drafts.clear(); failed.clear(); clearConversationAiState(); conversations = []; messages = []; participants = []; current = null; selectedId = null; replyTo = null;
+          drafts.clear(); draftMentions.clear(); failed.clear(); clearConversationAiState(); conversations = []; messages = []; participants = []; current = null; selectedId = null; replyTo = null;
           close(); renderList(); renderThread(); abortController.abort(); unsubscribeAdapter?.(); adapter?.dispose?.(); adapter = null;
         }
         notice('Bạn không còn quyền truy cập cuộc trò chuyện này.', true);
@@ -1169,6 +1416,6 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       renderMessages();
       if (infoOpen) renderInfo();
     },
-    dispose() { disposed = true; close(); clearOwnAvatar(); clearConversationAiState(); abortController?.abort(); events.abort(); unsubscribeAdapter?.(); unsubscribeContext?.(); adapter?.dispose?.(); clearTimeout(noticeTimer); drafts.clear(); failed.clear(); taskSources.clear(); dialog.remove(); host.replaceChildren(); }
+    dispose() { disposed = true; close(); clearOwnAvatar(); clearConversationAiState(); abortController?.abort(); events.abort(); unsubscribeAdapter?.(); unsubscribeContext?.(); adapter?.dispose?.(); clearTimeout(noticeTimer); drafts.clear(); draftMentions.clear(); failed.clear(); taskSources.clear(); dialog.remove(); host.replaceChildren(); }
   };
 }

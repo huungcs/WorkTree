@@ -436,7 +436,13 @@ Trên điện thoại, hai ô Người phụ trách và Người liên quan nằ
 
 Khi tạo việc từ tin nhắn, Tin nhắn gốc mặc định thu gọn. Nội dung nguồn, các trường được gợi ý và nút chèn chỉ xuất hiện khi mở khối này. Sau khi chèn, biểu mẫu đưa focus về mô tả.
 
-Tóm tắt AI mở từ thanh công cụ hội thoại. Khi đủ rộng, bảng nằm bên phải lịch sử tin nhắn. Trên màn hình hẹp, bảng nổi trong vùng đọc và cuộn riêng, để tin ghim và ô soạn luôn trong tầm tay. Gợi ý cập nhật khi nội dung hội thoại thay đổi. Biểu tượng dấu cộng trên từng gợi ý mở biểu mẫu tạo công việc từ tin nhắn tương ứng.
+Tóm tắt AI mở từ thanh công cụ hội thoại. Khi đủ rộng, bảng nằm bên phải và cuộn độc lập. Luồng tin nhắn và ô soạn cùng nằm trong cột hội thoại. Trên cửa sổ máy tính hẹp, bảng nổi trong vùng đọc. Trên điện thoại, bảng trượt từ dưới lên và có thể đóng bằng nút đóng hoặc vuốt xuống ở tay nắm. Khi đóng, focus trở về nút Tóm tắt AI. Gợi ý cập nhật khi nội dung hội thoại thay đổi. Biểu tượng dấu cộng trên từng gợi ý mở biểu mẫu tạo công việc từ tin nhắn tương ứng.
+
+Ô soạn mặc định cao một hàng. Nút đính kèm và emoji nằm bên trái, nút gửi nằm bên phải trong khung. Ô nhập tự giãn theo nội dung và cuộn khi đạt chiều cao tối đa.
+
+Trong nhóm chat, gõ `@` để mở danh sách thành viên của nhóm và tiếp tục gõ để lọc tên. Chọn bằng chạm hoặc phím mũi tên và Enter. Tên đã chọn được làm nổi bật trong tin nhắn. Mỗi người được nhắc nhận một thông báo trong ứng dụng cho mỗi tin nhắn.
+
+Ảnh đính kèm hiện trực tiếp trong tin nhắn và tải khi đến gần vùng đọc. Chạm ảnh để mở kích thước gốc. Các định dạng ảnh không hiển thị được và tài liệu khác vẫn có nút mở tệp.
 
 Ô nhập và bộ chọn dùng cùng kiểu chữ, viền focus và góc bo như bảng chi tiết. Chiều cao tối thiểu là 44px trên desktop và 48px trên điện thoại.
 
@@ -476,7 +482,7 @@ Quản trị & Cài đặt có tab Thông báo & Nhắc việc cho các tùy ch�
 
 ### Điều hướng Quản trị & Cài đặt
 
-Vùng chính của Quản trị & Cài đặt nhận focus khi mở trang. Chỉ báo focus hiển thị ở các điều khiển tương tác như tab và nút.
+Vùng nội dung chính và tiêu đề có thể nhận focus khi mở trang, hội thoại hoặc bảng chi tiết để hỗ trợ điều hướng bàn phím. Các vùng này không vẽ viền quanh cả khối. Chỉ báo focus hiển thị trên các điều khiển tương tác như tab, nút và ô nhập.
 
 Trên điện thoại, nút quay lại và tiêu đề Quản trị & Cài đặt cùng hàng. Thanh phân hệ cuộn ngang độc lập với trang và đưa tab đang chọn vào vùng nhìn thấy. Ma trận quyền mở theo từng vai trò. Các phần thông báo và dữ liệu xếp thành thẻ dọc, với nút chạm tối thiểu 44px. Hàng thao tác nhanh trong menu giữ biểu tượng và nhãn trên một dòng.
 

@@ -89,7 +89,16 @@ test('supports letter-based PINs and a compact read-only view on a narrow screen
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
 });
 
-test('focuses the settings landmark without drawing a full-width line', async ({ page }) => {
+test('focuses workspace landmarks and chat headings without drawing a full-width line', async ({ page }) => {
+  await page.goto('/?demo=1&nav=mine');
+  const main = page.locator('#mainContent');
+  await main.focus();
+  await expect(main).toBeFocused();
+  await expect(main).toHaveCSS('outline-style', 'none');
+  const taskTab = main.getByRole('tab', { name: /Danh sách/ });
+  await taskTab.focus();
+  await expect(taskTab).toHaveCSS('outline-style', 'solid');
+
   await page.goto('/?demo=1');
   const settings = page.locator('#accessNav');
   await settings.focus();
@@ -103,4 +112,13 @@ test('focuses the settings landmark without drawing a full-width line', async ({
   await expect(recurring).toHaveAttribute('aria-selected', 'true');
   await expect(recurring).toBeFocused();
   await expect(recurring).toHaveCSS('outline-style', 'solid');
+
+  await page.goto('/chat-preview.html');
+  await page.locator('[data-chat-conversation]').first().press('Enter');
+  const title = page.locator('.chat-thread-identity h2');
+  await expect(title).toBeFocused();
+  await expect(title).toHaveCSS('outline-style', 'none');
+  const messages = page.locator('#messagesContent');
+  await messages.focus();
+  await expect(messages).toHaveCSS('outline-style', 'none');
 });
