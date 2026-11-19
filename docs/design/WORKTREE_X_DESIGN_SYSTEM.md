@@ -434,7 +434,7 @@ Trên điện thoại, hai ô Người phụ trách và Người liên quan nằ
 
 Khi tạo việc từ tin nhắn, Tin nhắn gốc mặc định thu gọn. Nội dung nguồn, các trường được gợi ý và nút chèn chỉ xuất hiện khi mở khối này. Sau khi chèn, biểu mẫu đưa focus về mô tả.
 
-Tóm tắt AI mở từ thanh công cụ hội thoại. Khi đủ rộng, bảng nằm bên phải lịch sử tin nhắn. Trên màn hình hẹp, bảng nổi trong vùng đọc và cuộn riêng, để tin ghim và ô soạn luôn trong tầm tay. Biểu tượng dấu cộng trên từng gợi ý mở biểu mẫu tạo công việc từ tin nhắn tương ứng.
+Tóm tắt AI mở từ thanh công cụ hội thoại. Khi đủ rộng, bảng nằm bên phải lịch sử tin nhắn. Trên màn hình hẹp, bảng nổi trong vùng đọc và cuộn riêng, để tin ghim và ô soạn luôn trong tầm tay. Gợi ý cập nhật khi nội dung hội thoại thay đổi. Biểu tượng dấu cộng trên từng gợi ý mở biểu mẫu tạo công việc từ tin nhắn tương ứng.
 
 Ô nhập và bộ chọn dùng cùng kiểu chữ, viền focus và góc bo như bảng chi tiết. Chiều cao tối thiểu là 44px trên desktop và 48px trên điện thoại.
 

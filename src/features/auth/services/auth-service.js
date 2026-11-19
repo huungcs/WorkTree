@@ -6,6 +6,17 @@
 
 import { getSupabase } from '../../../lib/supabase/client.js';
 
+function buildSignupEmailRedirectTo() {
+  if (typeof window === 'undefined' || !window.location?.origin) return undefined;
+  let pendingInvite = null;
+  try {
+    pendingInvite = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('worktree_pending_invite') : null)
+      || (typeof localStorage !== 'undefined' ? localStorage.getItem('worktree_pending_invite') : null);
+  } catch (_) {}
+  const baseRedirect = `${window.location.origin}${window.location.pathname || '/'}`;
+  return pendingInvite ? `${baseRedirect}?invite=${encodeURIComponent(pendingInvite)}` : baseRedirect;
+}
+
 export const AuthService = {
   /**
    * Đăng ký tài khoản người dùng mới qua Supabase Auth.
@@ -20,15 +31,20 @@ export const AuthService = {
     const fullName = typeof metadata === 'string'
       ? metadata
       : (metadata.fullName || metadata.full_name || '');
+    const emailRedirectTo = buildSignupEmailRedirectTo();
+    const signUpOptions = {
+      data: {
+        full_name: fullName.trim()
+      }
+    };
+    if (emailRedirectTo) {
+      signUpOptions.emailRedirectTo = emailRedirectTo;
+    }
 
     const { data, error } = await sb.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: {
-        data: {
-          full_name: fullName.trim()
-        }
-      }
+      options: signUpOptions
     });
 
     if (error) throw error;
@@ -41,10 +57,15 @@ export const AuthService = {
    */
   async resendConfirmationEmail(email) {
     const sb = await getSupabase();
-    const { data, error } = await sb.auth.resend({
+    const emailRedirectTo = buildSignupEmailRedirectTo();
+    const resendPayload = {
       type: 'signup',
       email: email.trim().toLowerCase()
-    });
+    };
+    if (emailRedirectTo) {
+      resendPayload.options = { emailRedirectTo };
+    }
+    const { data, error } = await sb.auth.resend(resendPayload);
     if (error) throw error;
     return data;
   },

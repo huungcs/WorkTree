@@ -409,6 +409,7 @@ body.chat-is-open .sidebar [data-chat-open][aria-current=page]{background:var(--
 }
 .chat-ai-summary-head{display:flex;flex:none;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
 .chat-ai-summary-mark,.chat-ai-summary-item .chat-icon-button{color:var(--primary-text);background:var(--primary-soft)}
+.chat-ai-summary-item .chat-icon-button:hover{color:var(--text);background:var(--surface-3)}
 .chat-ai-summary-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;flex:none}
 .chat-ai-summary-mark .icon{width:17px;height:17px}
 .chat-ai-summary-heading{flex:1;min-width:0}

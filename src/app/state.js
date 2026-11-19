@@ -5,6 +5,7 @@
  */
 
 const PREF_ORG_KEY = 'worktree_active_organization_id';
+const LAST_USER_KEY = 'worktree_last_auth_user_id';
 
 export function normalizeStarredTaskIds(raw) {
   if (raw instanceof Set) return raw;
@@ -83,6 +84,28 @@ export const appState = {
       }
     }
     this.notify();
+  },
+
+  /**
+   * Đồng bộ tài khoản đang đăng nhập để tránh rò rỉ preference (activeOrganizationId)
+   * giữa nhiều người dùng khác nhau trên cùng một trình duyệt.
+   */
+  syncAuthenticatedUser(userId) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      if (!userId) {
+        localStorage.removeItem(PREF_ORG_KEY);
+        localStorage.removeItem(LAST_USER_KEY);
+        this.activeOrganizationId = null;
+        return;
+      }
+      const prevUserId = localStorage.getItem(LAST_USER_KEY);
+      if (prevUserId && prevUserId !== userId) {
+        localStorage.removeItem(PREF_ORG_KEY);
+        this.activeOrganizationId = null;
+      }
+      localStorage.setItem(LAST_USER_KEY, userId);
+    } catch (_) {}
   },
 
   /**

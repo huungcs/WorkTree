@@ -352,14 +352,26 @@ export class WorkspaceDialog {
 
       try {
         const blueprintToSeed = currentBlueprint;
-        const newOrg = await OrgService.createNewOrganization(name, slug, timezone);
+        const newOrg = await OrgService.createNewOrganization(name, slug, timezone, {
+          autoResolveSlugCollision: !slugManualEdited
+        });
         this.close();
         await this.onWorkspaceChanged(newOrg.organizationId, newOrg);
         if (blueprintToSeed) {
           await this.applyOrgBlueprint(newOrg.organizationId, blueprintToSeed);
         }
       } catch (err) {
-        errorEl.textContent = err.message || 'Không thể tạo workspace. Vui lòng thử lại.';
+        const msg = err?.message || 'Không thể tạo workspace. Vui lòng thử lại.';
+        if (msg.includes('đã được sử dụng')) {
+          const base = OrgService.slugify(slug || name).slice(0, 55) || 'workspace';
+          const suffix = Math.random().toString(36).slice(2, 6);
+          slugInput.value = `${base}-${suffix}`;
+          slugManualEdited = true;
+          errorEl.textContent = 'Mã định danh (Slug) này đã có công ty khác sử dụng. Hệ thống đã gợi ý mã mới, vui lòng bấm Tạo lại.';
+          slugInput.focus();
+        } else {
+          errorEl.textContent = msg;
+        }
         errorEl.style.display = 'block';
         submitBtn.disabled = false;
         submitBtn.querySelector('.btn-text').textContent = originalText;

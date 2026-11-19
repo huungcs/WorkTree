@@ -609,7 +609,7 @@ export async function openAiAssistantDialog({
       <form class="ai-composer" id="aiComposerForm">
         <div class="ai-composer-row">
           <textarea id="aiPromptInput" aria-label="Nội dung gửi Trợ lý AI" rows="2" placeholder="${(organizationId || hasLocalEngine) ? 'Hỏi về tiến độ, việc quá hạn, tải nhân sự hoặc nhờ chia checklist...' : 'Đăng nhập tài khoản Cloud để trò chuyện với dữ liệu công việc...'}" ${!canType ? 'disabled' : ''}>${esc(draftText)}</textarea>
-          <button type="submit" class="btn primary" id="aiSendBtn" aria-label="${sending ? 'Đang gửi' : 'Gửi tin nhắn'}" title="Gửi tin nhắn" ${!canSubmit ? 'disabled' : ''}>
+          <button type="submit" class="btn primary" id="aiSendBtn" aria-label="${sending ? 'Đang gửi' : 'Gửi tin nhắn'}" title="Gửi tin nhắn" ${!canSubmit || !draftText.trim() ? 'disabled' : ''}>
             ${LINE_ICONS.send}
           </button>
         </div>
@@ -734,8 +734,10 @@ export async function openAiAssistantDialog({
     });
 
     const inputEl = dialog.querySelector('#aiPromptInput');
+    const sendButton = dialog.querySelector('#aiSendBtn');
     inputEl?.addEventListener('input', () => {
       draftText = inputEl.value;
+      sendButton.disabled = inputEl.disabled || sending || !draftText.trim();
     });
     inputEl?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {

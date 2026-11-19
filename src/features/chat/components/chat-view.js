@@ -205,6 +205,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     }).join('');
   }
   const aiOpenedIds = new Set();
+  let aiSummarySignature = '';
   function extractChatActionItems(msgList) {
     const textMsgs = (msgList || []).filter(m => m && m.kind === 'text' && !m.deletedAt && m.text?.trim());
     const actionPattern = /\b(nho|nhac|giao|can|chot|hoan thanh|gui|kiem tra|deadline|truoc|thu\s+[2-7]|ngay mai|hom nay|@)/i;
@@ -233,7 +234,12 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (atBottom) history.scrollTop = history.scrollHeight;
     if (!isOpen) return;
     const items = extractChatActionItems(messages);
-    const canCreate = taskBridge?.canCreate();
+    const canCreate = Boolean(taskBridge?.canCreate());
+    const signature = JSON.stringify([items, canCreate]);
+    if (aiSummarySignature === signature) return;
+    const activeTask = slot.contains(document.activeElement) ? document.activeElement.dataset.chatAiTask : null;
+    const summaryBody = slot.querySelector('.chat-ai-summary-body');
+    const scrollTop = summaryBody.scrollTop;
     const body = items.length
       ? `<ul class="chat-ai-summary-list">${items.map(item => `
         <li class="chat-ai-summary-item">
@@ -241,16 +247,16 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
           ${canCreate ? `<button type="button" class="icon-btn chat-icon-button" data-chat-ai-task="${escapeHtml(item.messageId)}" aria-label="Tạo công việc từ tin nhắn của ${escapeHtml(item.sender)}" title="Tạo công việc">${icon('plus')}</button>` : ''}
         </li>`).join('')}</ul>`
       : '<p class="chat-ai-summary-empty">Chưa đủ nội dung trao đổi để rút trích đầu việc.</p>';
-    slot.innerHTML = `
-      <header class="chat-ai-summary-head">
-        <span class="chat-ai-summary-mark">${icon('sparkles')}</span>
-        <div class="chat-ai-summary-heading">
-          <h3 id="chatAiSummaryTitle" tabindex="-1">Tóm tắt AI</h3>
-          ${items.length ? `<p>${items.length} tin nhắn đáng chú ý</p>` : ''}
-        </div>
-        <button type="button" class="icon-btn chat-icon-button" data-chat-ai-close aria-label="Đóng tóm tắt AI" title="Đóng tóm tắt AI">${icon('x')}</button>
-      </header>
-      <div class="chat-ai-summary-body">${body}</div>`;
+    const count = slot.querySelector('[data-chat-ai-count]');
+    count.hidden = !items.length;
+    count.textContent = items.length ? `${items.length} tin nhắn đáng chú ý` : '';
+    summaryBody.innerHTML = body;
+    summaryBody.scrollTop = scrollTop;
+    aiSummarySignature = signature;
+    if (activeTask) {
+      const action = [...summaryBody.querySelectorAll('[data-chat-ai-task]')].find(button => button.dataset.chatAiTask === activeTask);
+      (action || $('#chatAiSummaryTitle')).focus({ preventScroll: true });
+    }
   }
   function setAiSummary(open) {
     if (open) aiOpenedIds.add(current.id);
@@ -259,6 +265,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     $(open ? '#chatAiSummaryTitle' : '[data-chat-ai-toggle]')?.focus({ preventScroll: true });
   }
   function renderThread() {
+    aiSummarySignature = '';
     if (!current) { thread.innerHTML = empty('Cùng nhau làm được nhiều hơn', 'Chọn một cuộc trò chuyện hoặc gửi lời chào để bắt đầu.', 'new-message', 'Bắt đầu trò chuyện', true); return; }
     thread.innerHTML = `
       <header class="chat-thread-header">${iconButton('back', 'Quay lại danh sách', 'chevronLeft', 'class-extra="mobile"')}
@@ -272,7 +279,17 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
           <div class="chat-message-scroll" data-chat-scroll tabindex="0" aria-label="Lịch sử tin nhắn"><div data-chat-messages></div></div>
           <button type="button" class="chat-jump btn" data-chat-action="jump-latest" hidden>${icon('arrowDown')}Tin mới nhất</button>
         </div>
-        <section class="chat-ai-summary-card" id="chatAiSummary" aria-labelledby="chatAiSummaryTitle" data-chat-ai-summary hidden></section>
+        <section class="chat-ai-summary-card" id="chatAiSummary" aria-labelledby="chatAiSummaryTitle" data-chat-ai-summary hidden>
+          <header class="chat-ai-summary-head">
+            <span class="chat-ai-summary-mark">${icon('sparkles')}</span>
+            <div class="chat-ai-summary-heading">
+              <h3 id="chatAiSummaryTitle" tabindex="-1">Tóm tắt AI</h3>
+              <p data-chat-ai-count hidden></p>
+            </div>
+            <button type="button" class="icon-btn chat-icon-button" data-chat-ai-close aria-label="Đóng tóm tắt AI" title="Đóng tóm tắt AI">${icon('x')}</button>
+          </header>
+          <div class="chat-ai-summary-body"></div>
+        </section>
       </div>
       <div class="chat-composer-area"><div class="chat-reply-preview" data-chat-reply hidden></div><div class="chat-emoji-picker" data-chat-emoji-picker hidden role="group" aria-label="Chọn biểu tượng cảm xúc">${['😊', '👍', '❤️', '🎉', '👀', '🙌', '✨', '💜'].map(emoji => `<button type="button" data-chat-emoji="${emoji}" aria-label="Chèn ${emoji}">${emoji}</button>`).join('')}</div>
         <form class="chat-composer" data-chat-compose><textarea rows="1" maxlength="10000" data-chat-draft placeholder="Viết tin nhắn cho ${escapeHtml(current.title)}..." aria-label="Nội dung tin nhắn" aria-describedby="chatPreviewDetails" ${current.capabilities?.canSend === false ? 'disabled' : ''}>${escapeHtml(getDraft())}</textarea>
@@ -380,7 +397,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       const merged = new Map(messages.map(message => [message.id, message]));
       for (const message of page.items) merged.set(message.id, message);
       messages = [...merged.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-      renderMessages(); renderPinned(); if (infoOpen) renderInfo();
+      renderMessages(); renderPinned(); renderAiSummary(); if (infoOpen) renderInfo();
       const title = thread.querySelector('h2'); if (title) title.textContent = current.title;
       const subtitle = thread.querySelector('.chat-thread-identity p'); if (subtitle) subtitle.textContent = current.type === 'group' ? `${participants.length} thành viên · Nhóm cộng tác` : 'Cuộc trò chuyện cá nhân';
     } catch (error) { if (valid(captured) && error.name !== 'AbortError') notice('Chưa cập nhật được hội thoại. Vui lòng mở lại để thử lại.', true); }
@@ -664,7 +681,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     abortController?.abort(); unsubscribeAdapter?.(); adapter?.dispose?.();
     abortController = new AbortController(); context = { ...next, signal: abortController.signal };
     conversations = []; messages = []; participants = []; selectedId = null; current = null; replyTo = null;
-    drafts.clear(); failed.clear(); taskSources.clear(); sending = false; ++listRequest; ++detailRequest;
+    drafts.clear(); failed.clear(); taskSources.clear(); aiOpenedIds.clear(); sending = false; ++listRequest; ++detailRequest;
     clearTimeout(noticeTimer); live.textContent = ''; dialogPeople = []; selectedPeople.clear(); dialogMode = null;
     document.body.classList.remove('chat-conversation-open');
     workbench.classList.remove('has-conversation'); setInfo(false, false); if (dialog.open) dialog.close();

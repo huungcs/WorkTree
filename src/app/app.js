@@ -664,17 +664,23 @@ export async function bootstrapAuthenticatedUser(user, session) {
   try {
     console.info('Supabase Authenticated user:', user.email);
 
+    appState.syncAuthenticatedUser(user.id);
+    window.__seenNotifIds = null;
+    try { clearAiSessionHistory(); } catch (_) {}
+
     // 1. Tải Profile người dùng từ public.profiles
     const profile = await AuthService.getProfile(user.id);
 
-    // STEP INVITE: Tự động kích hoạt lời mời nếu có token trong sessionStorage
+    // STEP INVITE: Tự động kích hoạt lời mời nếu có token trong sessionStorage hoặc localStorage
     let autoJoinedOrgId = null;
     try {
-      const pendingInvite = sessionStorage.getItem('worktree_pending_invite');
+      const pendingInvite = sessionStorage.getItem('worktree_pending_invite')
+        || localStorage.getItem('worktree_pending_invite');
       if (pendingInvite) {
         console.info('[Bootstrap] Phát hiện lời mời chờ xử lý, đang kích hoạt:', pendingInvite);
         autoJoinedOrgId = await InvitationRepository.acceptInvitation(pendingInvite);
         sessionStorage.removeItem('worktree_pending_invite');
+        localStorage.removeItem('worktree_pending_invite');
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
         callLegacyGlobal('toast', ['Bạn đã tham gia tổ chức thành công!']);
@@ -682,6 +688,7 @@ export async function bootstrapAuthenticatedUser(user, session) {
     } catch (invErr) {
       console.warn('[Bootstrap] Lỗi kích hoạt lời mời:', invErr.message);
       sessionStorage.removeItem('worktree_pending_invite');
+      localStorage.removeItem('worktree_pending_invite');
       callLegacyGlobal('toast', [
         'Không thể chấp nhận lời mời: ' + (invErr.message || 'Hết hạn hoặc không hợp lệ'),
         'warning'
@@ -1031,9 +1038,11 @@ export async function bootstrapApp() {
     inviteToken = urlParams.get('invite');
     if (inviteToken) {
       sessionStorage.setItem('worktree_pending_invite', inviteToken);
-      console.info('[Bootstrap] Đã lưu mã mời từ URL vào sessionStorage:', inviteToken);
+      try { localStorage.setItem('worktree_pending_invite', inviteToken); } catch (_) {}
+      console.info('[Bootstrap] Đã lưu mã mời từ URL vào storage:', inviteToken);
     } else {
-      inviteToken = sessionStorage.getItem('worktree_pending_invite');
+      inviteToken = sessionStorage.getItem('worktree_pending_invite')
+        || localStorage.getItem('worktree_pending_invite');
     }
   } catch (e) {
     console.warn('[Bootstrap] Không thể đọc URL params:', e);
@@ -1097,7 +1106,8 @@ export async function bootstrapApp() {
     }
     window.scrollTo(0, 0);
 
-    const pendingInvite = sessionStorage.getItem('worktree_pending_invite');
+    const pendingInvite = sessionStorage.getItem('worktree_pending_invite')
+      || localStorage.getItem('worktree_pending_invite');
     if (pendingInvite && !msg) {
       InvitationRepository.getInvitationDetails(pendingInvite).then(details => {
         authViewInstance.setInviteData(details);
@@ -1128,9 +1138,16 @@ export async function bootstrapApp() {
     } finally {
       closeAllModalsAndPopovers();
       try { closePlatformAdminPortal(); } catch (_) {}
+      try { clearAiSessionHistory(); } catch (_) {}
+      try {
+        sessionStorage.removeItem('worktree_pending_invite');
+        localStorage.removeItem('worktree_pending_invite');
+      } catch (_) {}
+      window.__seenNotifIds = null;
       window.__worktree_supabase_user = null;
       appState.user = null;
-      appState.activeOrganizationId = null;
+      appState.setActiveOrg(null);
+      appState.syncAuthenticatedUser(null);
       appState.organizations = [];
       appState.purgeTenantData();
 
@@ -1214,9 +1231,12 @@ export async function bootstrapApp() {
         case 'SIGNED_OUT':
           closeAllModalsAndPopovers();
           await RealtimeService.cleanupAll();
+          try { clearAiSessionHistory(); } catch (_) {}
+          window.__seenNotifIds = null;
           window.__worktree_supabase_user = null;
           appState.user = null;
-          appState.activeOrganizationId = null;
+          appState.setActiveOrg(null);
+          appState.syncAuthenticatedUser(null);
           appState.organizations = [];
           appState.purgeTenantData();
 

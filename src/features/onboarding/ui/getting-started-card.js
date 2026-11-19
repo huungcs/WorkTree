@@ -57,7 +57,10 @@ export class GettingStartedCard {
       return p.innerHTML;
     };
 
-    const isCollapsed = localStorage.getItem('worktree_checklist_collapsed') === 'true';
+    const uId = context?.user?.id || OnboardingService.context?.user?.id || 'anon';
+    const oId = context?.organization?.id || OnboardingService.context?.organization?.id || 'no_org';
+    const collapsedKey = `worktree_checklist_collapsed_${uId}_${oId}`;
+    const isCollapsed = localStorage.getItem(collapsedKey) === 'true';
 
     card.innerHTML = `
       <div class="worktree-checklist-header">
@@ -163,7 +166,7 @@ export class GettingStartedCard {
       const currentlyCollapsed = contentEl.classList.contains('is-collapsed');
       if (currentlyCollapsed) {
         contentEl.classList.remove('is-collapsed');
-        localStorage.setItem('worktree_checklist_collapsed', 'false');
+        localStorage.setItem(collapsedKey, 'false');
         toggleBtn.innerHTML = `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="18 15 12 9 6 15"></polyline>
@@ -171,7 +174,7 @@ export class GettingStartedCard {
         `;
       } else {
         contentEl.classList.add('is-collapsed');
-        localStorage.setItem('worktree_checklist_collapsed', 'true');
+        localStorage.setItem(collapsedKey, 'true');
         toggleBtn.innerHTML = `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"></polyline>
