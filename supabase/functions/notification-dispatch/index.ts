@@ -13,6 +13,7 @@ const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID") || "";
 const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const WORKTREE_DISPATCH_KEY = Deno.env.get("WORKTREE_SERVICE_ROLE_KEY") || "";
 const MAX_EVENT_PUSH_AGE_MS = 2 * 60 * 60 * 1000;
 
 function parseHour(value: unknown, fallback: number): number {
@@ -61,7 +62,8 @@ serve(async (req: Request) => {
 
   try {
     const authorization = req.headers.get("authorization") || "";
-    if (!SUPABASE_SERVICE_ROLE_KEY || authorization !== `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`) {
+    const matchesDispatchKey = Boolean(WORKTREE_DISPATCH_KEY) && authorization === `Bearer ${WORKTREE_DISPATCH_KEY}`;
+    if (!matchesDispatchKey && (!SUPABASE_SERVICE_ROLE_KEY || authorization !== `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`)) {
       return new Response(JSON.stringify({ success: false, error: "Unauthorized dispatcher invocation" }), {
         headers: corsHeaders,
         status: 401

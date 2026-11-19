@@ -203,7 +203,7 @@ function injectShareStyles() {
       display: inline-flex;
       align-items: center;
       padding: 2px 8px;
-      border-radius: var(--radius-pill, 999px);
+      border-radius: var(--radius-badge,5px);
       font-size: 11px;
       font-weight: 600;
       background: var(--primary-soft);

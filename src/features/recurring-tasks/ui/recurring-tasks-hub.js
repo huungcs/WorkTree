@@ -71,6 +71,11 @@ function foldText(str) {
     .trim();
 }
 
+function formatRunDate(value) {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ''));
+  return parts ? `${parts[3]}/${parts[2]}/${parts[1]}` : value || 'Chưa ghi nhận';
+}
+
 function getInitials(name) {
   const parts = String(name || 'N').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
@@ -99,7 +104,8 @@ export function injectRecurringStyles() {
     .wt-rec-banner-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:var(--radius-lg,10px);background:var(--primary-soft);color:var(--primary-text);flex-shrink:0}
     .wt-rec-banner-icon .icon{width:20px;height:20px}
     .wt-rec-banner h3{margin:0 0 4px;font-size:var(--text-dialog-title);font-weight:var(--weight-strong);color:var(--text)}
-    .wt-rec-banner p,.wt-rec-note{margin:0;font-size:var(--text-control);line-height:var(--leading-copy);color:var(--muted)}
+    .wt-rec-banner p{margin:0;font-size:var(--text-control);line-height:var(--leading-copy);color:var(--muted)}
+    .wt-rec-note,#wtRecTemplateForm .field-hint{margin:0;font-size:var(--text-sm);font-weight:var(--weight-regular);line-height:var(--leading-copy);color:var(--muted)}
     .wt-rec-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .wt-rec-card{border:1px solid var(--line);border-radius:var(--radius,14px);background:var(--surface);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
     .wt-rec-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
@@ -108,23 +114,39 @@ export function injectRecurringStyles() {
     .wt-rec-hub .field input:not([type="checkbox"]):not([type="radio"]),.wt-rec-hub .field select,.wt-rec-hub .field textarea{border-radius:var(--radius-md,8px)}
     .wt-rec-hub .node-picker-popover,.wt-rec-hub .owner-picker-popover{left:0;right:auto;width:min(520px,100%);border-radius:var(--radius-lg,10px)}
     .wt-rec-form-heading{margin:2px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:var(--text-control);font-weight:var(--weight-strong)}
+    #wtRecTemplateForm .field-title{color:var(--muted);font-size:var(--text-label);font-weight:var(--weight-semibold)}
     .wt-rec-form-actions{justify-content:flex-end;padding-top:12px;border-top:1px solid var(--line)}
-    .wt-rec-job-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .wt-rec-job-chip{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:3px 10px;border-radius:var(--radius-md,8px);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:var(--text-label);font-weight:var(--weight-medium);transition:background .15s,border-color .15s,color .15s}
-    .wt-rec-job-chip:hover{border-color:var(--primary);background:var(--surface-3)}
-    .wt-rec-job-chip.is-selected{background:var(--primary-soft);border-color:var(--primary);color:var(--primary-text);font-weight:var(--weight-semibold)}
+    .wt-rec-job-picker{position:relative;min-width:0}
+    .wt-rec-job-picker:has([data-rec-job-toggle]) #wtRecTargetJobTitle{padding-inline-end:46px}
+    .wt-rec-job-toggle{position:absolute;inset-block-start:4px;inset-inline-end:4px}
+    .wt-rec-job-toggle[aria-expanded="true"]{color:var(--primary-text)}
+    .wt-rec-job-toggle[aria-expanded="true"] .icon{transform:rotate(180deg)}
+    .wt-rec-job-menu{position:absolute;inset:calc(100% + 6px) 0 auto;z-index:20;max-height:min(242px,40dvh);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:5px;border:1px solid var(--line-strong);border-radius:var(--radius-lg,10px);background:var(--surface);box-shadow:var(--shadow-lg)}
+    .wt-rec-job-option{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:6px 8px;border-radius:var(--radius-md,8px);background:transparent;color:var(--text);text-align:start;font-size:var(--text-control);font-weight:var(--weight-regular);line-height:var(--leading-copy)}
+    .wt-rec-job-option:hover{background:var(--surface-2)}
+    .wt-rec-job-option[aria-pressed="true"]{background:var(--primary-soft);color:var(--primary-text);font-weight:var(--weight-medium)}
+    .wt-rec-job-option:focus-visible{outline-offset:-2px}
+    .wt-rec-job-option-name{min-width:0;flex:1;overflow-wrap:anywhere}
+    .wt-rec-job-count{flex:none;color:var(--muted);font-size:var(--text-sm);font-weight:var(--weight-regular);font-variant-numeric:tabular-nums}
+    .wt-rec-job-empty{margin:0;padding:8px;color:var(--muted);font-size:var(--text-label)}
     .wt-rec-days{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .wt-rec-day-chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:38px;padding:0 10px;border-radius:var(--radius-md,8px);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:.8125rem;font-weight:600;cursor:pointer;user-select:none;transition:background .15s,border-color .15s,color .15s}
+    .wt-rec-day-chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:38px;padding:0 10px;border-radius:var(--radius-md,8px);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:var(--text-control);font-weight:var(--weight-medium);cursor:pointer;user-select:none;transition:background .15s,border-color .15s,color .15s}
     .wt-rec-day-chip input{position:absolute;opacity:0;pointer-events:none}
     .wt-rec-day-chip:has(input:checked){background:var(--primary-soft);border-color:var(--primary);color:var(--primary-text)}
     .wt-rec-day-chip:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
     .wt-rec-list{display:flex;flex-direction:column;gap:10px}
+    .wt-rec-list-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .wt-rec-list-toolbar .inline-search{min-width:0;min-height:38px;max-width:360px}
+    .wt-rec-list-toolbar select{min-height:38px;padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius-md);font-size:var(--text-control)}
+    .wt-rec-list-results{display:grid;gap:8px;min-width:0}
+    .wt-rec-run-date{margin:4px 0;font-size:var(--text-label);font-weight:var(--weight-semibold);color:var(--muted)}
+    .wt-rec-run-row>span{min-width:0;overflow-wrap:anywhere}
     .wt-rec-item{border:1px solid var(--line);border-radius:var(--radius-lg,10px);background:var(--surface);padding:14px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;min-width:0}
     .wt-rec-item.is-paused{background:var(--surface-2)}
     .wt-rec-item-body{min-width:0;flex:1 1 300px;display:flex;flex-direction:column;gap:6px}
     .wt-rec-item-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .wt-rec-item-title{margin:0;font-size:var(--text-md);font-weight:var(--weight-strong);color:var(--text);overflow-wrap:anywhere}
-    .wt-rec-item-desc{margin:0;font-size:.8125rem;color:var(--muted);line-height:1.45;word-break:break-word}
+    .wt-rec-item-desc{margin:0;font-size:var(--text-control);font-weight:var(--weight-regular);color:var(--muted);line-height:var(--leading-copy);overflow-wrap:anywhere}
     .wt-rec-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
     .wt-rec-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--radius-badge,5px);font-size:var(--text-label);font-weight:var(--weight-semibold);background:var(--surface-3);color:var(--muted);max-width:100%;overflow-wrap:anywhere}
     .wt-rec-pill.is-primary{background:var(--primary-soft);color:var(--primary-text);border-color:transparent}
@@ -132,6 +154,7 @@ export function injectRecurringStyles() {
     .wt-rec-pill.is-amber{background:var(--amber-soft);color:var(--amber);border-color:transparent}
     .wt-rec-pill.is-red{background:var(--red-soft);color:var(--red);border-color:transparent}
     .wt-rec-pill .icon{width:13px;height:13px;flex:none}
+    .wt-rec-hub .wt-rec-meta .wt-rec-pill{font-weight:var(--weight-regular)}
     .wt-rec-item-ops{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     .wt-rec-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
     .wt-rec-section-head h4{margin:0;font-size:var(--text-md);font-weight:var(--weight-strong);color:var(--text)}
@@ -140,7 +163,7 @@ export function injectRecurringStyles() {
     .wt-rec-history[open] summary>.icon{transform:rotate(180deg)}
     .wt-rec-history .wt-rec-runs{margin-top:12px;max-height:360px;overflow:auto}
     .wt-rec-runs{display:flex;flex-direction:column;gap:6px}
-    .wt-rec-run-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:var(--radius-md,8px);background:var(--surface-2);border:1px solid var(--line);font-size:.8125rem;flex-wrap:wrap}
+    .wt-rec-run-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:var(--radius-md,8px);background:var(--surface-2);border:1px solid var(--line);font-size:var(--text-control);flex-wrap:wrap}
 
     #wtDailyCheckinDialog{width:720px;max-height:calc(100dvh - 48px);border-radius:var(--radius-dialog,17px)}
     .wt-chk-dialog[open]{display:flex;flex-direction:column}
@@ -178,23 +201,39 @@ export function injectRecurringStyles() {
     .wt-chk-mins{width:64px;min-height:36px;padding:4px 8px;border:1px solid var(--line-strong);border-radius:var(--radius-md,8px);background:var(--surface);color:var(--text);font:inherit;text-align:right}
     .wt-chk-team-card{border:1px solid var(--line);border-radius:var(--radius-lg,10px);background:var(--surface-2);padding:14px;display:flex;flex-direction:column;gap:8px;overflow-wrap:anywhere}
     .wt-chk-team-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+    .wt-chk-team{display:grid;gap:12px;min-width:0}
+    .wt-chk-team-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}
+    .wt-chk-team-metrics>div{padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface-2);min-width:0}
+    .wt-chk-team-metrics dt{font-size:var(--text-label);color:var(--muted)}
+    .wt-chk-team-metrics dd{margin:2px 0 0;font-size:var(--text-lg);font-weight:var(--weight-strong);font-variant-numeric:tabular-nums}
+    .wt-chk-team-metrics .has-support{color:var(--amber)}
+    .wt-chk-team-card.needs-support{border-inline-start:3px solid var(--amber)}
+    .wt-chk-team-card h5{margin:0;font-size:var(--text-control);font-weight:var(--weight-semibold)}
+    .wt-chk-report-copy,.wt-chk-report-blocker{margin:0;font-size:var(--text-control);line-height:var(--leading-copy);white-space:pre-wrap}
+    .wt-chk-report-blocker{padding:8px 10px;border-radius:var(--radius-md);background:var(--amber-soft);color:var(--amber)}
+    .wt-chk-team button[aria-pressed="true"]{background:var(--primary-soft);color:var(--primary-text);border-color:var(--primary)}
 
     @media (max-width: 900px) {
       .wt-rec-form-grid{grid-template-columns:1fr}
       .wt-rec-card,.wt-rec-item{padding:12px}
+      .wt-rec-list-toolbar .inline-search,.wt-rec-list-toolbar select{min-height:44px}
+      .wt-rec-list-toolbar .inline-search input{font-size:var(--text-entry)}
       .wt-rec-banner-main{flex-basis:100%;gap:10px}
       .wt-rec-banner>.wt-rec-actions,.wt-rec-item-ops{width:100%}
       .wt-rec-banner>.wt-rec-actions>.btn{flex:1 1 auto}
       .wt-rec-item-ops{padding-top:8px;border-top:1px solid var(--line)}
       .wt-rec-item-ops .btn{flex:1 1 auto}
       .wt-rec-day-chip,.wt-rec-history summary{min-height:44px}
-      .wt-rec-job-chip{min-height:36px}
+      .wt-rec-job-toggle{inset-block-start:2px;width:44px;height:44px}
+      .wt-rec-job-picker:has([data-rec-job-toggle]) #wtRecTargetJobTitle{min-height:48px;padding-inline-end:52px}
+      .wt-rec-job-option{min-height:44px}
       .wt-rec-hub .node-picker-popover,.wt-rec-hub .owner-picker-popover{position:static;width:100%;margin-top:8px;box-shadow:none;background:var(--surface-2)}
       #wtDailyCheckinDialog{width:100%;max-height:var(--m-vh,100dvh);border-radius:0}
       #wtDailyCheckinDialog .dialog-head{padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px}
       #wtDailyCheckinDialog .dialog-scroll{padding:14px 16px}
       .wt-chk-tabs{padding:5px 16px}
       .wt-chk-tab{min-height:44px}
+      .wt-chk-team-metrics>div{padding:8px}
       .wt-chk-moods{grid-template-columns:1fr}
       .wt-chk-mood-btn{gap:2px;padding:8px 10px}
       .wt-chk-task-row{padding-inline:8px}
@@ -307,6 +346,8 @@ export async function renderRecurringTasksHub({
     editingId: null,
     showForm: false,
     pendingDeleteId: null,
+    ruleQuery: '',
+    ruleFilter: 'all',
     historyOpen: false,
     historyError: false,
     nodePickerOpen: false,
@@ -628,7 +669,6 @@ export async function renderRecurringTasksHub({
     const d = state.draft;
     const matchCount = draftMatchPreview();
     const isEditing = Boolean(state.editingId);
-    const currentJtNorm = foldText(d.targetJobTitle);
 
     return `
       <form id="wtRecTemplateForm" class="wt-rec-card" aria-label="${isEditing ? 'Chỉnh sửa quy tắc việc định kỳ' : 'Tạo quy tắc việc định kỳ'}">
@@ -639,13 +679,13 @@ export async function renderRecurringTasksHub({
 
         <div class="wt-rec-form-grid">
           <label class="field wt-rec-full">
-            Tên công việc *
+            <span class="field-title">Tên công việc <span class="required" aria-hidden="true">*</span></span>
             <input id="wtRecTitle" type="text" required maxlength="240" value="${esc(d.title)}" placeholder="Ví dụ: Kiểm tra tồn kho & chốt doanh số ca">
           </label>
 
           <h5 class="wt-rec-full wt-rec-form-heading">Phân công</h5>
           <label class="field">
-            Phân công theo
+            <span class="field-title">Phân công theo</span>
             <select id="wtRecAssignmentMode">
               ${ASSIGNMENT_MODE_OPTIONS.map(o => `<option value="${o.value}" ${d.assignmentMode === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
             </select>
@@ -653,27 +693,25 @@ export async function renderRecurringTasksHub({
 
           ${d.assignmentMode === 'job_title' ? `
             <div class="field">
-              <label for="wtRecTargetJobTitle">Chức danh áp dụng *</label>
-              <input id="wtRecTargetJobTitle" type="text" required maxlength="120" value="${esc(d.targetJobTitle)}" placeholder="Ví dụ: Nhân viên Kinh doanh" autocomplete="off">
-              ${distinctJobTitles.length ? `
-                <div class="wt-rec-job-chips" role="group" aria-label="Gợi ý chức danh hiện có">
-                  ${distinctJobTitles.map(jt => {
-                    const sel = currentJtNorm && foldText(jt) === currentJtNorm;
-                    return `<button type="button" class="wt-rec-job-chip ${sel ? 'is-selected' : ''}" data-rec-job-chip="${esc(jt)}">${esc(jt)} (${jobTitleCounts.get(jt) || 0})</button>`;
-                  }).join('')}
-                </div>
-              ` : ''}
+              <label class="field-title" for="wtRecTargetJobTitle">Chức danh áp dụng <span class="required" aria-hidden="true">*</span></label>
+              <div class="wt-rec-job-picker">
+                <input id="wtRecTargetJobTitle" type="text" required maxlength="120" value="${esc(d.targetJobTitle)}" placeholder="Nhập hoặc chọn chức danh" autocomplete="off">
+                ${distinctJobTitles.length ? `
+                  <button type="button" class="icon-btn wt-rec-job-toggle" data-rec-job-toggle aria-label="Danh sách chức danh" aria-expanded="false" aria-controls="wtRecJobMenu">${ICONS.chevronDown}</button>
+                  <div class="wt-rec-job-menu" id="wtRecJobMenu" role="group" aria-label="Chức danh hiện có" hidden></div>
+                ` : ''}
+              </div>
             </div>
           ` : d.assignmentMode === 'org_role' ? `
             <label class="field">
-              Vai trò hệ thống *
+              <span class="field-title">Vai trò hệ thống <span class="required" aria-hidden="true">*</span></span>
               <select id="wtRecTargetOrgRole">
                 ${ORG_ROLE_OPTIONS.map(r => `<option value="${r.value}" ${d.targetOrgRole === r.value ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}
               </select>
             </label>
           ` : `
             <div class="field">
-              <span class="field-title" id="wtRecEmpLabel">Nhân sự áp dụng *</span>
+              <span class="field-title" id="wtRecEmpLabel">Nhân sự áp dụng <span class="required" aria-hidden="true">*</span></span>
               ${renderEmployeePickerBox()}
             </div>
           `}
@@ -685,19 +723,19 @@ export async function renderRecurringTasksHub({
 
           <h5 class="wt-rec-full wt-rec-form-heading">Lịch lặp</h5>
           <label class="field">
-            Chu kỳ lặp lại
+            <span class="field-title">Chu kỳ lặp lại</span>
             <select id="wtRecCadence">
               ${CADENCE_OPTIONS.map(o => `<option value="${o.value}" ${d.cadence === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
             </select>
           </label>
           <label class="field">
-            Hạn hoàn thành
+            <span class="field-title">Hạn hoàn thành</span>
             <input id="wtRecDueOffset" type="number" min="0" max="30" value="${Number(d.dueOffsetDays) || 0}" aria-describedby="wtRecDueHint">
             <small class="field-hint" id="wtRecDueHint">Số ngày sau khi tạo. Nhập 0 nếu hạn trong ngày.</small>
           </label>
           ${d.cadence === 'weekly' ? `
             <div class="field wt-rec-full">
-              <span>Chọn các thứ trong tuần</span>
+              <span class="field-title">Chọn các thứ trong tuần</span>
               <div class="wt-rec-days">
                 ${WEEKDAY_LABELS.map(w => {
                   const active = d.daysOfWeek.includes(w.day);
@@ -709,36 +747,36 @@ export async function renderRecurringTasksHub({
 
           ${d.cadence === 'monthly' ? `
             <label class="field">
-              Ngày lặp trong tháng (1–31)
+              <span class="field-title">Ngày lặp trong tháng (1–31)</span>
               <input id="wtRecDayOfMonth" type="number" min="1" max="31" value="${Number(d.dayOfMonth) || 1}">
             </label>
           ` : ''}
 
           <h5 class="wt-rec-full wt-rec-form-heading">Nội dung công việc</h5>
           <label class="field">
-            Mức độ ưu tiên
+            <span class="field-title">Mức độ ưu tiên</span>
             <select id="wtRecPriority">
               ${PRIORITY_OPTIONS.map(p => `<option value="${p.value}" ${d.priority === p.value ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}
             </select>
           </label>
 
           <label class="field">
-            Thời gian dự kiến (phút)
+            <span class="field-title">Thời gian dự kiến (phút)</span>
             <input id="wtRecEstimateMinutes" type="number" min="0" max="60000" value="${Number(d.estimateMinutes) || 0}">
           </label>
 
           <label class="field wt-rec-full">
-            Nhãn thẻ (cách nhau bằng dấu phẩy)
+            <span class="field-title">Nhãn thẻ (cách nhau bằng dấu phẩy)</span>
             <input id="wtRecTags" type="text" value="${esc(d.tags)}" placeholder="hang-ngay, van-hanh">
           </label>
 
           <label class="field wt-rec-full">
-            Hướng dẫn chi tiết (mô tả đầu việc)
+            <span class="field-title">Hướng dẫn chi tiết (mô tả đầu việc)</span>
             <textarea id="wtRecDesc" rows="2" maxlength="10000" placeholder="Ghi chú quy chuẩn thực hiện, link biểu mẫu hoặc KPI cần đạt...">${esc(d.description)}</textarea>
           </label>
 
           <label class="field wt-rec-full">
-            Checklist (mỗi dòng một bước)
+            <span class="field-title">Checklist (mỗi dòng một bước)</span>
             <textarea id="wtRecChecklist" rows="3" placeholder="Kiểm tra tồn đầu ca&#10;Cập nhật CRM 100% khách phát sinh&#10;Bấm Báo cáo hôm nay trước 17:30">${esc(d.checklistText)}</textarea>
           </label>
         </div>
@@ -760,15 +798,6 @@ export async function renderRecurringTasksHub({
     if (state.error) {
       return `<div class="wt-rec-card"><p class="wt-rec-note" role="alert">${esc(state.error)}</p><div><button type="button" class="btn" data-rec-action="reload">Thử lại</button></div></div>`;
     }
-    if (!state.templates.length) {
-      return `
-        <div class="empty-state">
-          <h3>Chưa có quy tắc việc định kỳ nào</h3>
-          <p>${canManage ? 'Tạo quy tắc để giao công việc theo lịch lặp cho nhân sự.' : 'Quản lý chưa thiết lập quy tắc trong không gian này.'}</p>
-        </div>
-      `;
-    }
-
     const empNameMap = new Map((employees || []).map(e => [String(e.id), e.full_name || e.name]));
     const tplMap = new Map(state.templates.map(t => [String(t.id), t]));
     const taskMap = new Map((tasks || []).map(t => [String(t.id), t]));
@@ -776,12 +805,23 @@ export async function renderRecurringTasksHub({
     return `
       <div class="wt-rec-list">
         <div class="wt-rec-section-head"><h4>${isDemo ? 'Quy tắc minh họa' : 'Quy tắc đã thiết lập'}</h4><span class="wt-rec-note">${state.templates.filter(tpl => tpl.is_active).length} đang bật · ${state.templates.filter(tpl => !tpl.is_active).length} tạm dừng</span></div>
+        ${state.templates.length ? `
+        <div class="wt-rec-list-toolbar">
+          <label class="inline-search">${ICONS.search}<input type="search" data-rec-rule-query aria-label="Tìm quy tắc" placeholder="Tìm quy tắc, chức danh, nhân sự…" value="${esc(state.ruleQuery)}"></label>
+          <select data-rec-rule-filter aria-label="Lọc theo trạng thái">
+            ${[['all', 'Tất cả trạng thái'], ['active', 'Đang bật'], ['paused', 'Tạm dừng']].map(([key, label]) => `<option value="${key}" ${state.ruleFilter === key ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+        </div>
+        <p class="wt-rec-note" data-rec-rule-count role="status" hidden></p>
+        <div class="wt-rec-list-results">
         ${state.templates.map(tpl => {
           const matchCount = isDemo ? null : countMatchingEmployees(tpl, { employees });
           const checklistLen = Array.isArray(tpl.checklist_items) ? tpl.checklist_items.length : 0;
           const confirmingDelete = state.pendingDeleteId === tpl.id;
+          const assignmentLabel = formatAssignmentLabel(tpl, { employees });
+          const cadenceLabel = formatCadenceLabel(tpl);
           return `
-            <article class="wt-rec-item ${tpl.is_active ? '' : 'is-paused'}">
+            <article class="wt-rec-item ${tpl.is_active ? '' : 'is-paused'}" data-rec-rule-status="${tpl.is_active ? 'active' : 'paused'}" data-rec-rule-text="${esc(foldText([tpl.title, assignmentLabel, cadenceLabel].join(' ')))}">
               <div class="wt-rec-item-body">
                 <div class="wt-rec-item-head">
                   <h4 class="wt-rec-item-title">${esc(tpl.title)}</h4>
@@ -789,11 +829,11 @@ export async function renderRecurringTasksHub({
                 </div>
                 ${tpl.description ? `<p class="wt-rec-item-desc">${esc(tpl.description)}</p>` : ''}
                 <div class="wt-rec-meta">
-                  <span class="wt-rec-pill is-primary">${ICONS.users} ${esc(formatAssignmentLabel(tpl, { employees }))}${matchCount !== null ? ` (${matchCount} người)` : ''}</span>
-                  <span class="wt-rec-pill">${ICONS.calendar} ${esc(formatCadenceLabel(tpl))}</span>
+                  <span class="wt-rec-pill is-primary">${ICONS.users} ${esc(assignmentLabel)}${matchCount !== null ? ` (${matchCount} người)` : ''}</span>
+                  <span class="wt-rec-pill">${ICONS.calendar} ${esc(cadenceLabel)}</span>
                   <span class="wt-rec-pill">${ICONS.clock} ${Number(tpl.estimate_minutes) || 0} phút</span>
                   ${checklistLen > 0 ? `<span class="wt-rec-pill">${ICONS.check} ${checklistLen} bước checklist</span>` : ''}
-                  ${tpl.last_generated_date ? `<span class="wt-rec-pill">Tạo gần nhất: ${esc(tpl.last_generated_date)}</span>` : ''}
+                  ${tpl.last_generated_date ? `<span class="wt-rec-pill">Tạo gần nhất ${esc(formatRunDate(tpl.last_generated_date))}</span>` : ''}
                 </div>
               </div>
               ${canManage ? `
@@ -815,6 +855,7 @@ export async function renderRecurringTasksHub({
             </article>
           `;
         }).join('')}
+        </div>` : `<div class="empty-state"><h3>Chưa có quy tắc việc định kỳ</h3><p>${canManage ? 'Tạo quy tắc để giao công việc theo lịch lặp cho nhân sự.' : 'Quản lý chưa thiết lập quy tắc trong không gian này.'}</p></div>`}
       </div>
 
       ${state.historyError ? '<p class="wt-rec-note">Chưa tải được lịch sử tạo việc. <button class="link-btn" type="button" data-rec-action="reload">Thử lại</button></p>' : ''}
@@ -822,15 +863,15 @@ export async function renderRecurringTasksHub({
         <details class="wt-rec-card wt-rec-history" ${state.historyOpen ? 'open' : ''}>
           <summary>Lịch sử tạo việc (${state.runs.length}) ${ICONS.chevronDown}</summary>
           <div class="wt-rec-runs">
-            ${state.runs.map(run => {
+            ${state.runs.map((run, index) => {
               const tpl = tplMap.get(String(run.template_id));
               const empName = run.employee_id ? (empNameMap.get(String(run.employee_id)) || 'Nhân sự') : 'Chưa gán';
               const liveTask = run.task_id ? taskMap.get(String(run.task_id)) : null;
               return `
+                ${index === 0 || state.runs[index - 1].run_date !== run.run_date ? `<h5 class="wt-rec-run-date">${esc(formatRunDate(run.run_date))}</h5>` : ''}
                 <div class="wt-rec-run-row">
                   <span><strong>${esc(tpl?.title || 'Quy tắc đã xóa')}</strong> · ${esc(empName)}</span>
                   <div class="wt-rec-actions">
-                    <span class="wt-rec-pill">${esc(run.run_date)}</span>
                     ${liveTask ? `<button type="button" class="btn small" data-rec-action="open-task" data-task-id="${esc(run.task_id)}">Mở việc</button>` : ''}
                   </div>
                 </div>
@@ -988,6 +1029,7 @@ export async function renderRecurringTasksHub({
       document.removeEventListener('click', onOutsideClick);
       return;
     }
+    if (!e.target.closest?.('.wt-rec-job-picker')) closeJobMenu();
     if (!state.nodePickerOpen && !state.empPickerOpen) return;
     if (e.target.closest?.('#wtRecNodePickerBox') || e.target.closest?.('#wtRecEmpPickerBox')) return;
     state.nodePickerOpen = false;
@@ -1011,6 +1053,70 @@ export async function renderRecurringTasksHub({
 
   document.addEventListener('click', onOutsideClick);
   document.addEventListener('keydown', onEscapeKey);
+
+  function closeJobMenu() {
+    const menu = container.querySelector('#wtRecJobMenu');
+    if (!menu || menu.hidden) return;
+    menu.hidden = true;
+    container.querySelector('[data-rec-job-toggle]')?.setAttribute('aria-expanded', 'false');
+  }
+
+  function bindJobPicker(form) {
+    const input = form.querySelector('#wtRecTargetJobTitle');
+    if (!input) return;
+    const picker = input.closest('.wt-rec-job-picker');
+    const toggle = picker.querySelector('[data-rec-job-toggle]');
+    const menu = picker.querySelector('#wtRecJobMenu');
+    const openMenu = (query = '') => {
+      if (!menu) return;
+      const normalizedQuery = foldText(query);
+      const currentTitle = foldText(input.value);
+      const titles = distinctJobTitles.filter(title => foldText(title).includes(normalizedQuery));
+      menu.innerHTML = titles.length ? titles.map(title => `
+        <button type="button" class="wt-rec-job-option" data-rec-job-option="${esc(title)}" aria-pressed="${foldText(title) === currentTitle}">
+          <span class="wt-rec-job-option-name">${esc(title)}</span><span class="wt-rec-job-count">${jobTitleCounts.get(title)} người</span>
+        </button>`).join('') : '<p class="wt-rec-job-empty" role="status">Không có chức danh khớp. Bạn có thể dùng tên đã nhập.</p>';
+      menu.scrollTop = 0;
+      menu.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+    };
+    input.addEventListener('input', () => {
+      syncDraftFromDom();
+      updateMatchBadge();
+      openMenu(input.value);
+    });
+    if (!menu) return;
+    input.addEventListener('click', () => { if (menu.hidden) openMenu(); });
+    toggle.addEventListener('click', () => {
+      if (!menu.hidden) { closeJobMenu(); return; }
+      openMenu();
+      input.focus({ preventScroll: true });
+    });
+    menu.addEventListener('click', event => {
+      const option = event.target.closest('[data-rec-job-option]');
+      if (!option) return;
+      input.value = option.dataset.recJobOption;
+      syncDraftFromDom();
+      updateMatchBadge();
+      closeJobMenu();
+      input.focus({ preventScroll: true });
+    });
+    picker.addEventListener('focusout', event => {
+      if (event.relatedTarget && !picker.contains(event.relatedTarget)) closeJobMenu();
+    });
+    picker.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !menu.hidden) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeJobMenu();
+        input.focus({ preventScroll: true });
+      } else if (event.key === 'ArrowDown' && event.target === input) {
+        event.preventDefault();
+        if (menu.hidden) openMenu();
+        menu.querySelector('[data-rec-job-option]')?.focus();
+      }
+    });
+  }
 
   function render(focusId = '') {
     if (!isLatest()) return;
@@ -1045,6 +1151,29 @@ export async function renderRecurringTasksHub({
     const history = container.querySelector('.wt-rec-history');
     history?.addEventListener('toggle', () => { state.historyOpen = history.open; });
 
+    const query = container.querySelector('[data-rec-rule-query]');
+    const filter = container.querySelector('[data-rec-rule-filter]');
+    if (query && filter) {
+      const cards = [...container.querySelectorAll('[data-rec-rule-status]')];
+      const result = container.querySelector('[data-rec-rule-count]');
+      const applyFilter = () => {
+        state.ruleQuery = query.value;
+        state.ruleFilter = filter.value;
+        const keyword = foldText(state.ruleQuery);
+        let visible = 0;
+        for (const card of cards) {
+          card.hidden = !card.dataset.recRuleText.includes(keyword) ||
+            (state.ruleFilter !== 'all' && card.dataset.recRuleStatus !== state.ruleFilter);
+          if (!card.hidden) visible++;
+        }
+        result.hidden = !keyword && state.ruleFilter === 'all';
+        result.textContent = visible ? `${visible}/${cards.length} quy tắc phù hợp` : 'Không tìm thấy quy tắc phù hợp.';
+      };
+      query.addEventListener('input', applyFilter);
+      filter.addEventListener('change', applyFilter);
+      applyFilter();
+    }
+
     const form = container.querySelector('#wtRecTemplateForm');
     if (form) {
       form.querySelectorAll('#wtRecAssignmentMode,#wtRecCadence').forEach(el => el.addEventListener('change', () => {
@@ -1061,29 +1190,7 @@ export async function renderRecurringTasksHub({
         });
       });
 
-      const jobInput = form.querySelector('#wtRecTargetJobTitle');
-      if (jobInput) {
-        jobInput.addEventListener('input', () => {
-          syncDraftFromDom();
-          updateMatchBadge();
-          const norm = foldText(state.draft.targetJobTitle);
-          form.querySelectorAll('[data-rec-job-chip]').forEach(chip => {
-            chip.classList.toggle('is-selected', Boolean(norm && foldText(chip.dataset.recJobChip) === norm));
-          });
-        });
-        form.querySelectorAll('[data-rec-job-chip]').forEach(chip => {
-          chip.addEventListener('click', () => {
-            jobInput.value = chip.dataset.recJobChip || '';
-            state.draft.targetJobTitle = jobInput.value;
-            updateMatchBadge();
-            form.querySelectorAll('[data-rec-job-chip]').forEach(c => {
-              c.classList.toggle('is-selected', c === chip);
-            });
-            jobInput.focus();
-          });
-        });
-      }
-
+      bindJobPicker(form);
       bindNodePickerEvents(form);
       bindEmployeePickerEvents(form);
 

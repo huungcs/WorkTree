@@ -478,7 +478,9 @@ Quản trị & Cài đặt có tab Thông báo & Nhắc việc cho các tùy ch�
 
 Tab Việc định kỳ nhóm biểu mẫu thành Phân công, Lịch lặp và Nội dung công việc; bộ chọn đơn vị và nhân sự dùng chung Tree Node Picker (`.node-picker-box`) và Employee Avatar Picker (`.owner-picker-box`), đồng bộ đầy đủ token bo tròn `--radius-*` trong `css/style.css`. Mỗi quy tắc hiển thị đối tượng nhận, chu kỳ và trạng thái. Lịch sử tạo việc mở theo yêu cầu. Bản demo dùng quy tắc minh họa có sẵn ở chế độ chỉ xem.
 
-Hộp thoại Báo cáo hôm nay hiển thị trạng thái tiến độ, danh sách việc và kết quả theo thứ tự cập nhật. Số việc đã chọn và số phút cập nhật ngay khi nhập. Nút gửi nằm ở chân hộp thoại, phần biểu mẫu cuộn riêng trên điện thoại.
+Ô chức danh trong mẫu việc định kỳ cho phép nhập trực tiếp hoặc mở danh sách gợi ý có cuộn riêng. Tên chức danh dùng cỡ chữ điều khiển. Số người dùng cỡ chữ phụ và độ đậm thường. Gõ tên để lọc chức danh. Khi chọn xong, danh sách đóng và số nhân sự khớp được cập nhật. Danh sách quy tắc tìm được theo tên, người nhận hoặc chu kỳ. Lịch sử tạo việc nhóm theo ngày.
+
+Hộp thoại Báo cáo hôm nay hiển thị trạng thái tiến độ, danh sách việc và kết quả theo thứ tự cập nhật. Số việc đã chọn và số phút cập nhật ngay khi nhập. Nút gửi nằm ở chân hộp thoại, phần biểu mẫu cuộn riêng trên điện thoại. Tổng hợp đội ngũ hiển thị số báo cáo, số người cần hỗ trợ và số phút ghi nhận. Báo cáo cần hỗ trợ được xếp trước và có bộ lọc riêng.
 
 ### Chia sẻ công việc
 

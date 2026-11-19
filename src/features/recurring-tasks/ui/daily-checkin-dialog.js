@@ -52,6 +52,10 @@ function formatTimeHm(iso) {
   }
 }
 
+function needsSupport(report) {
+  return report.mood === 'red' || Boolean(report.blockers?.trim());
+}
+
 export function selectTodayFocusTasks({ tasks = [], employeeId = null, role = 'member', today = getLocalDateString() } = {}) {
   const active = (tasks || []).filter(t => !t.archived && !t.archived_at);
   const isMine = t => {
@@ -126,9 +130,12 @@ export async function openDailyCheckinDialog({
   const state = {
     activeTab: canViewTeam && initialTab === 'team' ? 'team' : 'mine',
     loading: !isDemo && Boolean(organizationId),
+    mineError: false,
+    teamError: false,
     submitting: false,
     existingCheckin: null,
     teamCheckins: [],
+    teamNeedsSupport: false,
     mood: 'green',
     completedIds: new Set(focusTasks.filter(t => t.status === 'done').map(t => String(t.id))),
     minutesByTask: {},
@@ -151,23 +158,24 @@ export async function openDailyCheckinDialog({
     state.loading = true;
     render();
     try {
-      const [mine, team] = await Promise.all([
+      const [mine, team] = await Promise.allSettled([
         userId && !teamOnly ? service.getTodayCheckin(organizationId, userId, today) : Promise.resolve(null),
         canViewTeam ? service.listTeamCheckins(organizationId, today) : Promise.resolve([])
       ]);
-      if (mine) {
-        state.existingCheckin = mine;
-        state.mood = mine.mood || 'green';
+      if (!teamOnly) state.mineError = mine.status === 'rejected';
+      if (mine.status === 'fulfilled' && mine.value) {
+        const report = mine.value;
+        state.existingCheckin = report;
+        state.mood = report.mood || 'green';
         const merged = new Set(state.completedIds);
-        for (const id of mine.completed_task_ids || []) merged.add(String(id));
+        for (const id of report.completed_task_ids || []) merged.add(String(id));
         state.completedIds = merged;
-        state.summary = mine.summary || '';
-        state.blockers = mine.blockers || '';
-        state.tomorrowPlan = mine.tomorrow_plan || '';
+        state.summary = report.summary || '';
+        state.blockers = report.blockers || '';
+        state.tomorrowPlan = report.tomorrow_plan || '';
       }
-      state.teamCheckins = team || [];
-    } catch (err) {
-      onToast(err?.message || 'Không thể tải trạng thái báo cáo hôm nay.', 'error');
+      state.teamError = team.status === 'rejected';
+      if (team.status === 'fulfilled') state.teamCheckins = team.value || [];
     } finally {
       state.loading = false;
       render();
@@ -215,6 +223,9 @@ export async function openDailyCheckinDialog({
   function renderMineTab() {
     if (state.loading) {
       return `<p class="view-note" style="margin:0">Đang tải danh sách công việc và check-in hôm nay...</p>`;
+    }
+    if (state.mineError) {
+      return '<div class="empty-state"><p role="alert">Chưa tải được báo cáo của bạn.</p><button type="button" class="btn" data-chk-action="retry-mine">Thử lại</button></div>';
     }
 
     const submittedNote = state.existingCheckin
@@ -303,63 +314,66 @@ export async function openDailyCheckinDialog({
     if (state.loading) {
       return `<p class="view-note" style="margin:0">Đang tải tổng hợp check-in đội ngũ...</p>`;
     }
-
-    const list = state.teamCheckins || [];
-    const moodCounts = { green: 0, amber: 0, red: 0 };
-    let totalMins = 0;
-    for (const row of list) {
-      if (moodCounts[row.mood] !== undefined) moodCounts[row.mood] += 1;
-      totalMins += Number(row.minutes_logged) || 0;
+    if (state.teamError) {
+      return '<div class="empty-state"><p role="alert">Chưa tải được báo cáo đội ngũ.</p><button type="button" class="btn" data-chk-action="refresh-team">Thử lại</button></div>';
     }
 
+    const list = state.teamCheckins || [];
+    const supportCount = list.filter(needsSupport).length;
+    const totalMinutes = list.reduce((sum, row) => sum + (Number(row.minutes_logged) || 0), 0);
+    const displayList = state.teamNeedsSupport
+      ? list.filter(needsSupport)
+      : [...list].sort((a, b) => Number(needsSupport(b)) - Number(needsSupport(a)));
+
     return `
-      <div style="display:flex;flex-direction:column;gap:14px">
+      <section class="wt-chk-team" aria-labelledby="wtChkTeamTitle">
         <div class="wt-rec-section-head">
-          <div class="wt-rec-meta">
-            <span class="wt-rec-pill is-primary">${ICONS.users} ${list.length} người đã check-in</span>
-            <span class="wt-rec-pill is-green">Suôn sẻ: ${moodCounts.green}</span>
-            <span class="wt-rec-pill is-amber">Lưu ý: ${moodCounts.amber}</span>
-            <span class="wt-rec-pill is-red">Đang vướng: ${moodCounts.red}</span>
-            ${totalMins > 0 ? `<span class="wt-rec-pill">${ICONS.clock} ${Math.round(totalMins / 60 * 10) / 10} giờ ghi nhận</span>` : ''}
-          </div>
+          <h4 id="wtChkTeamTitle">Tổng hợp đội ngũ</h4>
           <div class="wt-rec-actions">
             <button type="button" class="btn small" data-chk-action="copy-team-digest" ${list.length ? '' : 'disabled'}>Sao chép tổng hợp</button>
             <button type="button" class="btn small" data-chk-action="refresh-team">Làm mới</button>
           </div>
         </div>
-
-        ${list.length ? list.map(row => {
+        <dl class="wt-chk-team-metrics">
+          <div><dt>Đã báo cáo</dt><dd>${list.length}</dd></div>
+          <div><dt>Cần hỗ trợ</dt><dd class="${supportCount > 0 ? 'has-support' : ''}">${supportCount}</dd></div>
+          <div><dt>Phút ghi nhận</dt><dd>${totalMinutes.toLocaleString('vi-VN')}</dd></div>
+        </dl>
+        ${list.length ? `
+          <div class="wt-rec-actions"><button type="button" class="btn small" data-chk-action="filter-team-support" aria-pressed="${state.teamNeedsSupport}">${ICONS.filter}<span>Chỉ xem việc cần hỗ trợ</span></button></div>
+        ` : ''}
+        ${displayList.length ? displayList.map(row => {
           const emp = row.employee_id ? empMap.get(String(row.employee_id)) : null;
           const displayName = emp?.full_name || emp?.name || (row.user_id === userId ? 'Bạn' : 'Thành viên');
-          const jobTitle = emp?.job_title ? ` · ${emp.job_title}` : '';
+          const jobTitle = emp?.job_title || '';
           const moodCls = row.mood === 'red' ? 'is-red' : row.mood === 'amber' ? 'is-amber' : 'is-green';
           const moodObj = CHECKIN_MOODS.find(m => m.value === row.mood);
           const doneCount = Array.isArray(row.completed_task_ids) ? row.completed_task_ids.length : 0;
           return `
-            <article class="wt-chk-team-card">
+            <article class="wt-chk-team-card ${needsSupport(row) ? 'needs-support' : ''}">
               <div class="wt-chk-team-head">
                 <div>
-                  <strong>${esc(displayName)}</strong><span style="color:var(--muted);font-size:.8125rem">${esc(jobTitle)}</span>
+                  <h5>${esc(displayName)}</h5>${jobTitle ? `<p class="wt-chk-note">${esc(jobTitle)}</p>` : ''}
                 </div>
                 <div class="wt-rec-meta">
                   <span class="wt-rec-pill ${moodCls}">${esc(moodObj?.label || row.mood)}</span>
                   <span class="wt-rec-pill">Xong ${doneCount} việc</span>
-                  ${Number(row.minutes_logged) > 0 ? `<span class="wt-rec-pill">${Number(row.minutes_logged)}p</span>` : ''}
-                  <span style="font-size:.75rem;color:var(--muted)">${esc(formatTimeHm(row.submitted_at))}</span>
+                  ${Number(row.minutes_logged) > 0 ? `<span class="wt-rec-pill">${Number(row.minutes_logged)} phút</span>` : ''}
+                  <span class="wt-chk-note">${esc(formatTimeHm(row.submitted_at))}</span>
                 </div>
               </div>
-              ${row.summary ? `<p style="margin:0;font-size:.875rem;line-height:1.45">${esc(row.summary)}</p>` : ''}
-              ${row.blockers ? `<p style="margin:0;font-size:.8125rem;color:var(--red)"><strong>Cần hỗ trợ:</strong> ${esc(row.blockers)}</p>` : ''}
-              ${row.tomorrow_plan ? `<p style="margin:0;font-size:.8125rem;color:var(--muted)"><strong>Ngày mai:</strong> ${esc(row.tomorrow_plan)}</p>` : ''}
+              ${row.blockers ? `<p class="wt-chk-report-blocker"><strong>Cần hỗ trợ</strong><br>${esc(row.blockers)}</p>` : ''}
+              ${row.summary ? `<p class="wt-chk-report-copy">${esc(row.summary)}</p>` : ''}
+              ${row.tomorrow_plan ? `<p class="wt-chk-report-copy"><strong>Ngày mai</strong><br>${esc(row.tomorrow_plan)}</p>` : ''}
             </article>
           `;
         }).join('') : `
           <div class="empty-state">
-            <h3>Chưa có báo cáo hôm nay</h3>
-            <p>Báo cáo nhân sự sẽ xuất hiện ở đây sau khi được gửi.</p>
+            <h3>${list.length ? 'Chưa có báo cáo nào cần hỗ trợ' : 'Chưa có báo cáo hôm nay'}</h3>
+            <p>${list.length ? 'Bỏ bộ lọc để xem tất cả báo cáo.' : 'Báo cáo nhân sự sẽ xuất hiện ở đây sau khi được gửi.'}</p>
           </div>
         `}
-      </div>
+      </section>
     `;
   }
 
@@ -392,7 +406,7 @@ export async function openDailyCheckinDialog({
       <div class="dialog-foot">
         <button type="button" class="btn" data-chk-action="close">Đóng</button>
         ${state.activeTab === 'mine' ? `
-          <button type="button" class="btn primary" data-chk-action="submit" ${state.submitting || state.loading ? 'disabled' : ''}>
+          <button type="button" class="btn primary" data-chk-action="submit" ${state.submitting || state.loading || state.mineError ? 'disabled' : ''}>
             ${ICONS.check}<span>${state.submitting ? 'Đang lưu…' : isDemo ? 'Hoàn tất xem thử' : state.existingCheckin ? 'Cập nhật báo cáo' : 'Gửi báo cáo'}</span>
           </button>
         ` : ''}
@@ -463,6 +477,16 @@ export async function openDailyCheckinDialog({
         }
         if (action === 'refresh-team') {
           await loadInitial({ teamOnly: true });
+          return;
+        }
+        if (action === 'retry-mine') {
+          await loadInitial();
+          return;
+        }
+        if (action === 'filter-team-support') {
+          state.teamNeedsSupport = !state.teamNeedsSupport;
+          render();
+          dialog.querySelector('[data-chk-action="filter-team-support"]')?.focus({ preventScroll: true });
           return;
         }
         if (action === 'copy-team-digest') {
