@@ -36,6 +36,8 @@ jspm_packages/
 tmp/
 temp/
 scratch/
+test-results/
+playwright-report/
 *.tmp
 supabase/.temp/
 
