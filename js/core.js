@@ -1891,13 +1891,20 @@ function showTaskMessageSource(source, extractedFields = []) {
  taskMessageSource = source;
  const details = document.createElement('details');
  details.className = 'task-message-source field full';
- details.innerHTML = '<summary>Tin nhắn gốc</summary><blockquote></blockquote><p class="muted">Chỉ người có quyền xem công việc mới đọc được mô tả. Hãy kiểm tra nội dung bạn muốn chia sẻ.</p><div class="task-message-source-foot"><button type="button" class="btn small">Đưa nội dung vào mô tả</button></div>';
- if (Array.isArray(extractedFields) && extractedFields.length > 0) {
-  const hint = document.createElement('div');
-  hint.className = 'ai-task-source-hint';
-  hint.innerHTML = `${icon('sparkles')}<span>AI đã gợi ý sẵn: ${esc(extractedFields.join(', '))} (rà lại trước khi lưu)</span>`;
-  details.querySelector('.task-message-source-foot')?.appendChild(hint);
- }
+ const hasSuggestions=Array.isArray(extractedFields)&&extractedFields.length>0;
+ details.innerHTML=`<summary>
+  <span class="task-message-source-title">${icon('message')}Tin nhắn gốc</span>
+  ${hasSuggestions?`<span class="ai-task-source-hint">${icon('sparkles')}Có gợi ý AI</span>`:''}
+  <span class="task-message-source-caret" aria-hidden="true">${icon('chevron-down')}</span>
+ </summary>
+ <div class="task-message-source-content">
+  <blockquote></blockquote>
+  ${hasSuggestions?`<p class="task-message-source-suggestions"><strong>Đã điền gợi ý</strong> · ${esc(extractedFields.join(', '))}</p>`:''}
+  <div class="task-message-source-foot">
+   <p>Người có quyền xem công việc có thể đọc nội dung được chèn.</p>
+   <button type="button" class="btn small">Chèn vào mô tả</button>
+  </div>
+ </div>`;
  details.querySelector('blockquote').textContent = source.text;
  details.querySelector('button').addEventListener('click', () => {
   if (!source.isCurrent()) return;
@@ -1905,9 +1912,15 @@ function showTaskMessageSource(source, extractedFields = []) {
   const current = description.value.trim();
   const text = source.text.trim();
   if (current !== text && !current.endsWith('\n\n' + text)) {
-   description.value = [current, text].filter(Boolean).join('\n\n').slice(0, description.maxLength);
+   const next=[description.value.trimEnd(),text].filter(Boolean).join('\n\n');
+   if(description.maxLength>=0&&next.length>description.maxLength){
+    toast('Mô tả không đủ chỗ để chèn toàn bộ tin nhắn.','error');
+    return;
+   }
+   description.value=next;
    description.dispatchEvent(new Event('input', { bubbles: true }));
   }
+  details.open=false;
   description.focus();
  });
  $('tDesc').closest('.field').before(details);
