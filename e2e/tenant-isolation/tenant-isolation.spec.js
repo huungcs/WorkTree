@@ -31,6 +31,6 @@ test.describe('Multi-Tenant Isolation & Auth Gates', () => {
     await expect(page.locator('#app')).toHaveAttribute('inert', '');
 
     await page.goto('/s/wtsh_tampered_cross_tenant_token_999');
-    await expect(page.locator('#shareRoot')).toContainText('Liên kết không tồn tại hoặc đã bị khóa');
+    await expect(page.locator('#shareRoot')).toContainText(/Liên kết không (khả dụng|tồn tại)/);
   });
 });

@@ -472,6 +472,8 @@ Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đ
 
 Hộp thoại dùng tiêu đề cố định và hiển thị tên công việc bên dưới. Phần quyền người nhận và danh sách liên kết cuộn chung. Chân hộp thoại giữ nút tạo liên kết trong tầm chạm. Trên điện thoại, thời hạn và mã PIN xếp dọc. Liên kết đã thu hồi chỉ hiển thị thông tin trạng thái.
 
+Trang dành cho người nhận dùng nhận diện WorkTree X, font Inter và màu trạng thái của hệ thống. Thông tin công việc xếp bốn cột trên màn hình rộng và hai cột trên điện thoại. Checklist dùng dấu trạng thái ở chế độ chỉ xem và ô đánh dấu khi liên kết cho phép chỉnh sửa.
+
 ### Trợ lý AI và kết nối MCP
 
 Trong bảng chi tiết công việc, Gợi ý checklist và Tóm tắt công việc dùng nút phụ gọn. Kết quả mở ngay bên dưới và chuyển focus vào tiêu đề để người dùng bàn phím đọc được nội dung.

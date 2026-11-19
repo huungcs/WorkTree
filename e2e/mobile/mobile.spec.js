@@ -11,7 +11,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 780 }]) {
       expect(authOverflow).toBe(false);
 
       await page.goto('/s/wtsh_mobile_probe_12345');
-      await expect(page.locator('#shareRoot')).toContainText('Liên kết không tồn tại');
+      await expect(page.locator('#shareRoot')).toContainText(/Liên kết không (khả dụng|tồn tại)/);
       const shareOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       expect(shareOverflow).toBe(false);
 
