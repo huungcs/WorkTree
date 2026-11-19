@@ -1428,7 +1428,8 @@ dialog.mobile-only:not([open]){display:none!important}
  .content-footer{font-size:11px;margin-top:22px;justify-content:center}.content-footer>button,.content-footer>.footer-version{display:none}
  .toast-region,.toast-region[popover]{left:12px!important;right:12px!important;bottom:calc(var(--m-nav) + var(--m-safe) + 10px)!important;width:auto;max-width:none;transform:none!important;z-index:200}
  .toast{font-size:13px;line-height:1.6;padding:12px;border-radius:13px;max-width:100%;width:100%;gap:8px}.toast>button{min-height:44px;min-width:44px;font-size:12px}.toast-close{font-size:22px!important}.toast-message{overflow-wrap:anywhere}
- body:has(#timerDock:not([hidden])) .toast-region,body:has(#timerDock:not([hidden])) .toast-region[popover]{bottom:calc(var(--m-nav) + var(--m-safe) + 74px)!important}
+ body:has(#timerDock:not([hidden])[data-valign="bottom"]):not(.m-modal):not(.m-keyboard) .toast-region,body:has(#timerDock:not([hidden])[data-valign="bottom"]):not(.m-modal):not(.m-keyboard) .toast-region[popover]{top:calc(64px + env(safe-area-inset-top,0px) + 8px)!important;bottom:auto!important}
+ body:has(#timerDock:not([hidden])[data-valign="top"]):not(.m-modal):not(.m-keyboard) .toast-region,body:has(#timerDock:not([hidden])[data-valign="top"]):not(.m-modal):not(.m-keyboard) .toast-region[popover]{bottom:calc(var(--m-nav) + var(--m-safe) + 12px)!important;top:auto!important}
  body.m-modal .toast-region,body.m-modal .toast-region[popover],body.m-keyboard .toast-region,body.m-keyboard .toast-region[popover]{bottom:calc(100dvh - var(--m-vh) - var(--m-vtop) + 84px + var(--m-safe))!important}
  .timer-dock{position:fixed;bottom:auto;right:auto;left:calc(100vw - 64px);top:calc(100dvh - var(--m-nav) - var(--m-safe) - 64px);width:54px;height:54px;max-width:none;padding:0;display:block;background:transparent;border:0;border-radius:999px;box-shadow:none;z-index:55;overflow:visible}
  .timer-dock.is-snapping{transition:left .24s cubic-bezier(.22,1,.36,1),top .24s cubic-bezier(.22,1,.36,1)}
@@ -10369,12 +10370,12 @@ function syncTimerDisplays(){
 }
 const TIMER_ACTIVE_KEY_PREFIX='worktree_x_v8_timer:';
 function activeTimerStorageScope(){
- if(typeof demoAccount!=='undefined'&&demoAccount)return 'demo';
- if(typeof isDemoRoute==='function'&&isDemoRoute()&&!window.__worktree_supabase_user)return 'demo';
  if(window.__worktree_supabase_user?.id){
-  const orgId=window.appState?.activeOrganizationId||window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||window.__worktree_supabase_user?.organization?.id||'';
+  const orgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||window.__worktree_supabase_user?.organization?.id||window.appState?.activeOrganizationId||'';
   return orgId?`cloud:${window.__worktree_supabase_user.id}:${orgId}`:null;
  }
+ if(typeof demoAccount!=='undefined'&&demoAccount)return 'demo';
+ if(typeof isDemoRoute==='function'&&isDemoRoute())return 'demo';
  const acc=typeof currentAccount==='function'?currentAccount():null;
  if(acc?.id)return `local:${acc.id}`;
  return null;

@@ -99,4 +99,90 @@ test.describe('Desktop Layout (>= 901px)', () => {
     await expect(doingCol.locator('.board-card', { hasText: 'Gọi lại 12 khách' })).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  test('desktop timer dock stays compact, persists continuously across reload, and clears on stop', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', err => errors.push(err.message));
+
+    await page.goto('/?demo=1');
+    await page.locator('.focus-title').first().click();
+    await expect(page.locator('#drawer')).toBeVisible();
+    await page.locator('#drawer .drawer-footer [data-action="timer-toggle"]').click();
+    await page.locator('#drawer .drawer-top [data-action="close"][data-dialog="drawer"]').click();
+
+    const dock = page.locator('#timerDock');
+    await expect(dock).toBeVisible();
+    await expect(dock.locator('.timer-panel')).toBeVisible();
+    await expect(dock.locator('.timer-orb')).toBeHidden();
+
+    // Reload page -> timer remains active and keeps advancing until user explicitly stops
+    await page.waitForTimeout(1100);
+    await page.reload();
+    await expect(dock).toBeVisible();
+    const timerText = await dock.locator('[data-timer-value]').textContent();
+    expect(timerText).not.toBe('00:00:00');
+
+    // Verify Cloud reload lifecycle simulation preserves active timer across clearTenantUI + setCloudWorkspaceData + enterWorkspace
+    const cloudReloadOk = await page.evaluate(() => {
+      const uid = '00000000-0000-4000-8000-000000000001';
+      const orgA = '00000000-0000-4000-8000-00000000000a';
+      const orgB = '00000000-0000-4000-8000-00000000000b';
+      const taskA = '00000000-0000-4000-8000-000000000111';
+      const nodeA = '00000000-0000-4000-8000-000000000211';
+      const started = Date.now() - 125000;
+      localStorage.setItem(`worktree_x_v8_timer:cloud:${uid}:${orgA}`, JSON.stringify({ taskId: taskA, startedAt: started }));
+      localStorage.removeItem(`worktree_x_v8_timer:cloud:${uid}:${orgB}`);
+
+      // Simulate reload sequence where window.__worktree_supabase_user exists BEFORE clearTenantUI & setCloudWorkspaceData
+      window.__worktree_supabase_user = { id: uid, role: 'owner', scopes: [], personId: null, organization: { id: orgA, organizationId: orgA }, active: true, version: 1 };
+      window.appState = window.appState || {};
+      window.appState.activeOrganizationId = orgA;
+      window.__active_org_id = orgA;
+      window.__worktree_is_cloud_workspace = false;
+
+      // Clear legacy UI must NOT erase cloud timer in storage
+      window.clearTenantUI('Org A');
+      window.setCloudWorkspaceData({
+        nodes: [{ id: nodeA, parent: null, type: 'company', name: 'Org A' }],
+        employees: [],
+        tasks: [{ id: taskA, node: nodeA, title: 'Cloud Timer Task', status: 'Đang làm', priority: 'Cao', due: '', start: '', estimate: 1, actual: 0, progress: 10, desc: '', tags: [], dependency: '', dependencies: [], checklist: [], autoProgress: false, favorite: false, comments: [], logs: [], createdAt: '', updatedAt: '' }],
+        pins: [],
+        starredTaskIds: [],
+        savedViews: [],
+        activities: [],
+        orgName: 'Org A'
+      });
+      const activeAfterOrgA = Boolean(localStorage.getItem(`worktree_x_v8_timer:cloud:${uid}:${orgA}`)) && !document.getElementById('timerDock').hidden;
+
+      // Switch to Org B -> Org A timer must NOT leak into Org B, yet Org A storage remains intact
+      window.appState.activeOrganizationId = orgB;
+      window.__active_org_id = orgB;
+      window.clearTenantUI('Org B');
+      window.setCloudWorkspaceData({
+        nodes: [{ id: '00000000-0000-4000-8000-000000000212', parent: null, type: 'company', name: 'Org B' }],
+        employees: [],
+        tasks: [],
+        pins: [],
+        starredTaskIds: [],
+        savedViews: [],
+        activities: [],
+        orgName: 'Org B'
+      });
+      const hiddenInOrgB = document.getElementById('timerDock').hidden && Boolean(localStorage.getItem(`worktree_x_v8_timer:cloud:${uid}:${orgA}`));
+
+      // Clean up synthetic cloud simulation keys before page teardown
+      localStorage.removeItem(`worktree_x_v8_timer:cloud:${uid}:${orgA}`);
+      return activeAfterOrgA && hiddenInOrgB;
+    });
+    expect(cloudReloadOk).toBe(true);
+
+    // Reload clean back into demo mode and verify desktop explicit stop
+    await page.goto('/?demo=1');
+    await expect(dock).toBeVisible();
+    await dock.locator('.timer-desktop-stop').click();
+    await expect(dock).toBeHidden();
+    await page.reload();
+    await expect(dock).toBeHidden();
+    expect(errors).toEqual([]);
+  });
 });

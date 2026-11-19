@@ -5583,12 +5583,12 @@ function syncTimerDisplays(){
 }
 const TIMER_ACTIVE_KEY_PREFIX='worktree_x_v8_timer:';
 function activeTimerStorageScope(){
- if(typeof demoAccount!=='undefined'&&demoAccount)return 'demo';
- if(typeof isDemoRoute==='function'&&isDemoRoute()&&!window.__worktree_supabase_user)return 'demo';
  if(window.__worktree_supabase_user?.id){
-  const orgId=window.appState?.activeOrganizationId||window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||window.__worktree_supabase_user?.organization?.id||'';
+  const orgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||window.__worktree_supabase_user?.organization?.id||window.appState?.activeOrganizationId||'';
   return orgId?`cloud:${window.__worktree_supabase_user.id}:${orgId}`:null;
  }
+ if(typeof demoAccount!=='undefined'&&demoAccount)return 'demo';
+ if(typeof isDemoRoute==='function'&&isDemoRoute())return 'demo';
  const acc=typeof currentAccount==='function'?currentAccount():null;
  if(acc?.id)return `local:${acc.id}`;
  return null;
