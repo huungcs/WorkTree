@@ -30,7 +30,10 @@ export const McpClientService = {
 
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) {
-      throw new Error(data?.error || 'Không thể kết nối máy chủ MCP. Vui lòng thử lại.');
+      const err = new Error(data?.error || 'Không thể kết nối máy chủ MCP. Vui lòng thử lại.');
+      err.status = res.status;
+      err.code = data?.code || null;
+      throw err;
     }
     return data;
   },
