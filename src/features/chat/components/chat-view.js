@@ -20,7 +20,7 @@ function avatar(name, tone = 'purple', group = false, extra = '', portrait = nul
 const iconButton = (action, label, iconName, extra = '') => `<button type="button" class="icon-btn chat-icon-button" data-chat-action="${action}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" ${extra}>${icon(iconName)}</button>`;
 
 /** Tenant context and adapter are injected; this feature never imports app state. */
-export function mountChatFeature({ host, getContext, subscribeContext = () => () => {}, createAdapter, standalone = false, onCloseSidebar = () => {}, taskBridge = null }) {
+export function mountChatFeature({ host, getContext, subscribeContext = () => () => {}, createAdapter, standalone = false, onCloseSidebar = () => {}, taskBridge = null, aiBridge = null }) {
   let context;
   let adapter;
   let abortController;
@@ -225,9 +225,32 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     }).join('');
   }
   const aiOpenedIds = new Set();
+  const aiSummaries = new Map();
+  const aiAbortControllers = new Map();
+  let aiRequestSeq = 0;
   let aiSummarySignature = '';
+  function clearConversationAiState(conversationId = null) {
+    if (conversationId) {
+      const ctrl = aiAbortControllers.get(conversationId);
+      try { ctrl?.abort(); } catch {}
+      aiAbortControllers.delete(conversationId);
+      aiSummaries.delete(conversationId);
+      aiOpenedIds.delete(conversationId);
+      return;
+    }
+    for (const ctrl of aiAbortControllers.values()) {
+      try { ctrl?.abort(); } catch {}
+    }
+    aiAbortControllers.clear();
+    aiSummaries.clear();
+    aiOpenedIds.clear();
+    aiRequestSeq += 1;
+  }
+  function getMeaningfulMessages(msgList = messages) {
+    return (msgList || []).filter(m => m && (m.kind === 'text' || m.kind === 'attachment') && !m.deletedAt && m.text?.trim() && !m.text.startsWith('📎 '));
+  }
   function extractChatActionItems(msgList) {
-    const textMsgs = (msgList || []).filter(m => m && (m.kind === 'text' || m.kind === 'attachment') && !m.deletedAt && m.text?.trim() && !m.text.startsWith('📎 '));
+    const textMsgs = getMeaningfulMessages(msgList);
     const actionPattern = /\b(nho|nhac|giao|can|chot|hoan thanh|gui|kiem tra|deadline|truoc|thu\s+[2-7]|ngay mai|hom nay|@)/i;
     const scored = textMsgs.map(m => {
       const f = fold(m.text);
@@ -242,6 +265,99 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       text: x.message.text.trim()
     }));
   }
+  async function requestAiSummary(conversationId, { force = false } = {}) {
+    if (!conversationId || !current || current.id !== conversationId) return;
+    const meaningful = getMeaningfulMessages(messages);
+    const latestId = meaningful.at(-1)?.id || null;
+    const canCloudAi = Boolean(aiBridge?.isCloudAvailable?.() && typeof aiBridge.summarizeConversation === 'function');
+
+    if (!canCloudAi) {
+      aiSummaries.set(conversationId, {
+        status: 'ready',
+        source: 'local',
+        overview: '',
+        decisions: [],
+        items: extractChatActionItems(messages),
+        lastMessageId: latestId,
+        analyzedCount: meaningful.length,
+        notice: ''
+      });
+      renderAiSummary();
+      return;
+    }
+
+    if (meaningful.length === 0) {
+      aiSummaries.set(conversationId, {
+        status: 'ready',
+        source: 'ai',
+        overview: '',
+        decisions: [],
+        items: [],
+        lastMessageId: null,
+        analyzedCount: 0,
+        notice: ''
+      });
+      renderAiSummary();
+      return;
+    }
+
+    const existing = aiSummaries.get(conversationId);
+    if (!force && existing?.status === 'ready' && existing.source === 'ai') {
+      renderAiSummary();
+      return;
+    }
+    if (existing?.status === 'loading' && !force) return;
+
+    const prevCtrl = aiAbortControllers.get(conversationId);
+    try { prevCtrl?.abort(); } catch {}
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    if (controller) aiAbortControllers.set(conversationId, controller);
+
+    const captured = context;
+    const reqId = ++aiRequestSeq;
+    aiSummaries.set(conversationId, { status: 'loading', requestId: reqId, source: 'ai' });
+    renderAiSummary();
+
+    try {
+      const res = await aiBridge.summarizeConversation(conversationId, { signal: controller?.signal });
+      if (!valid(captured) || reqId !== aiRequestSeq) return;
+      if (controller && aiAbortControllers.get(conversationId) !== controller) return;
+      const data = res?.data || {};
+      aiSummaries.set(conversationId, {
+        status: 'ready',
+        requestId: reqId,
+        source: 'ai',
+        model: res?.model || '',
+        overview: String(data.overview || '').trim(),
+        decisions: Array.isArray(data.decisions) ? data.decisions : [],
+        items: Array.isArray(data.actionItems) ? data.actionItems : [],
+        lastMessageId: latestId,
+        analyzedCount: Number(data.analyzedCount || meaningful.length),
+        notice: ''
+      });
+      if (current?.id === conversationId) renderAiSummary();
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      if (!valid(captured) || reqId !== aiRequestSeq) return;
+      if (controller && aiAbortControllers.get(conversationId) !== controller) return;
+      aiSummaries.set(conversationId, {
+        status: 'ready',
+        requestId: reqId,
+        source: 'fallback',
+        overview: '',
+        decisions: [],
+        items: extractChatActionItems(messages),
+        lastMessageId: latestId,
+        analyzedCount: meaningful.length,
+        notice: 'Không thể kết nối AI — đang hiển thị lọc từ khóa cục bộ.'
+      });
+      if (current?.id === conversationId) renderAiSummary();
+    } finally {
+      if (controller && aiAbortControllers.get(conversationId) === controller) {
+        aiAbortControllers.delete(conversationId);
+      }
+    }
+  }
   function renderAiSummary() {
     const slot = $('[data-chat-ai-summary]');
     const btn = $('[data-chat-ai-toggle]');
@@ -253,35 +369,146 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     slot.hidden = !isOpen;
     if (atBottom) history.scrollTop = history.scrollHeight;
     if (!isOpen) return;
-    const items = extractChatActionItems(messages);
+
+    const canCloudAi = Boolean(aiBridge?.isCloudAvailable?.() && typeof aiBridge.summarizeConversation === 'function');
+    const meaningful = getMeaningfulMessages(messages);
+    const latestId = meaningful.at(-1)?.id || null;
+    let entry = aiSummaries.get(current.id);
+    if (!entry && !canCloudAi) {
+      entry = {
+        status: 'ready',
+        source: 'local',
+        overview: '',
+        decisions: [],
+        items: extractChatActionItems(messages),
+        lastMessageId: latestId,
+        analyzedCount: meaningful.length,
+        notice: ''
+      };
+      aiSummaries.set(current.id, entry);
+    }
+
     const canCreate = Boolean(taskBridge?.canCreate());
-    const signature = JSON.stringify([items, canCreate]);
+    const hasNewer = Boolean(entry?.status === 'ready' && entry.source === 'ai' && latestId && entry.lastMessageId && latestId !== entry.lastMessageId);
+    const refreshBtn = slot.querySelector('[data-chat-ai-refresh]');
+    if (refreshBtn) {
+      refreshBtn.hidden = !canCloudAi || entry?.status === 'loading' || meaningful.length === 0;
+    }
+
+    const signature = JSON.stringify([
+      current.id,
+      entry?.status || 'idle',
+      entry?.source || 'local',
+      entry?.overview || '',
+      entry?.decisions || [],
+      entry?.items || [],
+      entry?.notice || '',
+      hasNewer,
+      canCloudAi,
+      canCreate,
+      meaningful.length
+    ]);
     if (aiSummarySignature === signature) return;
-    const activeTask = slot.contains(document.activeElement) ? document.activeElement.dataset.chatAiTask : null;
+
+    const activeTaskAttr = slot.contains(document.activeElement)
+      ? (document.activeElement.dataset.chatAiTaskIdx || document.activeElement.dataset.chatAiTask || null)
+      : null;
     const summaryBody = slot.querySelector('.chat-ai-summary-body');
-    const scrollTop = summaryBody.scrollTop;
-    const body = items.length
-      ? `<ul class="chat-ai-summary-list">${items.map(item => `
-        <li class="chat-ai-summary-item">
-          <div class="chat-ai-summary-copy"><strong>${escapeHtml(item.sender)}</strong><p>${escapeHtml(item.text)}</p></div>
-          ${canCreate ? `<button type="button" class="icon-btn chat-icon-button" data-chat-ai-task="${escapeHtml(item.messageId)}" aria-label="Tạo công việc từ tin nhắn của ${escapeHtml(item.sender)}" title="Tạo công việc">${icon('plus')}</button>` : ''}
-        </li>`).join('')}</ul>`
-      : '<p class="chat-ai-summary-empty">Chưa đủ nội dung trao đổi để rút trích đầu việc.</p>';
     const count = slot.querySelector('[data-chat-ai-count]');
-    count.hidden = !items.length;
-    count.textContent = items.length ? `${items.length} tin nhắn đáng chú ý` : '';
+    const scrollTop = summaryBody.scrollTop;
+
+    let countText = '';
+    let body = '';
+
+    if (entry?.status === 'loading') {
+      countText = 'Đang phân tích…';
+      body = `
+        <div class="chat-ai-loading" role="status" aria-live="polite">
+          <p class="chat-ai-summary-empty">AI đang đọc và tổng hợp hội thoại…</p>
+          <div class="chat-ai-skeleton"></div>
+          <div class="chat-ai-skeleton is-short"></div>
+        </div>`;
+    } else if (entry?.source === 'ai' && canCloudAi) {
+      if (entry.analyzedCount === 0 || meaningful.length === 0) {
+        countText = '';
+        body = '<p class="chat-ai-summary-empty">Chưa đủ nội dung trao đổi để tóm tắt.</p>';
+      } else {
+        const items = entry.items || [];
+        const decisions = entry.decisions || [];
+        countText = `${entry.analyzedCount} tin nhắn · ${items.length} đầu việc`;
+        const staleHtml = hasNewer
+          ? '<div class="chat-ai-notice"><span>Hội thoại có tin nhắn mới</span><button type="button" class="btn small" data-chat-ai-refresh>Cập nhật</button></div>'
+          : '';
+        const overviewHtml = entry.overview
+          ? `<section class="chat-ai-overview"><p>${escapeHtml(entry.overview)}</p></section>`
+          : '';
+        const decisionsHtml = decisions.length
+          ? `<section class="chat-ai-decisions"><h4>Điểm đã chốt</h4><ul>${decisions.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul></section>`
+          : '';
+        const itemsHtml = items.length
+          ? `<ul class="chat-ai-summary-list">${items.map((item, idx) => {
+              const tags = [
+                item.assigneeHint ? `<span class="chat-ai-chip">${escapeHtml(item.assigneeHint)}</span>` : '',
+                item.dueHint ? `<span class="chat-ai-chip">${escapeHtml(item.dueHint)}</span>` : '',
+                item.priority && item.priority !== 'Trung bình' ? `<span class="chat-ai-chip is-priority">${escapeHtml(item.priority)}</span>` : ''
+              ].filter(Boolean).join('');
+              return `
+                <li class="chat-ai-summary-item">
+                  <div class="chat-ai-summary-copy">
+                    <strong>${escapeHtml(item.title)}</strong>
+                    ${item.context ? `<p>${escapeHtml(item.context)}</p>` : ''}
+                    ${tags ? `<div class="chat-ai-tags">${tags}</div>` : ''}
+                  </div>
+                  ${canCreate ? `<button type="button" class="icon-btn chat-icon-button" data-chat-ai-task-idx="${idx}" aria-label="Tạo công việc: ${escapeHtml(item.title)}" title="Tạo công việc">${icon('plus')}</button>` : ''}
+                </li>`;
+            }).join('')}</ul>`
+          : '<p class="chat-ai-summary-empty">Chưa phát hiện đầu việc mới cần tạo trong đoạn trao đổi này.</p>';
+        body = `${staleHtml}${overviewHtml}${decisionsHtml}${itemsHtml}`;
+      }
+    } else {
+      const items = entry?.items || extractChatActionItems(messages);
+      countText = items.length
+        ? `${items.length} tin nhắn đáng chú ý${canCloudAi ? '' : ' · Xem thử'}`
+        : '';
+      const noticeHtml = entry?.notice
+        ? `<div class="chat-ai-notice" role="status"><span>${escapeHtml(entry.notice)}</span><button type="button" class="btn small" data-chat-ai-refresh>Thử lại với AI</button></div>`
+        : '';
+      const listHtml = items.length
+        ? `<ul class="chat-ai-summary-list">${items.map(item => `
+            <li class="chat-ai-summary-item">
+              <div class="chat-ai-summary-copy"><strong>${escapeHtml(item.sender)}</strong><p>${escapeHtml(item.text)}</p></div>
+              ${canCreate ? `<button type="button" class="icon-btn chat-icon-button" data-chat-ai-task="${escapeHtml(item.messageId)}" aria-label="Tạo công việc từ tin nhắn của ${escapeHtml(item.sender)}" title="Tạo công việc">${icon('plus')}</button>` : ''}
+            </li>`).join('')}</ul>`
+        : '<p class="chat-ai-summary-empty">Chưa đủ nội dung trao đổi để rút trích đầu việc.</p>';
+      body = `${noticeHtml}${listHtml}`;
+    }
+
+    count.hidden = !countText;
+    count.textContent = countText;
     summaryBody.innerHTML = body;
     summaryBody.scrollTop = scrollTop;
     aiSummarySignature = signature;
-    if (activeTask) {
-      const action = [...summaryBody.querySelectorAll('[data-chat-ai-task]')].find(button => button.dataset.chatAiTask === activeTask);
+    if (activeTaskAttr !== null) {
+      const action = [...summaryBody.querySelectorAll('[data-chat-ai-task-idx], [data-chat-ai-task]')].find(button =>
+        (button.dataset.chatAiTaskIdx || button.dataset.chatAiTask) === activeTaskAttr
+      );
       (action || $('#chatAiSummaryTitle')).focus({ preventScroll: true });
     }
   }
   function setAiSummary(open) {
+    if (!current) return;
     if (open) aiOpenedIds.add(current.id);
     else aiOpenedIds.delete(current.id);
-    renderAiSummary();
+    if (open) {
+      const canCloudAi = Boolean(aiBridge?.isCloudAvailable?.() && typeof aiBridge.summarizeConversation === 'function');
+      if (!canCloudAi || !aiSummaries.has(current.id)) {
+        void requestAiSummary(current.id, { force: !canCloudAi });
+      } else {
+        renderAiSummary();
+      }
+    } else {
+      renderAiSummary();
+    }
     $(open ? '#chatAiSummaryTitle' : '[data-chat-ai-toggle]')?.focus({ preventScroll: true });
   }
   function renderThread() {
@@ -306,7 +533,10 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
               <h3 id="chatAiSummaryTitle" tabindex="-1">Tóm tắt AI</h3>
               <p data-chat-ai-count hidden></p>
             </div>
-            <button type="button" class="icon-btn chat-icon-button" data-chat-ai-close aria-label="Đóng tóm tắt AI" title="Đóng tóm tắt AI">${icon('x')}</button>
+            <div class="chat-ai-head-actions">
+              <button type="button" class="icon-btn chat-icon-button" data-chat-ai-refresh aria-label="Phân tích lại bằng AI" title="Phân tích lại bằng AI" hidden>${icon('refresh')}</button>
+              <button type="button" class="icon-btn chat-icon-button" data-chat-ai-close aria-label="Đóng tóm tắt AI" title="Đóng tóm tắt AI">${icon('x')}</button>
+            </div>
           </header>
           <div class="chat-ai-summary-body"></div>
         </section>
@@ -542,9 +772,38 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     const captured = context;
     const source = { conversationId: selectedId, messageId };
     taskBridge.openForm({
+      conversationId: selectedId,
+      messageId,
       text: message.text,
       conversationTitle: current?.title || '',
       senderName: personName(message.senderUserId),
+      isCurrent: () => valid(captured),
+      onCreated(taskId) {
+        if (valid(captured)) taskSources.set(String(taskId), source);
+      }
+    });
+  }
+
+  function createTaskFromAiItem(idx) {
+    if (!current || !taskBridge?.canCreate()) return;
+    const entry = aiSummaries.get(current.id);
+    const item = entry?.items?.[Number(idx)];
+    if (!item) return;
+    const captured = context;
+    const sourceMsg = messages.find(m => m.id === item.messageId && !m.deletedAt) || null;
+    const source = { conversationId: selectedId, messageId: item.messageId };
+    taskBridge.openForm({
+      conversationId: selectedId,
+      messageId: item.messageId,
+      text: sourceMsg?.text || item.context || item.title,
+      conversationTitle: current.title || '',
+      senderName: sourceMsg ? personName(sourceMsg.senderUserId) : (item.assigneeHint || ''),
+      aiExtracted: {
+        title: item.title,
+        description: item.context || '',
+        priority: item.priority || 'Trung bình',
+        due: /^\d{4}-\d{2}-\d{2}$/.test(item.dueHint || '') ? item.dueHint : ''
+      },
       isCurrent: () => valid(captured),
       onCreated(taskId) {
         if (valid(captured)) taskSources.set(String(taskId), source);
@@ -770,8 +1029,14 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (aiToggle && current) {
       setAiSummary(!aiOpenedIds.has(current.id)); return;
     }
+    const aiRefresh = event.target.closest('[data-chat-ai-refresh]');
+    if (aiRefresh && current) {
+      void requestAiSummary(current.id, { force: true }); return;
+    }
     const aiClose = event.target.closest('[data-chat-ai-close]');
     if (aiClose && current) { setAiSummary(false); return; }
+    const aiIdxBtn = event.target.closest('[data-chat-ai-task-idx]');
+    if (aiIdxBtn) { createTaskFromAiItem(aiIdxBtn.dataset.chatAiTaskIdx); return; }
     const aiTaskBtn = event.target.closest('[data-chat-ai-task]');
     if (aiTaskBtn) { createTaskFromMessage(aiTaskBtn.dataset.chatAiTask); return; }
     const removeAttBtn = event.target.closest('[data-chat-remove-attachment]');
@@ -853,7 +1118,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     abortController?.abort(); unsubscribeAdapter?.(); adapter?.dispose?.();
     abortController = new AbortController(); context = { ...next, signal: abortController.signal };
     conversations = []; messages = []; participants = []; selectedId = null; current = null; replyTo = null; pendingAttachments = []; uploadingAttachment = false;
-    drafts.clear(); failed.clear(); taskSources.clear(); aiOpenedIds.clear(); sending = false; ++listRequest; ++detailRequest;
+    drafts.clear(); failed.clear(); taskSources.clear(); clearConversationAiState(); sending = false; ++listRequest; ++detailRequest;
     clearTimeout(noticeTimer); live.textContent = ''; dialogPeople = []; selectedPeople.clear(); dialogMode = null;
     document.body.classList.remove('chat-conversation-open');
     workbench.classList.remove('has-conversation'); setInfo(false, false); if (dialog.open) dialog.close();
@@ -868,6 +1133,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
         if (!valid(captured)) return;
         if (event?.conversationId) {
           drafts.delete(draftKey(event.conversationId));
+          clearConversationAiState(event.conversationId);
           conversations = conversations.filter(c => c.id !== event.conversationId);
           for (const [key, item] of failed) if (item.conversationId === event.conversationId) failed.delete(key);
           if (selectedId === event.conversationId) {
@@ -876,7 +1142,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
           }
           if (dialog.open) dialog.close(); renderList(); updateNavigation();
         } else {
-          drafts.clear(); failed.clear(); conversations = []; messages = []; participants = []; current = null; selectedId = null; replyTo = null;
+          drafts.clear(); failed.clear(); clearConversationAiState(); conversations = []; messages = []; participants = []; current = null; selectedId = null; replyTo = null;
           close(); renderList(); renderThread(); abortController.abort(); unsubscribeAdapter?.(); adapter?.dispose?.(); adapter = null;
         }
         notice('Bạn không còn quyền truy cập cuộc trò chuyện này.', true);
@@ -897,6 +1163,6 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       renderMessages();
       if (infoOpen) renderInfo();
     },
-    dispose() { disposed = true; close(); clearOwnAvatar(); abortController?.abort(); events.abort(); unsubscribeAdapter?.(); unsubscribeContext?.(); adapter?.dispose?.(); clearTimeout(noticeTimer); drafts.clear(); failed.clear(); taskSources.clear(); dialog.remove(); host.replaceChildren(); }
+    dispose() { disposed = true; close(); clearOwnAvatar(); clearConversationAiState(); abortController?.abort(); events.abort(); unsubscribeAdapter?.(); unsubscribeContext?.(); adapter?.dispose?.(); clearTimeout(noticeTimer); drafts.clear(); failed.clear(); taskSources.clear(); dialog.remove(); host.replaceChildren(); }
   };
 }

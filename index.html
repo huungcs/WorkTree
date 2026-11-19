@@ -76,9 +76,9 @@
 </script>
 
 <link rel="stylesheet" href="src/design-system/typography.css?v=1">
-<link rel="stylesheet" href="css/style.css?v=8.2.40">
+<link rel="stylesheet" href="css/style.css?v=8.2.43">
 <link rel="stylesheet" href="src/features/onboarding/styles/onboarding.css">
-<link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.39">
+<link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.40">
 <link rel="stylesheet" href="src/design-system/field-focus.css?v=1">
 <link rel="manifest" href="manifest.webmanifest">
 </head>
@@ -190,24 +190,24 @@
           <p id="hubPageSubtitle">Quản lý tài khoản phân quyền, kết nối trợ lý AI (MCP) và tùy chỉnh dữ liệu không gian làm việc.</p>
         </div>
         <div class="page-actions">
-          <button type="button" class="btn" data-action="hub-back"><span data-icon="chevron-left"></span><span>Quay lại công việc</span></button>
+          <button type="button" class="btn" data-action="hub-back" aria-label="Quay lại công việc"><span data-icon="chevron-left"></span><span class="hub-desktop-label">Quay lại công việc</span></button>
         </div>
       </div>
       <div class="view-nav system-hub-tabs" role="tablist" aria-label="Phân hệ Quản trị và Cài đặt" id="systemHubTabs">
-        <button type="button" class="view-tab" role="tab" id="hub-tab-access" data-action="hub-tab" data-hub-tab="access" aria-selected="true" aria-controls="hubPanelAccess">
-          <span data-icon="shield"></span><span>Tài khoản &amp; Phân quyền</span>
+        <button type="button" class="view-tab" role="tab" id="hub-tab-access" data-action="hub-tab" data-hub-tab="access" aria-selected="true" aria-controls="hubPanelAccess" aria-label="Tài khoản &amp; Phân quyền">
+          <span data-icon="shield"></span><span class="hub-desktop-label">Tài khoản &amp; Phân quyền</span><span class="hub-mobile-label" aria-hidden="true">Phân quyền</span>
         </button>
-        <button type="button" class="view-tab" role="tab" id="hub-tab-mcp" data-action="hub-tab" data-hub-tab="mcp" aria-selected="false" aria-controls="hubPanelMcp">
-          <span data-icon="bot"></span><span>Kết nối AI (MCP)</span>
+        <button type="button" class="view-tab" role="tab" id="hub-tab-mcp" data-action="hub-tab" data-hub-tab="mcp" aria-selected="false" aria-controls="hubPanelMcp" aria-label="Kết nối AI (MCP)">
+          <span data-icon="bot"></span><span class="hub-desktop-label">Kết nối AI (MCP)</span><span class="hub-mobile-label" aria-hidden="true">Kết nối AI</span>
         </button>
         <button type="button" class="view-tab" role="tab" id="hub-tab-recurring" data-action="hub-tab" data-hub-tab="recurring" aria-selected="false" aria-controls="hubPanelRecurring" tabindex="-1">
           <span data-icon="calendar"></span><span>Việc định kỳ</span>
         </button>
-        <button type="button" class="view-tab" role="tab" id="hub-tab-settings" data-action="hub-tab" data-hub-tab="settings" aria-selected="false" aria-controls="hubPanelSettings">
-          <span data-icon="settings"></span><span>Cài đặt &amp; Dữ liệu</span>
+        <button type="button" class="view-tab" role="tab" id="hub-tab-settings" data-action="hub-tab" data-hub-tab="settings" aria-selected="false" aria-controls="hubPanelSettings" aria-label="Cài đặt &amp; Dữ liệu">
+          <span data-icon="settings"></span><span class="hub-desktop-label">Cài đặt &amp; Dữ liệu</span><span class="hub-mobile-label" aria-hidden="true">Dữ liệu</span>
         </button>
-        <button type="button" class="view-tab" role="tab" id="hub-tab-notifications" data-action="hub-tab" data-hub-tab="notifications" aria-selected="false" aria-controls="hubPanelNotifications" tabindex="-1">
-          <span data-icon="bell"></span><span>Thông báo &amp; Nhắc việc</span>
+        <button type="button" class="view-tab" role="tab" id="hub-tab-notifications" data-action="hub-tab" data-hub-tab="notifications" aria-selected="false" aria-controls="hubPanelNotifications" tabindex="-1" aria-label="Thông báo &amp; Nhắc việc">
+          <span data-icon="bell"></span><span class="hub-desktop-label">Thông báo &amp; Nhắc việc</span><span class="hub-mobile-label" aria-hidden="true">Thông báo</span>
         </button>
       </div>
       <section id="hubPanelAccess" class="panel hub-panel" role="tabpanel" aria-labelledby="hub-tab-access">
@@ -293,9 +293,9 @@
 <div class="sr-only" role="status" aria-live="polite" id="liveStatus"></div>
 <noscript><div class="noscript">WorkTree X cần JavaScript để hoạt động. Vui lòng bật JavaScript trong trình duyệt.</div></noscript>
 
-<script src="js/core.js?v=8.2.38"></script>
-<script src="js/access.js?v=8.2.37"></script>
-<script src="js/mobile.js?v=8.2.7"></script>
-<script type="module" src="src/app/app.js?v=8.2.34"></script>
+<script src="js/core.js?v=8.2.40"></script>
+<script src="js/access.js?v=8.2.39"></script>
+<script src="js/mobile.js?v=8.2.8"></script>
+<script type="module" src="src/app/app.js?v=8.2.35"></script>
 </body>
 </html>

@@ -725,7 +725,8 @@ function closeDialog(id,force=false){
  if(!force&&((id==='taskDialog'&&dirtyTask)||(id==='nodeDialog'&&dirtyNode))){
   ask('Bỏ thay đổi chưa lưu?','Nội dung đang nhập sẽ không được lưu. Công việc và dữ liệu đã lưu trước đó vẫn giữ nguyên.','Bỏ thay đổi',true).then(ok=>{if(ok)closeDialog(id,true);});return;
  }
- const el=$(id);if(!el?.open)return;el.close();if(id==='drawer'){drawerId=null;drawerAiDraft=null;editingChecklistItem=null;if(window.RealtimeService)window.RealtimeService.unsubscribeTaskDetail();}
+ const el=$(id);if(!el?.open)return;el.close();if(id==='drawer'){try{drawerAiAbort?.abort();}catch(_){}drawerAiAbort=null;drawerAiRequestSeq+=1;drawerId=null;drawerAiDraft=null;editingChecklistItem=null;if(window.RealtimeService)window.RealtimeService.unsubscribeTaskDetail();}
+ if(id==='taskDialog'){try{taskFormAiAbort?.abort();}catch(_){}taskFormAiAbort=null;taskFormAiSeq+=1;pendingMessageAiDraft=null;}
  if(nodePickerState.target&&$(nodePickerState.target)?.closest('dialog')===el)nodePickerState.target=null;
  if((id==='taskDialog'&&ownerPickerState.target==='tOwner')||(id==='drawer'&&ownerPickerState.target==='drawerOwner'))ownerPickerState.target=null;
  if(id==='drawer')syncUrlWithState({replace:false});
@@ -1276,11 +1277,13 @@ function renderWorkload(arr){
  if(state.filters.owner&&state.filters.owner!=='unassigned')members=members.filter(p=>String(p.id)===state.filters.owner);
  if(state.filters.owner==='unassigned')members=[];
  const active=arr.filter(t=>t.status!=='Hoàn thành'),unassigned=active.filter(t=>t.owner===null),unscheduled=active.filter(t=>!t.due);
+ const workloadStats=[];
  const html=members.map(p=>{
   const tasks=active.filter(t=>t.owner!=null&&String(t.owner)===String(p.id)),values=Array(7).fill(0);
   const collabTasks=active.filter(t=>(t.owner==null||String(t.owner)!==String(p.id))&&Array.isArray(t.collaborators)&&t.collaborators.some(cid=>String(cid)===String(p.id)));
   tasks.forEach(t=>allocation(t,week).forEach((v,i)=>values[i]+=v));
-  const hours=values.reduce((s,v)=>s+v,0),cap=p.capacity,load=cap?Math.round(hours/cap*100):0,backlog=tasks.filter(t=>!t.due).reduce((s,t)=>s+Math.max(0,t.estimate-t.actual),0);
+  const hours=values.reduce((s,v)=>s+v,0),cap=Number(p.capacity)||0,load=cap?Math.round(hours/cap*100):0,backlog=tasks.filter(t=>!t.due).reduce((s,t)=>s+Math.max(0,t.estimate-t.actual),0);
+  workloadStats.push({person:p,tasks,values,hours,cap,load});
   const label=cap===0?'Chưa đặt năng lực':load>100?`Vượt năng lực · ${load}%`:load>80?`Tải cao · ${load}%`:`Còn dư địa · ${load}%`;
   const max=Math.max(cap/5,...values,1);
   return `<article class="panel person-card"><div class="person-head">${avatar(p.id)}<div class="person-info"><h3>${esc(p.name)}</h3><p title="${esc(p.desc)}">${esc(p.desc||TYPES.person)}</p></div><button class="icon-btn" data-action="workload-person-detail" data-id="${p.id}" data-employee-id="${p.id}" title="Xem hồ sơ nhân sự & phân quyền" aria-label="${esc('Xem hồ sơ nhân sự '+p.name)}">${icon('settings')}</button></div><div class="capacity-line"><span>Giờ còn lại phân bổ trong tuần</span><strong>${num(hours)}<small> / ${num(cap)}h</small></strong></div><div class="progress"><i style="width:${cap?Math.min(100,load):hours?100:0}%;background:${cap&&load>100?'var(--red)':cap&&load>80?'var(--amber)':'var(--primary)'}"></i></div><span class="capacity-pill ${cap&&load>100?'over':cap&&load>80?'high':''}">${label}</span><div class="week-bars" aria-label="Phân bổ giờ theo ngày">${values.map((v,i)=>`<div class="week-bar ${v>(i<5?cap/5:0)&&v>0?'over':''}" title="${formatDate(addDays(week,i))}: ${num(v)}h"><i style="height:${v/max*47}px"></i><span>${['T2','T3','T4','T5','T6','T7','CN'][i]}</span></div>`).join('')}</div><div class="person-foot"><span>${tasks.length} việc đang mở${collabTasks.length?` · ${collabTasks.length} việc phối hợp`:''}</span><button data-action="owner-tasks" data-id="${p.id}">Xem công việc →</button></div>${backlog||tasks.some(isLate)?`<p class="view-note">${backlog?`${num(backlog)}h chưa xếp lịch.`:''}${tasks.some(isLate)?` ${tasks.filter(isLate).length} việc đang quá hạn.`:''}</p>`:''}</article>`;
@@ -1491,6 +1494,32 @@ function parseEntityValue(raw){
 }
 let drawerAiDraft=null;
 const drawerAiSaving=new Set();
+const drawerAiCache=new Map();
+let drawerAiRequestSeq=0;
+let drawerAiAbort=null;
+let taskFormAiAbort=null;
+let taskFormAiSeq=0;
+let pendingMessageAiDraft=null;
+function isCloudAiAvailable(){
+ return Boolean(window.__worktree_is_cloud_workspace&&window.AiClientService&&window.appState?.activeOrganizationId);
+}
+function clearInlineAiState(){
+ try{drawerAiAbort?.abort();}catch(_){}
+ drawerAiAbort=null;
+ drawerAiRequestSeq+=1;
+ drawerAiDraft=null;
+ drawerAiCache.clear();
+ try{taskFormAiAbort?.abort();}catch(_){}
+ taskFormAiAbort=null;
+ taskFormAiSeq+=1;
+ pendingMessageAiDraft=null;
+}
+function currentChecklistFoldSet(t){
+ const existing=new Set((t.checklist||[]).map(c=>fold(Array.isArray(c)?c[0]:(c.content||c.text||''))));
+ const detailList=(window.__taskDetailData&&String(window.__taskDetailData.taskId)===String(t.id)?window.__taskDetailData.checklist:[])||[];
+ for(const c of detailList)existing.add(fold(c.text||c.content||''));
+ return existing;
+}
 
 function parseVietnameseChatDue(text){
  const f=fold(text||'');
@@ -1660,39 +1689,167 @@ function summarizeTaskContext(t){
  return {progressText:progressParts.join(' · '),blockerText,nextStepText};
 }
 
+function applyCachedDrawerAi(t,mode,data={}){
+ if(mode==='checklist'){
+  const exist=currentChecklistFoldSet(t);
+  const items=(Array.isArray(data.items)?data.items:[])
+   .filter(text=>text&&!exist.has(fold(text)))
+   .map(text=>({text,selected:true}));
+  const suggestedHours=Number(data.suggestedHours)||Math.max(2,Number(t.estimate)||4);
+  return {
+   taskId:t.id,
+   mode:'checklist',
+   loading:false,
+   source:'ai',
+   rationale:String(data.rationale||'').trim(),
+   items,
+   suggestedHours,
+   applyEstimate:canManageTask(t)&&!t.estimate
+  };
+ }
+ return {
+  taskId:t.id,
+  mode:'summary',
+  loading:false,
+  source:'ai',
+  riskLevel:data.riskLevel||null,
+  summary:{
+   progressText:String(data.progressText||'Chưa có ghi nhận tiến độ.'),
+   blockerText:String(data.blockerText||'Chưa phát hiện điểm nghẽn.'),
+   nextStepText:String(data.nextStepText||'Rà soát bước tiếp theo.')
+  }
+ };
+}
+
+function buildLocalDrawerAiDraft(t,mode,{source='demo',notice=''}={}){
+ if(mode==='checklist'){
+  const gen=generateSmartChecklistForTask(t);
+  return {
+   taskId:t.id,
+   mode:'checklist',
+   loading:false,
+   source,
+   notice,
+   rationale:'',
+   items:gen.items.map(text=>({text,selected:true})),
+   suggestedHours:gen.suggestedHours,
+   applyEstimate:canManageTask(t)&&!t.estimate
+  };
+ }
+ return {
+  taskId:t.id,
+  mode:'summary',
+  loading:false,
+  source,
+  notice,
+  riskLevel:null,
+  summary:summarizeTaskContext(t)
+ };
+}
+
 function renderDrawerAiBoxHtml(t){
  if(!drawerAiDraft||String(drawerAiDraft.taskId)!==String(t.id))return '';
  const saving=drawerAiSaving.has(t.id);
- if(drawerAiDraft.mode==='checklist'){
-  const itemsHtml=drawerAiDraft.items.map((item,idx)=>`<label class="drawer-ai-check-item"><input type="checkbox" data-ai-check-idx="${idx}" ${item.selected?'checked':''} ${saving?'disabled':''}><span>${esc(item.text)}</span></label>`).join('');
-  return `<div class="drawer-ai-head"><h3 class="drawer-ai-title" tabindex="-1">${icon('sparkles')}Gợi ý checklist</h3><button type="button" class="icon-btn" data-action="ai-close-drawer-box" aria-label="Đóng gợi ý AI" ${saving?'disabled':''}>${icon('x')}</button></div><p class="drawer-ai-sub">${itemsHtml?'Chọn các bước muốn thêm vào công việc.':'Các bước gợi ý đã có trong checklist.'}</p><div class="drawer-ai-checklist">${itemsHtml}</div><div class="drawer-ai-footer">${canManageTask(t)?`<label class="drawer-ai-estimate"><input type="checkbox" id="aiApplyEstimateCheck" ${drawerAiDraft.applyEstimate?'checked':''} ${saving?'disabled':''}><span>Đặt giờ ước tính <strong>${drawerAiDraft.suggestedHours} giờ</strong></span></label>`:''}<button type="button" class="btn small primary" data-action="ai-apply-drawer-checklist" data-id="${t.id}" ${saving||(!itemsHtml&&!canManageTask(t))?'disabled':''}>${icon('check')}${saving?'Đang lưu…':'Áp dụng'}</button></div>`;
+ const isChecklist=drawerAiDraft.mode==='checklist';
+ const titleText=isChecklist?'Gợi ý checklist':'Tóm tắt công việc';
+ const titleIcon=icon(isChecklist?'sparkles':'file');
+ const source=drawerAiDraft.source||(isCloudAiAvailable()?'ai':'demo');
+ const badgeHtml=source==='ai'
+  ?'<span class="drawer-ai-badge">AI</span>'
+  :(source==='fallback'
+    ?'<span class="drawer-ai-badge is-muted">Cục bộ</span>'
+    :'<span class="drawer-ai-badge is-muted">Bản demo</span>');
+ const canRefresh=isCloudAiAvailable()&&!drawerAiDraft.loading&&!saving;
+ const headActions=`<div class="drawer-ai-head-actions">${canRefresh?`<button type="button" class="icon-btn" data-action="ai-refresh-drawer-box" aria-label="Phân tích lại với AI" title="Phân tích lại với AI">${icon('refresh')}</button>`:''}<button type="button" class="icon-btn" data-action="ai-close-drawer-box" aria-label="Đóng khung AI" ${saving?'disabled':''}>${icon('x')}</button></div>`;
+ const headHtml=`<div class="drawer-ai-head"><h3 class="drawer-ai-title" tabindex="-1">${titleIcon}<span>${titleText}</span>${badgeHtml}</h3>${headActions}</div>`;
+ if(drawerAiDraft.loading){
+  return `${headHtml}<div class="drawer-ai-loading" role="status" aria-live="polite"><p class="drawer-ai-sub">AI đang phân tích ngữ cảnh công việc…</p><div class="drawer-ai-skeleton"></div><div class="drawer-ai-skeleton is-short"></div></div>`;
  }
- const s=summarizeTaskContext(t);
- return `<div class="drawer-ai-head"><h3 class="drawer-ai-title" tabindex="-1">${icon('sparkles')}Tóm tắt công việc</h3><button type="button" class="icon-btn" data-action="ai-close-drawer-box" aria-label="Đóng tóm tắt AI">${icon('x')}</button></div><div class="drawer-ai-summary-grid"><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">1. Đang làm đến đâu</span>${esc(s.progressText).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">2. Đang kẹt ở đâu</span>${esc(s.blockerText)}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">3. Bước tiếp theo</span>${esc(s.nextStepText)}</div></div>`;
+ const noticeHtml=drawerAiDraft.notice
+  ?`<div class="drawer-ai-notice" role="status"><span>${esc(drawerAiDraft.notice)}</span>${isCloudAiAvailable()?`<button type="button" class="btn small" data-action="ai-refresh-drawer-box">Thử lại với AI</button>`:''}</div>`
+  :'';
+ if(isChecklist){
+  const itemsHtml=drawerAiDraft.items.map((item,idx)=>`<label class="drawer-ai-check-item"><input type="checkbox" data-ai-check-idx="${idx}" ${item.selected?'checked':''} ${saving?'disabled':''}><span>${esc(item.text)}</span></label>`).join('');
+  const rationaleHtml=drawerAiDraft.rationale?`<p class="drawer-ai-rationale">${esc(drawerAiDraft.rationale)}</p>`:'';
+  return `${headHtml}${noticeHtml}${rationaleHtml}<p class="drawer-ai-sub">${itemsHtml?'Chọn các bước muốn thêm vào công việc.':'Các bước gợi ý đã có trong checklist.'}</p><div class="drawer-ai-checklist">${itemsHtml}</div><div class="drawer-ai-footer">${canManageTask(t)?`<label class="drawer-ai-estimate"><input type="checkbox" id="aiApplyEstimateCheck" ${drawerAiDraft.applyEstimate?'checked':''} ${saving?'disabled':''}><span>Đặt giờ ước tính <strong>${drawerAiDraft.suggestedHours} giờ</strong></span></label>`:''}<button type="button" class="btn small primary" data-action="ai-apply-drawer-checklist" data-id="${t.id}" ${saving||(!itemsHtml&&!canManageTask(t))?'disabled':''}>${icon('check')}${saving?'Đang lưu…':'Áp dụng'}</button></div>`;
+ }
+ const riskMap={low:{label:'Rủi ro thấp',cls:'is-green'},medium:{label:'Cần theo dõi',cls:'is-amber'},high:{label:'Rủi ro cao',cls:'is-red'}};
+ const riskMeta=drawerAiDraft.riskLevel&&riskMap[drawerAiDraft.riskLevel]?riskMap[drawerAiDraft.riskLevel]:null;
+ const riskHtml=riskMeta?`<div class="drawer-ai-risk"><span class="drawer-ai-badge ${riskMeta.cls}">${riskMeta.label}</span></div>`:'';
+ const s=drawerAiDraft.summary||summarizeTaskContext(t);
+ return `${headHtml}${noticeHtml}${riskHtml}<div class="drawer-ai-summary-grid"><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">1. Đang làm đến đâu</span>${esc(s.progressText).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">2. Đang kẹt ở đâu</span>${esc(s.blockerText)}</div><div class="drawer-ai-summary-row"><span class="drawer-ai-summary-label">3. Bước tiếp theo</span>${esc(s.nextStepText)}</div></div>`;
 }
 
-function setDrawerAiPreview(id,mode){
+async function setDrawerAiPreview(id,mode,opts={}){
+ const forceRefresh=Boolean(opts?.forceRefresh);
  const t=byTask.get(parseEntityValue(id));
  if(!t||!canReadTask(t))return deny();
  if(drawerAiSaving.has(t.id))return;
  if(mode==='checklist'&&!canUpdateTask(t))return deny();
- if(drawerAiDraft?.taskId===t.id&&drawerAiDraft.mode===mode){closeDrawerAiPreview();return;}
- if(mode==='checklist'){
-  const gen=generateSmartChecklistForTask(t);
-  drawerAiDraft={taskId:t.id,mode,items:gen.items.map(text=>({text,selected:true})),suggestedHours:gen.suggestedHours,applyEstimate:canManageTask(t)&&!t.estimate};
- }else{
-  drawerAiDraft={taskId:t.id,mode};
+ if(!forceRefresh&&drawerAiDraft?.taskId===t.id&&drawerAiDraft.mode===mode){closeDrawerAiPreview();return;}
+
+ const syncBox=(shouldFocus=true)=>{
+  const box=$('drawerAiResultBox');
+  if(!box)return;
+  box.innerHTML=renderDrawerAiBoxHtml(t);
+  box.hidden=false;
+  for(const button of $$('.drawer-ai-bar button'))button.setAttribute('aria-expanded',String(button.dataset.action==='ai-drawer-'+mode));
+  if(shouldFocus){
+   box.querySelector('h3')?.focus({preventScroll:true});
+   box.querySelector('h3')?.scrollIntoView({block:'nearest'});
+  }
+ };
+
+ if(!isCloudAiAvailable()){
+  try{drawerAiAbort?.abort();}catch(_){}
+  drawerAiAbort=null;
+  drawerAiRequestSeq+=1;
+  drawerAiDraft=buildLocalDrawerAiDraft(t,mode,{source:'demo'});
+  syncBox(true);
+  return;
  }
- const box=$('drawerAiResultBox');
- if(!box)return;
- box.innerHTML=renderDrawerAiBoxHtml(t);box.hidden=false;
- for(const button of $$('.drawer-ai-bar button'))button.setAttribute('aria-expanded',String(button.dataset.action==='ai-drawer-'+mode));
- box.querySelector('h3')?.focus({preventScroll:true});
- box.querySelector('h3')?.scrollIntoView({block:'nearest'});
+
+ const orgId=window.appState.activeOrganizationId;
+ const cacheKey=`${orgId}:${t.id}:${mode}`;
+ if(!forceRefresh&&drawerAiCache.has(cacheKey)){
+  try{drawerAiAbort?.abort();}catch(_){}
+  drawerAiAbort=null;
+  drawerAiRequestSeq+=1;
+  drawerAiDraft=applyCachedDrawerAi(t,mode,drawerAiCache.get(cacheKey));
+  syncBox(true);
+  return;
+ }
+
+ try{drawerAiAbort?.abort();}catch(_){}
+ drawerAiAbort=typeof AbortController==='function'?new AbortController():null;
+ const seq=++drawerAiRequestSeq;
+ drawerAiDraft={taskId:t.id,mode,loading:true,source:'ai'};
+ syncBox(true);
+
+ try{
+  const res=await window.AiClientService.inlineAssist({
+   organizationId:orgId,
+   mode:mode==='checklist'?'task_checklist':'task_summary',
+   payload:{taskId:String(t.id)},
+   signal:drawerAiAbort?.signal||null
+  });
+  if(seq!==drawerAiRequestSeq||String(drawerId)!==String(t.id)||!$('drawer')?.open||window.appState?.activeOrganizationId!==orgId)return;
+  drawerAiCache.set(cacheKey,res.data||{});
+  drawerAiDraft=applyCachedDrawerAi(t,mode,res.data||{});
+  syncBox(false);
+ }catch(err){
+  if(err?.name==='AbortError')return;
+  if(seq!==drawerAiRequestSeq||String(drawerId)!==String(t.id)||!$('drawer')?.open||window.appState?.activeOrganizationId!==orgId)return;
+  drawerAiDraft=buildLocalDrawerAiDraft(t,mode,{source:'fallback',notice:'Không thể kết nối AI — đang hiển thị gợi ý cục bộ.'});
+  syncBox(false);
+ }
 }
 function closeDrawerAiPreview(){
  const trigger=$('drawer').querySelector('.drawer-ai-bar [aria-expanded="true"]');
  if(drawerAiDraft&&drawerAiSaving.has(drawerAiDraft.taskId))return;
+ try{drawerAiAbort?.abort();}catch(_){}
+ drawerAiAbort=null;
+ drawerAiRequestSeq+=1;
  drawerAiDraft=null;
  if($('drawerAiResultBox'))$('drawerAiResultBox').hidden=true;
  trigger?.setAttribute('aria-expanded','false');
@@ -1735,6 +1892,8 @@ async function applyDrawerAiChecklist(id){
     draft.items=draft.items.filter(item=>item.text!==content);
    }
    if(sameDraft())drawerAiDraft=null;
+   drawerAiCache.delete(`${orgId}:${t.id}:checklist`);
+   drawerAiCache.delete(`${orgId}:${t.id}:summary`);
    if(inWorkspace())toast(`Đã thêm ${picked.length} mục checklist${applyEst?` và đặt ${nextEst} giờ ước tính`:''}.`);
   }catch{
    if(inWorkspace())toast('Chưa lưu hết thay đổi. Bạn có thể thử lại các mục còn lại.','error');
@@ -1888,20 +2047,38 @@ window.getAiLocalContext=function(){
 };
 
 function clearTaskMessageSource() {
+ try{taskFormAiAbort?.abort();}catch(_){}
+ taskFormAiAbort=null;
+ taskFormAiSeq+=1;
+ pendingMessageAiDraft=null;
  taskMessageSource = null;
  $('taskForm').classList.remove('has-message-source');
  $('taskForm').querySelector('.task-message-source')?.remove();
 }
-function showTaskMessageSource(source, extractedFields = []) {
- clearTaskMessageSource();
+function showTaskMessageSource(source, extractedFields = [], aiOpts = {}) {
+ const wasOpen = $('taskForm').querySelector('.task-message-source')?.open === true;
+ const savedPending = pendingMessageAiDraft;
+ taskMessageSource = null;
+ $('taskForm').classList.remove('has-message-source');
+ $('taskForm').querySelector('.task-message-source')?.remove();
  if (!source?.isCurrent()) return;
  taskMessageSource = source;
+ pendingMessageAiDraft = savedPending;
  const details = document.createElement('details');
  details.className = 'task-message-source field full';
+ if (wasOpen || aiOpts.showApplyAiButton) details.open = true;
  const hasSuggestions=Array.isArray(extractedFields)&&extractedFields.length>0;
+ const aiStatus=aiOpts.aiStatus||(hasSuggestions?'fallback':'none');
+ const hintHtml=aiStatus==='loading'
+  ?`<span class="ai-task-source-hint" role="status">${icon('sparkles')}AI đang đọc ngữ cảnh…</span>`
+  :(aiStatus==='ready'
+    ?`<span class="ai-task-source-hint">${icon('sparkles')}Đã phân tích bằng AI</span>`
+    :(aiStatus==='fallback'&&hasSuggestions
+      ?`<span class="ai-task-source-hint is-muted">${icon('sparkles')}Gợi ý nhanh</span>`
+      :''));
  details.innerHTML=`<summary>
   <span class="task-message-source-title">${icon('message')}Tin nhắn gốc</span>
-  ${hasSuggestions?`<span class="ai-task-source-hint">${icon('sparkles')}Có gợi ý AI</span>`:''}
+  ${hintHtml}
   <span class="task-message-source-caret" aria-hidden="true">${icon('chevron-down')}</span>
  </summary>
  <div class="task-message-source-content">
@@ -1909,11 +2086,12 @@ function showTaskMessageSource(source, extractedFields = []) {
   ${hasSuggestions?`<p class="task-message-source-suggestions"><strong>Đã điền gợi ý</strong> · ${esc(extractedFields.join(', '))}</p>`:''}
   <div class="task-message-source-foot">
    <p>Người có quyền xem công việc có thể đọc nội dung được chèn.</p>
-   <button type="button" class="btn small">Chèn vào mô tả</button>
+   ${aiOpts.showApplyAiButton?'<button type="button" class="btn small primary" data-action="apply-message-ai-draft">Áp dụng gợi ý AI</button>':''}
+   <button type="button" class="btn small" data-insert-msg-source>Chèn vào mô tả</button>
   </div>
  </div>`;
  details.querySelector('blockquote').textContent = source.text;
- details.querySelector('button').addEventListener('click', () => {
+ details.querySelector('[data-insert-msg-source]').addEventListener('click', () => {
   if (!source.isCurrent()) return;
   const description = $('tDesc');
   const current = description.value.trim();
@@ -1930,8 +2108,65 @@ function showTaskMessageSource(source, extractedFields = []) {
   details.open=false;
   description.focus();
  });
+ details.querySelector('[data-action="apply-message-ai-draft"]')?.addEventListener('click', () => {
+  if (!pendingMessageAiDraft || !source.isCurrent()) return;
+  const applied = applyExtractedTaskDraft(pendingMessageAiDraft, { isAi: true });
+  dirtyTask = true;
+  pendingMessageAiDraft = null;
+  showTaskMessageSource(source, applied, { aiStatus: 'ready' });
+ });
  $('tDesc').closest('.field').before(details);
  $('taskForm').classList.add('has-message-source');
+}
+function applyExtractedTaskDraft(draft, { isAi = false } = {}) {
+ const extractedFields = [];
+ if (!draft || typeof draft !== 'object') return extractedFields;
+ if (draft.title) { $('tTitle').value = draft.title; extractedFields.push('Tiêu đề'); }
+ if (isAi && draft.description !== undefined) {
+  $('tDesc').value = draft.description || '';
+  if (draft.description) extractedFields.push('Mô tả');
+ } else if (!isAi) {
+  $('tDesc').value = '';
+ }
+ if (draft.priority && PRIORITY.includes(draft.priority)) {
+  $('tPriority').value = draft.priority;
+  if (draft.priority !== 'Trung bình') extractedFields.push(`Ưu tiên ${draft.priority}`);
+ }
+ if (draft.nodeId && byNode.has(draft.nodeId) && canPlaceTask(draft.nodeId)) {
+  $('tNode').value = String(draft.nodeId);
+  renderNodePickerBox('tNode');
+  extractedFields.push('Đơn vị');
+ }
+ const validOwner = draft.ownerId && Array.from($('tOwner').options).some(o => o.value === String(draft.ownerId))
+  ? String(draft.ownerId)
+  : '';
+ if (validOwner || !isAi) {
+  $('tOwner').value = validOwner;
+  if (validOwner) extractedFields.push('Người phụ trách');
+ }
+ if (Array.isArray(draft.collaboratorIds) && draft.collaboratorIds.length) {
+  formCollaborators = normalizeCollabIds([...(isAi ? [] : formCollaborators), ...draft.collaboratorIds], $('tOwner').value || null);
+  renderFormCollaboratorsBox();
+  extractedFields.push('Người liên quan');
+ }
+ renderOwnerPickerBox('tOwner');
+ if (draft.due) {
+  $('tDue').value = draft.due;
+  $('tStart').value = draft.due < TODAY ? draft.due : TODAY;
+  extractedFields.push('Hạn hoàn thành');
+ } else if (!isAi) {
+  $('tDue').value = '';
+  $('tStart').value = TODAY;
+ }
+ if (isAi && Number(draft.estimateHours) > 0) {
+  $('tEstimate').value = Number(draft.estimateHours);
+  extractedFields.push('Giờ dự kiến');
+ }
+ if (isAi && Array.isArray(draft.tags) && draft.tags.length) {
+  $('tTags').value = draft.tags.join(', ');
+  extractedFields.push('Nhãn');
+ }
+ return extractedFields;
 }
 $('taskDialog').addEventListener('close', () => {
  if (!$('taskDialog').open) clearTaskMessageSource();
@@ -1971,36 +2206,68 @@ function openTaskForm(id=null,preset={}){
  $('tStatus').innerHTML=STATUS.map(s=>`<option ${s===(t?.status||preset.status||'Chưa làm')?'selected':''}>${esc(s)}</option>`).join('');
  $('tPriority').innerHTML=PRIORITY.map(p=>`<option ${p===(t?.priority||'Trung bình')?'selected':''}>${esc(p)}</option>`).join('');
  const due=t?t.due:preset.due??addDays(TODAY,3);
- const msgDraft=(!t&&preset.messageSource&&preset.messageSource.isCurrent())?parseTaskDraftFromChatMessage(preset.messageSource):null;
- const extractedFields=[];
- if(msgDraft){
-  if(msgDraft.title){$('tTitle').value=msgDraft.title;extractedFields.push('Tiêu đề');}
-  $('tDesc').value='';
-  if(msgDraft.priority&&PRIORITY.includes(msgDraft.priority)){$('tPriority').value=msgDraft.priority;if(msgDraft.priority!=='Trung bình')extractedFields.push(`Ưu tiên ${msgDraft.priority}`);}
-  if(msgDraft.nodeId&&byNode.has(msgDraft.nodeId)&&canPlaceTask(msgDraft.nodeId)){$('tNode').value=String(msgDraft.nodeId);renderNodePickerBox('tNode');extractedFields.push('Đơn vị');}
-  $('tOwner').value=msgDraft.ownerId?String(msgDraft.ownerId):'';
-  if(msgDraft.ownerId)extractedFields.push('Người phụ trách');
-  if(msgDraft.collaboratorIds.length){
-   formCollaborators=normalizeCollabIds([...formCollaborators,...msgDraft.collaboratorIds],$('tOwner').value||null);
-   renderFormCollaboratorsBox();
-   extractedFields.push('Người liên quan');
-  }
-  $('tDue').value=msgDraft.due||'';
-  if(msgDraft.due)extractedFields.push('Hạn hoàn thành');
-  $('tStart').value=msgDraft.due&&msgDraft.due<TODAY?msgDraft.due:TODAY;
-  showTaskMessageSource(preset.messageSource,extractedFields);
- }else{
-  $('tTitle').value=t?.title||'';$('tDesc').value=t?.desc||'';$('tStart').value=t?t.start:due&&due<TODAY?due:TODAY;$('tDue').value=due;
-  showTaskMessageSource(null);
- }
- ownerPickerState.target=null;ownerPickerState.query='';
- renderOwnerPickerBox('tOwner');
  $('tEstimate').value=t?.estimate??4;$('tActual').value=t?.actual??0;$('tProgress').value=t?.progress??(preset.status==='Hoàn thành'?100:0);
  $('tTags').value=t?.tags.join(', ')||'';$('tDependencyNote').value=t?.dependency||'';
  $('tDependencies').innerHTML=readableTasks().filter(x=>x.id!==id).map(x=>`<option value="${x.id}" ${t?.dependencies.includes(x.id)?'selected':''}>${esc(x.title)} · ${esc(x.status)}</option>`).join('');
  $('tAutoProgress').checked=t?.autoProgress||false;$('tProgress').disabled=!!(t?.autoProgress&&(cloud||t?.checklist.length));
  $('progressHint').textContent=$('tProgress').disabled?'Được tính từ checklist.':'Chuyển Hoàn thành sẽ đặt 100%.';
  $('taskAdvanced').open=!!(t?.dependencies.length||t?.autoProgress);
+ const hasMsgSource=!t&&preset.messageSource&&preset.messageSource.isCurrent();
+ if(hasMsgSource){
+  const src=preset.messageSource;
+  if(src.aiExtracted){
+   const baseHintDraft=parseTaskDraftFromChatMessage({text:`${src.senderName||''} ${src.text||''}`,conversationTitle:src.conversationTitle||''});
+   const mergedDraft={...baseHintDraft,...src.aiExtracted,ownerId:src.aiExtracted.ownerId||baseHintDraft.ownerId,nodeId:src.aiExtracted.nodeId||baseHintDraft.nodeId,due:src.aiExtracted.due||baseHintDraft.due};
+   const aiFields=applyExtractedTaskDraft(mergedDraft,{isAi:true});
+   showTaskMessageSource(src,aiFields,{aiStatus:'ready'});
+  }else{
+   const msgDraft=parseTaskDraftFromChatMessage(src);
+   const localFields=applyExtractedTaskDraft(msgDraft,{isAi:false});
+   const cloudAi=isCloudAiAvailable();
+   showTaskMessageSource(src,localFields,{aiStatus:cloudAi?'loading':(localFields.length?'fallback':'none')});
+   if(cloudAi){
+    try{taskFormAiAbort?.abort();}catch(_){}
+    taskFormAiAbort=typeof AbortController==='function'?new AbortController():null;
+    const aiSeq=++taskFormAiSeq;
+    const orgId=window.appState.activeOrganizationId;
+    (async()=>{
+     try{
+      const res=await window.AiClientService.inlineAssist({
+       organizationId:orgId,
+       mode:'chat_extract_task',
+       payload:{
+        conversationId:src.conversationId||null,
+        messageId:src.messageId||null,
+        messageText:src.text,
+        conversationTitle:src.conversationTitle||'',
+        senderName:src.senderName||''
+       },
+       signal:taskFormAiAbort?.signal||null
+      });
+      if(aiSeq!==taskFormAiSeq||!$('taskDialog').open||editingTask||taskMessageSource!==src||!src.isCurrent()||window.appState?.activeOrganizationId!==orgId)return;
+      const aiDraft=res.data||{};
+      if(!dirtyTask){
+       const aiFields=applyExtractedTaskDraft(aiDraft,{isAi:true});
+       pendingMessageAiDraft=null;
+       showTaskMessageSource(src,aiFields,{aiStatus:'ready'});
+      }else{
+       pendingMessageAiDraft=aiDraft;
+       showTaskMessageSource(src,localFields,{aiStatus:'ready',showApplyAiButton:true});
+      }
+     }catch(err){
+      if(err?.name==='AbortError')return;
+      if(aiSeq!==taskFormAiSeq||!$('taskDialog').open||editingTask||taskMessageSource!==src||!src.isCurrent()||window.appState?.activeOrganizationId!==orgId)return;
+      showTaskMessageSource(src,localFields,{aiStatus:localFields.length?'fallback':'none'});
+     }
+    })();
+   }
+  }
+ }else{
+  $('tTitle').value=t?.title||'';$('tDesc').value=t?.desc||'';$('tStart').value=t?t.start:due&&due<TODAY?due:TODAY;$('tDue').value=due;
+  showTaskMessageSource(null);
+  ownerPickerState.target=null;ownerPickerState.query='';
+  renderOwnerPickerBox('tOwner');
+ }
  closeSidebar();showDialog('taskDialog','#tTitle');
 }
 function saveTask(event){
@@ -4057,8 +4324,8 @@ async function renderNotificationSettings({ resetReminder = false } = {}) {
        <button class="btn small" data-action="test-sound" title="Bấm để nghe thử âm thanh chuông">
         ${icon('bell')}Thử chuông
        </button>
-       <button class="btn small primary" data-action="test-device-notification" title="Bấm để gửi thông báo thử nghiệm trực tiếp lên điện thoại">
-        ${icon('check')}Thử gửi thông báo
+       <button class="btn small primary" data-action="test-device-notification" aria-label="Thử thông báo" title="Bấm để gửi thông báo thử nghiệm trực tiếp lên điện thoại">
+        ${icon('check')}<span class="hub-desktop-label">Thử gửi thông báo</span><span class="hub-mobile-label" aria-hidden="true">Thử thông báo</span>
        </button>
       </div>
      </div>
@@ -4071,7 +4338,7 @@ async function renderNotificationSettings({ resetReminder = false } = {}) {
        ${pref?.quiet_hours_enabled ? 'Đang bật' : 'Đang tắt'}
       </button>
      </div>
-    <div style="margin-top:12px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
+    <div class="notif-guide-card" style="margin-top:12px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)">
      <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:6px">
       ${icon('info')}<span>Nhận thông báo & chuông trên điện thoại:</span>
      </div>
@@ -4957,8 +5224,9 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'workload-prev':state.workloadWeek=addDays(state.workloadWeek,-7);renderView();break;
    case 'workload-next':state.workloadWeek=addDays(state.workloadWeek,7);renderView();break;
    case 'workload-today':state.workloadWeek=weekStart(TODAY);renderView();break;
-   case 'ai-drawer-checklist':setDrawerAiPreview(id,'checklist');break;
-   case 'ai-drawer-summary':setDrawerAiPreview(id,'summary');break;
+   case 'ai-drawer-checklist':await setDrawerAiPreview(id,'checklist');break;
+   case 'ai-drawer-summary':await setDrawerAiPreview(id,'summary');break;
+   case 'ai-refresh-drawer-box':if(drawerAiDraft)await setDrawerAiPreview(drawerAiDraft.taskId,drawerAiDraft.mode,{forceRefresh:true});break;
    case 'ai-apply-drawer-checklist':await applyDrawerAiChecklist(id);break;
    case 'ai-close-drawer-box':closeDrawerAiPreview();break;
    case 'ai-digest-modal':openAiExecutiveDigest();break;
@@ -5909,6 +6177,7 @@ window.clearTenantUI=function(orgName){
   if(typeof renderTimer==='function')renderTimer();
   window.__taskDetailData={taskId:null,checklist:[],dependencies:[],comments:[],logs:[],loading:{},errors:{}};
   window.__taskDetailLoadGen=(window.__taskDetailLoadGen||0)+1;
+  if(typeof clearInlineAiState==='function')clearInlineAiState();
   if(typeof closeDialog==='function'&&$('drawer')?.open)closeDialog('drawer',true);
   if(typeof rebuild==='function')rebuild();
   if(typeof renderPins==='function')renderPins();
@@ -5997,6 +6266,7 @@ window.mergeCloudActivities=function(rawActivities, triggerRender = true){
 
 window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds,savedViews,activities,orgName}){
  window.__worktree_is_cloud_workspace=true;
+ if(typeof clearInlineAiState==='function')clearInlineAiState();
  window.cloudEmployees=employees||[];
  window.employeesById=new Map((employees||[]).map(e=>[e.id,e]));
 

@@ -216,6 +216,13 @@ function injectMcpStyles() {
       .mcp-dialog .btn,.mcp-hub-container .btn,.mcp-guide-tab{min-height:44px}
       .mcp-url-box{flex-direction:column;align-items:stretch;padding:8px}
       .mcp-url-box .btn{width:100%;justify-content:center}
+      .mcp-hub-container{gap:12px}
+      .mcp-hub-container :is(.mcp-card,.mcp-banner){min-width:0;padding:14px;border-radius:var(--radius-panel)}
+      .mcp-hub-container .mcp-card{background:var(--surface)}
+      .mcp-hub-container .mcp-banner>.btn{width:100%;justify-content:center}
+      .mcp-hub-container .mcp-form-actions>.btn{flex:1 0 100%;justify-content:center}
+      .mcp-hub-container .mcp-mode-option small{font-size:var(--text-label);line-height:var(--leading-copy)}
+      .mcp-hub-container .mcp-guide-tab{white-space:normal;line-height:var(--leading-title)}
     }
   `;
   document.head.appendChild(style);

@@ -453,14 +453,25 @@ async function loadCloudAccountAudit(){
 function accessAuditHTML(){return `<p class="view-note">${T.local} · Đây không phải nhật ký chống chỉnh sửa.</p><div class="access-audit">${identity.audit.slice().reverse().map(a=>`<div><span class="access-audit-icon">${icon('shield')}</span><p><strong>${esc(a.actor)}</strong> ${esc(a.action)}<small>${esc(a.target)} · ${esc(timeAgo(a.at))}</small></p></div>`).join('')||T.noAudit}</div>`;}
 function matrixHTML(){
  const rows=[['Xem công việc','Toàn bộ','Trong nhánh','Việc được giao','Trong nhánh'],['Tạo, giao, sửa kế hoạch','yes','yes','no','no'],['Cập nhật, checklist, ghi giờ','yes','yes','Việc được giao','no'],['Xóa công việc','yes','Trong nhánh*','no','no'],['Mời tài khoản mới','yes','member/viewer trong nhánh','no','no'],['Sửa cây, quản trị tài khoản','yes','no','no','no'],['Nhập / sao lưu JSON','yes','no','no','no'],['Xuất CSV theo bộ lọc','yes','yes','no','no'],[T.pins+' · '+T.personal,'yes','yes','yes','yes']];
+ const roleBadge = role => `<span class="role-badge role-${role}">${icon(role==='admin'?'shield':role==='viewer'?'eye':'user')}${T[role]}</span>`;
  return `<section class="permission-matrix" aria-label="So sánh quyền theo vai trò">
-  <div class="role-cards">${ROLES.map(r=>`<article><span class="role-badge role-${r}">${icon(r==='admin'?'shield':r==='viewer'?'eye':'user')}${T[r]}</span><p>${roleDescription(r)}</p></article>`).join('')}</div>
+  <div class="role-cards">${ROLES.map(role=>`<article>${roleBadge(role)}<p>${roleDescription(role)}</p></article>`).join('')}</div>
   <p class="matrix-scroll-hint">Vuốt ngang để xem các cột quyền.</p>
   <div class="access-table-scroll" tabindex="0" role="region" aria-label="Bảng so sánh quyền">
    <table class="access-matrix">
     <thead><tr><th scope="col">Thao tác</th>${ROLES.map(r=>`<th scope="col">${T[r]}</th>`).join('')}</tr></thead>
     <tbody>${rows.map(([label,...values])=>`<tr><th scope="row">${label}</th>${values.map(v=>`<td>${v==='yes'?`<span class="matrix-mark matrix-yes">${icon('check')}<span class="sr-only">Có</span></span>`:v==='no'?'<span class="matrix-mark muted"><span aria-hidden="true">—</span><span class="sr-only">Không</span></span>':v}</td>`).join('')}</tr>`).join('')}</tbody>
    </table>
+  </div>
+  <div class="mobile-role-matrix">
+   ${ROLES.map((role,index)=>`<details name="hub-role-matrix">
+    <summary>${roleBadge(role)}${icon('chevron-down')}</summary>
+    <p>${roleDescription(role)}</p>
+    <dl>${rows.map(([label,...values])=>{
+     const value=values[index];
+     return `<div><dt>${label}</dt><dd class="${value==='yes'?'matrix-yes':value==='no'?'muted':''}">${value==='yes'?'Có':value==='no'?'Không':value}</dd></div>`;
+    }).join('')}</dl>
+   </details>`).join('')}
   </div>
   <p class="view-note">* Không xóa nếu thao tác đó làm thay đổi liên kết của công việc ngoài phạm vi. Cần quản trị viên xử lý.</p>
  </section>`;
@@ -1749,6 +1760,19 @@ window.getActiveAccessSubTab=()=>accessTab;
 function closeSystemHub(){const wasOpen=isSystemHubOpen();const hub=$('systemHubContent');if(hub)hub.hidden=true;const main=$('mainContent');if(main&&!document.body.classList.contains('chat-is-open'))main.hidden=false;const navBtn=$('accessNav');if(navBtn){navBtn.classList.remove('active');navBtn.removeAttribute('aria-current');}if(wasOpen){document.dispatchEvent(new CustomEvent('worktree:system-hub-changed'));if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});}}
 window.closeSystemHub=closeSystemHub;
 document.addEventListener('click',e=>{if(e.target.closest('[data-chat-open],[data-mobile="messages"]')&&isSystemHubOpen())closeSystemHub();},true);
+$('systemHubTabs')?.addEventListener('keydown', event => {
+ const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+ const current = event.target.closest('[data-hub-tab]');
+ if (!current || !keys.includes(event.key) || !matchMedia('(max-width: 900px)').matches) return;
+ const tabs = $$('[data-hub-tab]:not([hidden])', event.currentTarget);
+ const index = tabs.indexOf(current);
+ if (index < 0) return;
+ const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
+  (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+ event.preventDefault();
+ tabs[next].focus({ preventScroll: true });
+ tabs[next].click();
+});
 async function openSystemHub(hubTab=activeHubTab,subTab=null){
  if(!requireLogin())return;
  const allowed=demoAccount?['access','recurring','notifications']:['access','recurring','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
@@ -1763,6 +1787,17 @@ async function openSystemHub(hubTab=activeHubTab,subTab=null){
  const tabMap={access:$('hubPanelAccess'),recurring:$('hubPanelRecurring'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings'),notifications:$('hubPanelNotifications')};
  Object.entries(tabMap).forEach(([k,p])=>{if(p)p.hidden=(k!==activeHubTab);});
  $$('#systemHubTabs [data-hub-tab]').forEach(btn=>{const isSel=btn.dataset.hubTab===activeHubTab;btn.setAttribute('aria-selected',String(isSel));btn.tabIndex=isSel?0:-1;});
+ if (matchMedia('(max-width: 900px)').matches) {
+  const tabs = $('systemHubTabs');
+  const selected = tabs?.querySelector('[aria-selected="true"]');
+  if (selected) {
+   const rail = tabs.getBoundingClientRect();
+   const tab = selected.getBoundingClientRect();
+   const start = tab.left - rail.left - 4;
+   const end = tab.right - rail.right + 4;
+   tabs.scrollLeft += Math.min(0, start) + Math.max(0, end);
+  }
+ }
  if(activeHubTab==='access')renderAccessSection(subTab||accessTab);
  else if(activeHubTab==='recurring'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openRecurringTasksHub==='function')await window.openRecurringTasksHub({container:$('recurringHubContent')});else if($('recurringHubContent'))$('recurringHubContent').innerHTML='<div class="empty-state"><h3>Đang khởi tạo Việc định kỳ</h3><p>Vui lòng thử lại sau giây lát.</p></div>';}
  else if(activeHubTab==='mcp'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openMcpDialog==='function')await window.openMcpDialog({container:$('mcpHubContent'),switchToTab:false});else if($('mcpHubContent'))$('mcpHubContent').innerHTML='<div class="mcp-empty">Đang khởi tạo kết nối MCP. Vui lòng thử lại sau giây lát.</div>';}
@@ -1774,7 +1809,8 @@ async function openSystemHub(hubTab=activeHubTab,subTab=null){
  document.dispatchEvent(new CustomEvent('worktree:system-hub-changed'));
  if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});
  if(hubEl&&typeof hydrateIcons==='function')hydrateIcons(hubEl);
- hubEl?.focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'});
+ if(hubEl&&!hubEl.contains(document.activeElement))hubEl.focus({preventScroll:true});
+ window.scrollTo({top:0,behavior:'instant'});
 }
 function openAccess(tab=accessTab){if(!requireLogin())return;return openSystemHub('access',tab);}
 function renderAccessSection(tab=accessTab){

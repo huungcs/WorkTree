@@ -474,6 +474,12 @@ Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đ
 
 Quản trị & Cài đặt có tab Thông báo & Nhắc việc cho các tùy chọn cá nhân và lịch nhắc. Lối tắt trong trung tâm thông báo mở trực tiếp tab này.
 
+### Điều hướng Quản trị & Cài đặt
+
+Vùng chính của Quản trị & Cài đặt nhận focus khi mở trang. Chỉ báo focus hiển thị ở các điều khiển tương tác như tab và nút.
+
+Trên điện thoại, nút quay lại và tiêu đề Quản trị & Cài đặt cùng hàng. Thanh phân hệ cuộn ngang độc lập với trang và đưa tab đang chọn vào vùng nhìn thấy. Ma trận quyền mở theo từng vai trò. Các phần thông báo và dữ liệu xếp thành thẻ dọc, với nút chạm tối thiểu 44px. Hàng thao tác nhanh trong menu giữ biểu tượng và nhãn trên một dòng.
+
 ### Việc định kỳ
 
 Tab Việc định kỳ nhóm biểu mẫu thành Phân công, Lịch lặp và Nội dung công việc; bộ chọn đơn vị và nhân sự dùng chung Tree Node Picker (`.node-picker-box`) và Employee Avatar Picker (`.owner-picker-box`), đồng bộ đầy đủ token bo tròn `--radius-*` trong `css/style.css`. Mỗi quy tắc hiển thị đối tượng nhận, chu kỳ và trạng thái. Lịch sử tạo việc mở theo yêu cầu. Bản demo dùng quy tắc minh họa có sẵn ở chế độ chỉ xem.
@@ -487,6 +493,8 @@ Hộp thoại Báo cáo hôm nay hiển thị trạng thái tiến độ, danh s
 Hộp thoại dùng tiêu đề cố định và hiển thị tên công việc bên dưới. Phần quyền người nhận và danh sách liên kết cuộn chung. Chân hộp thoại giữ nút tạo liên kết trong tầm chạm. Trên điện thoại, thời hạn và mã PIN xếp dọc. Liên kết đã thu hồi chỉ hiển thị thông tin trạng thái.
 
 Trang dành cho người nhận dùng nhận diện WorkTree X, font Inter và màu trạng thái của hệ thống. Trên màn hình hẹp, đầu trang giữ logo, thông tin tổ chức và nút đổi giao diện trên cùng một hàng. Quyền của người nhận nằm cạnh trạng thái công việc. Thông tin công việc xếp bốn cột trên màn hình rộng và hai cột trên điện thoại. Checklist dùng dấu trạng thái ở chế độ chỉ xem và ô đánh dấu khi liên kết cho phép chỉnh sửa.
+
+Trang xác nhận kết quả ngay tại phần vừa thao tác. Nội dung đang soạn được giữ khi một phần khác tải lại hoặc khi gửi thất bại. Nếu lưu thành công nhưng chưa tải được dữ liệu mới, người nhận có thể tải lại dữ liệu ngay tại phần đó.
 
 ### Trợ lý AI và kết nối MCP
 

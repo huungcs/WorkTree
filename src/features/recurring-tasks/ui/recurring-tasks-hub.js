@@ -214,7 +214,15 @@ export function injectRecurringStyles() {
     .wt-chk-team button[aria-pressed="true"]{background:var(--primary-soft);color:var(--primary-text);border-color:var(--primary)}
 
     @media (max-width: 900px) {
-      .wt-rec-form-grid{grid-template-columns:1fr}
+      #hubPanelRecurring .wt-rec-hub{gap:14px}
+      #hubPanelRecurring .wt-rec-banner{gap:10px;padding-bottom:12px}
+      #hubPanelRecurring .wt-rec-banner p{font-size:var(--text-base)}
+      #hubPanelRecurring .wt-rec-note{font-size:var(--text-label)}
+      #hubPanelRecurring .wt-rec-list-toolbar{display:grid;grid-template-columns:minmax(0,1fr)}
+      #hubPanelRecurring .wt-rec-list-toolbar .inline-search{max-width:none}
+      .wt-rec-form-grid{grid-template-columns:minmax(0,1fr)}
+      .wt-rec-hub .wt-rec-form-grid :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){font-size:var(--text-entry);min-height:44px}
+      .wt-rec-hub .wt-rec-form-actions>.btn{flex:1 1 auto;justify-content:center}
       .wt-rec-card,.wt-rec-item{padding:12px}
       .wt-rec-list-toolbar .inline-search,.wt-rec-list-toolbar select{min-height:44px}
       .wt-rec-list-toolbar .inline-search input{font-size:var(--text-entry)}

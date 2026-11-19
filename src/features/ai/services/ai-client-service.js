@@ -21,6 +21,7 @@ export const AiClientService = {
 
     const res = await fetch(`/api/ai${endpoint}`, {
       ...options,
+      signal: options.signal || undefined,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -33,6 +34,21 @@ export const AiClientService = {
       throw new Error(data?.error || 'Không thể kết nối Trợ lý AI. Vui lòng thử lại.');
     }
     return data;
+  },
+
+  async inlineAssist({ organizationId, mode, payload = {}, signal = null }) {
+    if (!organizationId) throw new Error('Chưa chọn không gian làm việc.');
+    if (!mode) throw new Error('Thiếu chế độ trợ lý AI.');
+    return await this.request('', {
+      method: 'POST',
+      signal,
+      body: JSON.stringify({
+        action: 'inline_assist',
+        organizationId,
+        mode,
+        payload: payload || {}
+      })
+    });
   },
 
   async getStatus(organizationId) {

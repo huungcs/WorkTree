@@ -1009,6 +1009,27 @@ export async function bootstrapApp() {
         canCreate: () => callLegacyGlobal('canCreateTask') === true,
         openForm: messageSource => callLegacyGlobal('openTaskForm', [null, { messageSource }]),
         closeDrawer: () => callLegacyGlobal('closeDialog', ['drawer', true])
+      },
+      aiBridge: {
+        isCloudAvailable: () => Boolean(!isDemo && appState.activeMembership && appState.activeOrganizationId),
+        summarizeConversation: (conversationId, { signal } = {}) => AiClientService.inlineAssist({
+          organizationId: appState.activeOrganizationId,
+          mode: 'chat_summary',
+          payload: { conversationId },
+          signal
+        }),
+        extractTaskFromMessage: ({ conversationId, messageId, text, conversationTitle, senderName }, { signal } = {}) => AiClientService.inlineAssist({
+          organizationId: appState.activeOrganizationId,
+          mode: 'chat_extract_task',
+          payload: {
+            conversationId,
+            messageId,
+            messageText: text,
+            conversationTitle,
+            senderName
+          },
+          signal
+        })
       }
     });
   }

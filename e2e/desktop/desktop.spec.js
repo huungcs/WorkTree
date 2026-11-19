@@ -185,4 +185,32 @@ test.describe('Desktop Layout (>= 901px)', () => {
     await expect(dock).toBeHidden();
     expect(errors).toEqual([]);
   });
+
+  test('renders Tải công việc without workloadStats error and toggles drawer checklist & summary AI cleanly', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', err => errors.push(err.message));
+
+    await page.goto('/?demo=1');
+    await page.locator('#tab-workload').click();
+    await expect(page.locator('.workload-toolbar')).toBeVisible();
+    await expect(page.locator('.person-card').first()).toBeVisible();
+    await expect(page.locator('.toast', { hasText: 'workloadStats' })).toHaveCount(0);
+
+    await page.locator('#tab-list').click();
+    await page.locator('.task-name').first().click();
+    await expect(page.locator('#drawer')).toBeVisible();
+
+    await page.locator('#drawer button[data-action="ai-drawer-checklist"]').click();
+    const aiBox = page.locator('#drawerAiResultBox');
+    await expect(aiBox).toBeVisible();
+    await expect(aiBox.locator('.drawer-ai-badge')).toContainText('Bản demo');
+    await expect(aiBox.locator('.drawer-ai-check-item').first()).toBeVisible();
+
+    await page.locator('#drawer button[data-action="ai-drawer-summary"]').click();
+    await expect(aiBox).toBeVisible();
+    await expect(aiBox.locator('.drawer-ai-title')).toContainText('Tóm tắt công việc');
+    await expect(aiBox.locator('.drawer-ai-summary-row')).toHaveCount(3);
+
+    expect(errors).toEqual([]);
+  });
 });

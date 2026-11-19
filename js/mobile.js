@@ -54,7 +54,13 @@
  const nav=document.createElement('nav');nav.id='mobileNav';nav.className='mobile-only m-nav';nav.setAttribute('aria-label',decode('&#272;i&#7873;u h&#432;&#7899;ng nhanh'));$('app').append(nav);
  const scope=document.createElement('div');scope.id='mobileScope';scope.className='mobile-only m-scope';$('scopeStrip').after(scope);
  const viewbar=document.createElement('div');viewbar.id='mobileViewbar';viewbar.className='mobile-only m-viewbar';$('viewContent').before(viewbar);
- const tools=document.createElement('div');tools.className='mobile-only m-side-tools';tools.innerHTML=`<button data-mobile="pins">${icon('pin')}${L.pins}</button><button data-action="theme">${icon('moon')}${L.theme}</button><button data-action="undo" id="mobileUndo">${icon('undo')}${L.undo}</button><button data-action="export-csv">${icon('download')}${L.report}</button>`;document.querySelector('.side-scroll').append(tools);
+ const tools=document.createElement('div');tools.className='mobile-only m-side-tools';
+ tools.innerHTML=`
+  <button type="button" data-mobile="pins">${icon('pin')}<span>${L.pins}</span></button>
+  <button type="button" data-action="theme" aria-label="${L.theme}">${icon('moon')}<span>Sáng/tối</span></button>
+  <button type="button" data-action="undo" id="mobileUndo">${icon('undo')}<span>${L.undo}</span></button>
+  <button type="button" data-action="export-csv">${icon('download')}<span>${L.report}</span></button>`;
+ document.querySelector('.side-scroll').append(tools);
  function shell(arr=filteredTasks()){
   if(!mobile()||!currentAccount()){nav.hidden=true;return;}
   const root=rootNode();

@@ -23,6 +23,11 @@ const EMP_MEMBER_A = '41111112-1111-4111-8111-111111111111';
 
 const TASK_A1 = '51111111-1111-4111-8111-111111111111';
 const TASK_B1 = '52222221-2222-4222-8222-222222222222';
+const CONV_A = '71111111-1111-4111-8111-111111111111';
+const CONV_B = '72222221-2222-4222-8222-222222222222';
+const MSG_A1 = '81111111-1111-4111-8111-111111111111';
+const MSG_A2 = '81111112-1111-4111-8111-111111111111';
+const MSG_B1 = '82222221-2222-4222-8222-222222222222';
 
 function createMockSupabase() {
   const db = {
@@ -62,11 +67,29 @@ function createMockSupabase() {
       { id: TASK_A1, organization_id: ORG_A, node_id: NODE_A_DEPT1, primary_assignee_id: EMP_MEMBER_A, collaborator_ids: [], title: 'Chốt hợp đồng Q4', description: 'Khách VIP', status: 'in_progress', priority: 'urgent', start_date: '2026-11-10', due_date: '2026-11-15', estimate_minutes: 240, progress: 50, auto_progress: false, tags: ['Sales'], completed_at: null, archived_at: null, created_by: USER_OWNER_A, created_at: '2026-11-10T08:00:00Z', updated_at: '2026-11-10T08:00:00Z' },
       { id: TASK_B1, organization_id: ORG_B, node_id: NODE_B_ROOT, primary_assignee_id: null, collaborator_ids: [], title: 'Bí mật Beta', description: 'Không được lộ', status: 'todo', priority: 'high', start_date: null, due_date: null, estimate_minutes: 60, progress: 0, auto_progress: false, tags: [], completed_at: null, archived_at: null, created_by: USER_OWNER_A, created_at: '2026-11-12T08:00:00Z', updated_at: '2026-11-12T08:00:00Z' }
     ],
-    task_checklist_items: [],
+    task_checklist_items: [
+      { id: '91111111-1111-4111-8111-111111111111', organization_id: ORG_A, task_id: TASK_A1, content: 'Rà soát lịch sử khách hàng', is_done: false, sort_order: 1, completed_at: null, created_at: '2026-11-10T09:00:00Z' }
+    ],
     task_dependencies: [],
-    task_comments: [],
+    task_comments: [
+      { id: '92111111-1111-4111-8111-111111111111', organization_id: ORG_A, task_id: TASK_A1, author_user_id: USER_MEMBER_A, body: 'Khách hẹn chốt bảng giá bản cuối trước 17h.', edited_at: null, created_at: '2026-11-11T09:00:00Z' }
+    ],
     task_time_entries: [],
+    task_attachments: [],
     activity_logs: [],
+    chat_conversations: [
+      { id: CONV_A, organization_id: ORG_A, type: 'group', title: 'Nhóm Chốt Hợp Đồng Q4', description: 'Phối hợp sales', archived_at: null },
+      { id: CONV_B, organization_id: ORG_B, type: 'group', title: 'Kênh Bí Mật Beta', description: '', archived_at: null }
+    ],
+    chat_participants: [
+      { id: '65111111-1111-4111-8111-111111111111', organization_id: ORG_A, conversation_id: CONV_A, user_id: USER_OWNER_A, removed_at: null },
+      { id: '65111112-1111-4111-8111-111111111111', organization_id: ORG_A, conversation_id: CONV_A, user_id: USER_MEMBER_A, removed_at: null }
+    ],
+    chat_messages: [
+      { id: MSG_A1, organization_id: ORG_A, conversation_id: CONV_A, sender_user_id: USER_OWNER_A, kind: 'text', body: 'Nhờ Lê Member A gửi báo giá Q4 cho khách VIP trước thứ Sáu nhé.', deleted_at: null, created_at: '2026-11-12T09:00:00Z' },
+      { id: MSG_A2, organization_id: ORG_A, conversation_id: CONV_A, sender_user_id: USER_MEMBER_A, kind: 'text', body: 'Đã nhận, chiều nay em hoàn thiện file và gửi kiểm tra.', deleted_at: null, created_at: '2026-11-12T09:05:00Z' },
+      { id: MSG_B1, organization_id: ORG_B, conversation_id: CONV_B, sender_user_id: USER_OWNER_A, kind: 'text', body: 'Bí mật tenant Beta', deleted_at: null, created_at: '2026-11-12T09:10:00Z' }
+    ],
     platform_ai_settings: []
   };
 
@@ -107,6 +130,17 @@ function createMockSupabase() {
           return { data: updated, error: null };
         }
         let results = matched.map(r => ({ ...r }));
+        if (state.orders.length) {
+          results.sort((a, b) => {
+            for (const o of state.orders) {
+              const av = a[o.col] ?? '';
+              const bv = b[o.col] ?? '';
+              const cmp = String(av).localeCompare(String(bv));
+              if (cmp !== 0) return o.asc ? cmp : -cmp;
+            }
+            return 0;
+          });
+        }
         if (state.limitVal != null) results = results.slice(0, state.limitVal);
         if (state.singleMode === 'single') return results[0] ? { data: results[0], error: null } : { data: null, error: { message: 'Not found' } };
         if (state.singleMode === 'maybe') return { data: results[0] || null, error: null };
@@ -630,5 +664,196 @@ test('AI UI feature and tracked code adhere to AGENTS.md architecture and zero-s
       assert.doesNotMatch(content, /(?<!&)#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/, 'Must use CSS design tokens, no hardcoded hex');
       assert.doesNotMatch(content, /\balert\s*\(/, 'Must not use browser alert()');
     }
+  }
+});
+
+test('inline_assist enforces auth, tenant isolation, permissions and parses real LLM JSON cleanly', async () => {
+  const inlineMock = createMockSupabase();
+  const inlineFetch = async (_url, opts) => {
+    const reqBody = JSON.parse(opts.body);
+    const sys = String(reqBody.messages?.[0]?.content || '');
+    const usr = String(reqBody.messages?.[1]?.content || '');
+
+    if (sys.includes('{"items":')) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: 'Đây là đề xuất:\n```json\n{"items":["rà soát lịch sử khách hàng","Gửi lại bảng giá đã cập nhật","Xác nhận lịch ký hợp đồng"],"suggestedHours":999,"rationale":"Bám sát bình luận chốt bảng giá trước 17h."}\n```'
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (sys.includes('"progressText"')) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              progressText: 'Đang đạt 50%, đã hoàn thành bước 0/1 checklist và chờ gửi báo giá bản cuối.',
+              blockerText: 'Sát hạn 2026-11-15, cần chốt báo giá trước 17h.',
+              nextStepText: 'Hoàn tất rà soát bảng giá và gửi khách VIP xác nhận.',
+              riskLevel: 'high'
+            })
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (sys.includes('"actionItems"')) {
+      assert.equal(usr.includes(MSG_B1), false, 'Other tenant chat messages must never appear in prompt');
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              overview: 'Nhóm đang chốt gửi báo giá Q4 cho khách VIP trước thứ Sáu.',
+              decisions: ['Hoàn thiện file báo giá trong chiều nay'],
+              actionItems: [
+                {
+                  messageId: MSG_A1,
+                  title: 'Gửi báo giá Q4 cho khách VIP',
+                  assigneeHint: 'Lê Member A',
+                  dueHint: '2026-11-20',
+                  priority: 'Cao',
+                  context: 'Hoàn thiện file và gửi kiểm tra trong chiều nay.'
+                },
+                {
+                  messageId: '00000000-0000-4000-8000-000000000999',
+                  title: 'Đầu việc ảo không có message thật',
+                  assigneeHint: '',
+                  dueHint: '',
+                  priority: 'Thấp',
+                  context: ''
+                }
+              ]
+            })
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // chat_extract_task
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: JSON.stringify({
+            title: 'Gửi báo giá Q4 cho khách VIP',
+            description: 'Hoàn thiện bảng giá và gửi khách hàng trước thứ Sáu.',
+            priority: 'high',
+            due: '2026-11-20',
+            estimateHours: 6,
+            ownerId: EMP_MEMBER_A,
+            collaboratorIds: ['00000000-0000-4000-8000-000000000999'],
+            nodeId: NODE_A_DEPT1,
+            tags: ['sales', 'Q4', 'sales']
+          })
+        }
+      }]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  const inlineHandler = createAiHandler({
+    supabase: inlineMock,
+    fetchFn: inlineFetch,
+    env: {
+      AI_API_BASE_URL: 'https://mock-ai.local/v1/chat/completions',
+      AI_API_KEY: 'mock-server-only-key',
+      AI_MODEL: 'claude-opus-5'
+    }
+  });
+  const inlineServer = createServer({ aiHandler: inlineHandler });
+  await new Promise(resolve => inlineServer.listen(0, '127.0.0.1', resolve));
+  const inlineOrigin = `http://127.0.0.1:${inlineServer.address().port}`;
+
+  try {
+    // 1. Security & cross-tenant gates
+    const unauth = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'task_summary', payload: { taskId: TASK_A1 } })
+    });
+    assert.equal(unauth.status, 401);
+
+    const crossOrg = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-owner-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_B, mode: 'task_summary', payload: { taskId: TASK_B1 } })
+    });
+    assert.equal(crossOrg.status, 403);
+
+    const crossTask = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-owner-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'task_summary', payload: { taskId: TASK_B1 } })
+    });
+    assert.ok([403, 404].includes(crossTask.status));
+
+    const viewerChecklist = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-viewer-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'task_checklist', payload: { taskId: TASK_A1 } })
+    });
+    assert.equal(viewerChecklist.status, 403);
+
+    const viewerSummary = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-viewer-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'task_summary', payload: { taskId: TASK_A1 } })
+    });
+    assert.equal(viewerSummary.status, 200);
+    const viewerSummaryJson = await viewerSummary.json();
+    assert.equal(viewerSummaryJson.data.riskLevel, 'high');
+
+    const nonParticipantChat = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-viewer-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'chat_summary', payload: { conversationId: CONV_A } })
+    });
+    assert.equal(nonParticipantChat.status, 403);
+
+    // 2. task_checklist deduplicates existing items and clamps hours
+    const chkRes = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-member-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'task_checklist', payload: { taskId: TASK_A1 } })
+    }).then(r => r.json());
+    assert.equal(chkRes.ok, true);
+    assert.deepEqual(chkRes.data.items, ['Gửi lại bảng giá đã cập nhật', 'Xác nhận lịch ký hợp đồng']);
+    assert.equal(chkRes.data.suggestedHours, 40);
+    assert.match(chkRes.data.rationale, /bảng giá/);
+
+    // 3. chat_summary validates real messageIds & drops hallucinated items
+    const chatRes = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-member-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'chat_summary', payload: { conversationId: CONV_A } })
+    }).then(r => r.json());
+    assert.equal(chatRes.ok, true);
+    assert.equal(chatRes.data.decisions.length, 1);
+    assert.equal(chatRes.data.actionItems.length, 1);
+    assert.equal(chatRes.data.actionItems[0].messageId, MSG_A1);
+
+    // 4. chat_extract_task validates real tenant IDs and strips hallucinated collaborator UUIDs
+    const extractRes = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-member-a' },
+      body: JSON.stringify({
+        action: 'inline_assist',
+        organizationId: ORG_A,
+        mode: 'chat_extract_task',
+        payload: { conversationId: CONV_A, messageId: MSG_A1, conversationTitle: 'Nhóm Chốt Hợp Đồng Q4' }
+      })
+    }).then(r => r.json());
+    assert.equal(extractRes.ok, true);
+    assert.equal(extractRes.data.priority, 'Cao');
+    assert.equal(extractRes.data.ownerId, EMP_MEMBER_A);
+    assert.equal(extractRes.data.nodeId, NODE_A_DEPT1);
+    assert.deepEqual(extractRes.data.collaboratorIds, []);
+    assert.deepEqual(extractRes.data.tags, ['sales', 'Q4']);
+  } finally {
+    await new Promise(resolve => inlineServer.close(resolve));
   }
 });

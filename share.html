@@ -131,14 +131,14 @@
       gap: 6px;
       transition: background .15s ease, border-color .15s ease;
     }
-    .btn:hover:not(:disabled) { background: var(--surface-3); }
-    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn:hover:not(:disabled, [aria-disabled="true"]) { background: var(--surface-3); }
+    .btn:disabled, .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
     .btn.primary {
       background: var(--primary);
       border-color: var(--primary);
       color: #fff;
     }
-    .btn.primary:hover:not(:disabled) {
+    .btn.primary:hover:not(:disabled, [aria-disabled="true"]) {
       background: var(--primary-hover);
       border-color: var(--primary-hover);
     }
@@ -334,7 +334,12 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--surface-2);
     }
+    .compose-grid .textarea { resize: vertical; }
     .error-banner {
       padding: 10px 12px;
       border-radius: var(--radius-md);
@@ -351,6 +356,9 @@
       font-size: 13px;
       font-weight: 500;
     }
+    .share-feedback { margin-top: 10px; }
+    .share-feedback:empty { margin: 0; }
+    .share-feedback .btn { margin-top: 8px; }
     .center-state {
       width: min(100%, 480px);
       margin: 48px auto;
@@ -530,7 +538,8 @@
       let unlockedPin = token ? (sessionStorage.getItem(`wt_share_pin:${token}`) || '') : '';
       let guestName = localStorage.getItem('worktree_share_guest_name') || '';
       let currentData = null;
-      let statusBanner = '';
+      let isSaving = false;
+      const draftFields = ['guestNameInput', 'guestCommentInput', 'newChecklistInput', 'guestStatusSelect', 'guestProgressInput', 'progressGuestName'];
 
       function applyTheme(theme) {
         document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
@@ -562,18 +571,24 @@
         return parts ? `${parts[3]}/${parts[2]}/${parts[1]}` : value || 'Chưa đặt hạn';
       }
 
-      function renderNotFound(msg) {
+      function renderNotFound(msg, connectionError = false) {
         orgBadge.textContent = 'Không khả dụng';
         permBadge.hidden = true;
-        shareSubtitle.textContent = 'Liên kết hết hạn hoặc đã thu hồi';
+        shareSubtitle.textContent = connectionError ? 'Lỗi kết nối' : 'Công việc được chia sẻ';
         root.innerHTML = `
           <div class="panel center-state" role="alert">
-            <h1 class="panel-title">Liên kết không khả dụng</h1>
+            <h1 class="panel-title">${connectionError ? 'Chưa tải được công việc' : 'Liên kết không khả dụng'}</h1>
             <p class="muted" style="margin:0 0 16px;">${esc(msg || 'Liên kết chia sẻ này có thể đã hết hạn, bị thu hồi bởi quản trị viên, hoặc đường dẫn không đúng.')}</p>
             <button type="button" class="btn" id="retryLoadBtn">Thử tải lại</button>
           </div>
         `;
-        document.getElementById('retryLoadBtn')?.addEventListener('click', loadShare);
+        document.getElementById('retryLoadBtn')?.addEventListener('click', async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          button.textContent = 'Đang tải…';
+          await loadShare();
+          (document.getElementById('retryLoadBtn') || root.querySelector('h1[tabindex]'))?.focus({ preventScroll: true });
+        });
       }
 
       function renderPinGate(share, errorText = '') {
@@ -586,19 +601,34 @@
             <h1 class="panel-title">Nhập mã PIN để xem công việc</h1>
             <p class="muted" style="margin:0;">${esc(share.label || 'Tài liệu công việc chia sẻ ngoài')}</p>
             <form class="pin-form" id="pinForm">
-              ${errorText ? `<div class="error-banner" role="alert">${esc(errorText)}</div>` : ''}
-              <input class="input" id="pinInput" type="password" inputmode="numeric" autocomplete="off" required maxlength="12" placeholder="Nhập mã PIN" aria-label="Mã PIN">
+              <input class="input" id="pinInput" type="password" autocomplete="off" required maxlength="12" placeholder="Nhập mã PIN" aria-label="Mã PIN">
               <button class="btn primary" type="submit">Mở công việc</button>
             </form>
+            <div id="pinFeedback" class="share-feedback" role="status" aria-atomic="true"></div>
           </div>
         `;
+        const input = document.getElementById('pinInput');
+        showFeedback('pinFeedback', 'error', errorText);
+        if (errorText) input.focus({ preventScroll: true });
         document.getElementById('pinForm')?.addEventListener('submit', async (e) => {
           e.preventDefault();
-          const val = document.getElementById('pinInput')?.value.trim() || '';
-          if (!val) return;
+          const form = e.currentTarget;
+          const button = form.querySelector('button');
+          const val = input.value.trim();
+          if (!val || button.disabled) return;
+          button.disabled = true;
+          button.textContent = 'Đang mở…';
+          showFeedback('pinFeedback', '', '');
           unlockedPin = val;
-          sessionStorage.setItem(`wt_share_pin:${token}`, val);
-          await loadShare(true);
+          const opened = await loadShare({ fromPinSubmit: true });
+          if (opened) {
+            sessionStorage.setItem(`wt_share_pin:${token}`, val);
+            document.getElementById('sharedTaskTitle')?.focus({ preventScroll: true });
+          } else if (form.isConnected) {
+            unlockedPin = '';
+            button.disabled = false;
+            button.textContent = 'Mở công việc';
+          }
         });
       }
 
@@ -622,9 +652,8 @@
           : (task.status === 'review' ? 'amber' : (task.status === 'in_progress' ? 'blue' : ''));
 
         root.innerHTML = `
-          ${statusBanner ? `<div class="${statusBanner.type === 'error' ? 'error-banner' : 'ok-banner'}" role="status">${esc(statusBanner.text)}</div>` : ''}
           <section class="panel task-panel" aria-labelledby="sharedTaskTitle">
-            <h1 class="task-heading" id="sharedTaskTitle">${esc(task.title)}</h1>
+            <h1 class="task-heading" id="sharedTaskTitle" tabindex="-1">${esc(task.title)}</h1>
             <div class="task-top">
               <span class="badge status ${statusBadgeClass}">${esc(STATUS_LABEL[task.status] || task.status)}</span>
               <span class="badge primary task-permission">${esc(PERMISSION_LABEL[share.permission] || share.permission)}</span>
@@ -662,11 +691,12 @@
                 </label>
                 <label class="form-field">
                   <span>Tiến độ (%)</span>
-                  <input class="input" id="guestProgressInput" type="number" min="0" max="100" value="${progress}">
+                  <input class="input" id="guestProgressInput" type="number" min="0" max="100" required value="${progress}">
                 </label>
                 <label class="form-field">Tên của bạn <input class="input" id="progressGuestName" maxlength="80" value="${esc(guestName)}"></label>
                 <div class="form-actions"><button class="btn primary" type="submit">Cập nhật tiến độ</button></div>
               </form>
+              <div id="progressFeedback" class="share-feedback" role="status" aria-atomic="true"></div>
             ` : ''}
           </section>
 
@@ -699,6 +729,7 @@
                 <input class="input" id="newChecklistInput" maxlength="400" required placeholder="Thêm một bước" aria-label="Nội dung mục checklist">
                 <button class="btn" type="submit">Thêm mục</button>
               </form>
+              <div id="checklistFeedback" class="share-feedback" role="status" aria-atomic="true"></div>
             ` : ''}
           </section>
 
@@ -736,6 +767,7 @@
                   <button class="btn primary" type="submit">Gửi phản hồi</button>
                 </div>
               </form>
+              <div id="commentFeedback" class="share-feedback" role="status" aria-atomic="true"></div>
             ` : ''}
           </section>
         `;
@@ -743,8 +775,45 @@
         bindInteractiveHandlers();
       }
 
-      function setBanner(type, text) {
-        statusBanner = { type, text };
+      function showFeedback(id, type, message, retry) {
+        const feedback = document.getElementById(id);
+        if (!feedback) return;
+        feedback.replaceChildren();
+        if (!message) return;
+        const body = document.createElement('div');
+        body.className = type === 'error' ? 'error-banner' : 'ok-banner';
+        body.textContent = message;
+        feedback.append(body);
+        if (retry) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'btn';
+          button.textContent = 'Tải lại dữ liệu';
+          button.addEventListener('click', retry);
+          feedback.append(button);
+        }
+      }
+
+      function refreshTaskView(data) {
+        const active = document.activeElement;
+        const checkboxId = active?.dataset.checklistId;
+        const formId = active?.closest('form')?.id;
+        const fields = draftFields.map(id => document.getElementById(id))
+          .filter(field => field && (field.matches('select')
+            ? !field.selectedOptions[0]?.defaultSelected
+            : field.value !== field.defaultValue));
+        renderTaskView(data);
+        for (const field of fields) {
+          const replacement = document.getElementById(field.id);
+          if (replacement) replacement.value = field.value;
+        }
+        const focusTarget = (active?.id && document.getElementById(active.id))
+          || (checkboxId && [...root.querySelectorAll('[data-checklist-id]')].find(field => field.dataset.checklistId === checkboxId))
+          || (formId && document.getElementById(formId)?.querySelector('button[type="submit"]'));
+        focusTarget?.focus({ preventScroll: true });
+        if (typeof focusTarget?.setSelectionRange === 'function' && typeof active.selectionStart === 'number') {
+          focusTarget.setSelectionRange(active.selectionStart, active.selectionEnd);
+        }
       }
 
       async function postGuest(payload) {
@@ -758,78 +827,100 @@
         });
         const data = await res.json().catch(() => null);
         if (!res.ok || !data?.ok) {
-          throw new Error(data?.error || 'Không thể thực hiện thao tác.');
+          throw new Error(res.status < 500 && data?.error || 'Không thể thực hiện thao tác. Vui lòng thử lại.');
         }
         return data;
       }
 
+      async function saveGuestAction({ control, feedback, payload, success, submittedFields = [], restore }) {
+        if (isSaving) {
+          restore?.();
+          return;
+        }
+        isSaving = true;
+        const fields = submittedFields.map(field => [field, field.value]);
+        const buttonText = control.textContent;
+        const isButton = control.matches('button');
+        control.setAttribute('aria-disabled', 'true');
+        if (isButton) control.textContent = 'Đang lưu…';
+        showFeedback(feedback, '', '');
+        try {
+          await postGuest(payload);
+          for (const [field, submitted] of fields) {
+            if (field.value === submitted) {
+              const defaultOption = Array.from(field.options || []).find(option => option.defaultSelected);
+              field.value = defaultOption?.value ?? field.defaultValue;
+            }
+          }
+          await loadShare({ feedback, success });
+        } catch (err) {
+          restore?.();
+          showFeedback(feedback, 'error', err instanceof TypeError ? 'Không thể kết nối. Vui lòng thử lại.' : err.message);
+        } finally {
+          isSaving = false;
+          control.removeAttribute('aria-disabled');
+          if (isButton) control.textContent = buttonText;
+        }
+      }
+
       function bindInteractiveHandlers() {
-        document.getElementById('progressForm')?.addEventListener('submit', async (e) => {
+        document.getElementById('progressForm')?.addEventListener('submit', (e) => {
           e.preventDefault();
-          const status = document.getElementById('guestStatusSelect')?.value;
-          const progress = Number(document.getElementById('guestProgressInput')?.value || 0);
-          const nameVal = document.getElementById('progressGuestName')?.value.trim() || guestName || 'Khách';
+          if (isSaving) return;
+          const status = document.getElementById('guestStatusSelect');
+          const progress = document.getElementById('guestProgressInput');
+          const nameVal = document.getElementById('progressGuestName').value.trim() || guestName || 'Khách';
           guestName = nameVal;
           localStorage.setItem('worktree_share_guest_name', guestName);
-          try {
-            await postGuest({ guestAction: 'update_progress', guestName, status, progress });
-            setBanner('ok', 'Đã cập nhật tiến độ công việc.');
-            await loadShare();
-          } catch (err) {
-            setBanner('error', err.message);
-            renderTaskView(currentData);
-          }
-        });
-
-        root.querySelectorAll('input[data-checklist-id]').forEach(cb => {
-          cb.addEventListener('change', async () => {
-            const itemId = cb.dataset.checklistId;
-            const isDone = cb.checked;
-            try {
-              await postGuest({ guestAction: 'toggle_checklist', guestName: guestName || 'Khách', itemId, isDone });
-              setBanner('ok', 'Đã cập nhật checklist.');
-              await loadShare();
-            } catch (err) {
-              setBanner('error', err.message);
-              await loadShare();
-            }
+          saveGuestAction({
+            control: e.currentTarget.querySelector('button'), feedback: 'progressFeedback',
+            payload: { guestAction: 'update_progress', guestName, status: status.value, progress: progress.valueAsNumber },
+            success: 'Đã cập nhật tiến độ công việc.', submittedFields: [status, progress, document.getElementById('progressGuestName')]
           });
         });
 
-        document.getElementById('addChecklistForm')?.addEventListener('submit', async (e) => {
+        root.querySelectorAll('input[data-checklist-id]').forEach(cb => {
+          cb.addEventListener('change', () => {
+            const itemId = cb.dataset.checklistId;
+            const isDone = cb.checked;
+            saveGuestAction({
+              control: cb, feedback: 'checklistFeedback',
+              payload: { guestAction: 'toggle_checklist', guestName: guestName || 'Khách', itemId, isDone },
+              success: 'Đã cập nhật checklist.', restore: () => { cb.checked = !isDone; }
+            });
+          });
+        });
+
+        document.getElementById('addChecklistForm')?.addEventListener('submit', (e) => {
           e.preventDefault();
           const input = document.getElementById('newChecklistInput');
           const content = input?.value.trim() || '';
           if (!content) return;
-          try {
-            await postGuest({ guestAction: 'add_checklist', guestName: guestName || 'Khách', content });
-            setBanner('ok', 'Đã thêm mục checklist.');
-            await loadShare();
-          } catch (err) {
-            setBanner('error', err.message);
-            renderTaskView(currentData);
-          }
+          saveGuestAction({
+            control: e.currentTarget.querySelector('button'), feedback: 'checklistFeedback',
+            payload: { guestAction: 'add_checklist', guestName: guestName || 'Khách', content },
+            success: 'Đã thêm mục checklist.', submittedFields: [input]
+          });
         });
 
-        document.getElementById('commentForm')?.addEventListener('submit', async (e) => {
+        document.getElementById('commentForm')?.addEventListener('submit', (e) => {
           e.preventDefault();
+          if (isSaving) return;
           const gName = document.getElementById('guestNameInput')?.value.trim() || '';
-          const body = document.getElementById('guestCommentInput')?.value.trim() || '';
+          const input = document.getElementById('guestCommentInput');
+          const body = input.value.trim();
           if (!gName || !body) return;
           guestName = gName;
           localStorage.setItem('worktree_share_guest_name', guestName);
-          try {
-            await postGuest({ guestAction: 'add_comment', guestName: gName, body });
-            setBanner('ok', 'Đã gửi phản hồi.');
-            await loadShare();
-          } catch (err) {
-            setBanner('error', err.message);
-            renderTaskView(currentData);
-          }
+          saveGuestAction({
+            control: e.currentTarget.querySelector('button'), feedback: 'commentFeedback',
+            payload: { guestAction: 'add_comment', guestName: gName, body },
+            success: 'Đã gửi phản hồi.', submittedFields: [input]
+          });
         });
       }
 
-      async function loadShare(fromPinSubmit = false) {
+      async function loadShare({ fromPinSubmit = false, feedback, success } = {}) {
         if (!token) {
           renderNotFound('Thiếu mã liên kết chia sẻ.');
           return;
@@ -844,28 +935,49 @@
             ...(unlockedPin ? { body: JSON.stringify({ token, guestAction: 'unlock', pin: unlockedPin }) } : {})
           });
           const data = await res.json().catch(() => null);
-          if (res.status === 404 || !data) {
+          if (res.status === 404) {
             renderNotFound();
-            return;
+            return false;
           }
-          if (res.status === 403 && data.requiresPin) {
+          if (!res.ok && data?.requiresPin) {
             sessionStorage.removeItem(`wt_share_pin:${token}`);
             unlockedPin = '';
             renderPinGate(currentData?.share || { label: 'Công việc chia sẻ' }, fromPinSubmit ? (data.error || 'Mã PIN không đúng.') : '');
-            return;
+            return false;
           }
+          if (!data || res.status >= 500) throw new Error('Không thể kết nối máy chủ WorkTree X.');
           if (data.requiresPin) {
             currentData = data;
             renderPinGate(data.share || {});
-            return;
+            return false;
           }
           if (!res.ok || !data.ok) {
             renderNotFound(data.error);
-            return;
+            return false;
           }
-          renderTaskView(data);
+          if (feedback) {
+            refreshTaskView(data);
+            showFeedback(feedback, 'ok', success);
+          } else {
+            renderTaskView(data);
+          }
+          return true;
         } catch {
-          renderNotFound('Không thể kết nối máy chủ WorkTree X.');
+          if (feedback) {
+            showFeedback(feedback, 'error', 'Thao tác đã được lưu. Chưa tải được dữ liệu mới.', async (event) => {
+              if (isSaving) return;
+              const button = event.currentTarget;
+              button.disabled = true;
+              isSaving = true;
+              try { await loadShare({ feedback, success }); }
+              finally { isSaving = false; button.disabled = false; }
+            });
+          } else if (fromPinSubmit) {
+            showFeedback('pinFeedback', 'error', 'Không thể kết nối. Vui lòng thử mở lại.');
+          } else {
+            renderNotFound('Không thể kết nối máy chủ WorkTree X.', true);
+          }
+          return false;
         }
       }
 
