@@ -14,20 +14,31 @@ export const AiClientService = {
   },
 
   async request(endpoint = '', options = {}) {
+    const { _retriedAuth = false, ...fetchOptions } = options || {};
     const token = await this.getAccessToken();
     if (!token) {
       throw new Error('Yêu cầu đăng nhập tài khoản đám mây để sử dụng Trợ lý AI.');
     }
 
     const res = await fetch(`/api/ai${endpoint}`, {
-      ...options,
-      signal: options.signal || undefined,
+      ...fetchOptions,
+      signal: fetchOptions.signal || undefined,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
-        ...(options.headers || {})
+        ...(fetchOptions.headers || {})
       }
     });
+
+    if (res.status === 401 && !_retriedAuth && !fetchOptions.signal?.aborted) {
+      try {
+        const sb = await getSupabase();
+        const refreshed = await sb.auth.refreshSession().catch(() => null);
+        if (refreshed?.data?.session?.access_token) {
+          return await this.request(endpoint, { ...fetchOptions, _retriedAuth: true });
+        }
+      } catch (_) {}
+    }
 
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) {

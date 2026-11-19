@@ -599,8 +599,13 @@ export async function openDailyCheckinDialog({
             onToast('AI đã soạn nháp báo cáo hôm nay.');
           } catch (err) {
             if (err?.name === 'AbortError' || seq !== aiDraftSeq || !dialog.isConnected) return;
+            console.warn('[WorkTree Checkin AI]', err?.message || err);
+            const rawMsg = String(err?.message || '').trim();
+            const safeReason = (rawMsg && rawMsg.length <= 130 && !/sql|jwt|stack|syntaxerror|typeerror|referenceerror/i.test(rawMsg))
+              ? rawMsg
+              : 'AI tạm bận';
             applyLocalSummary();
-            onToast('AI tạm bận — đã tự điền nhanh từ danh sách việc.');
+            onToast(`${safeReason} — đã tự điền nhanh từ danh sách việc.`);
           } finally {
             if (seq === aiDraftSeq) {
               state.aiDrafting = false;

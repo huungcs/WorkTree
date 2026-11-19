@@ -1840,7 +1840,7 @@ async function setDrawerAiPreview(id,mode,opts={}){
  }catch(err){
   if(err?.name==='AbortError')return;
   if(seq!==drawerAiRequestSeq||String(drawerId)!==String(t.id)||!$('drawer')?.open||window.appState?.activeOrganizationId!==orgId)return;
-  drawerAiDraft=buildLocalDrawerAiDraft(t,mode,{source:'fallback',notice:'Không thể kết nối AI — đang hiển thị gợi ý cục bộ.'});
+  console.warn('[WorkTree AI Inline]',mode,err?.message||err);const rawMsg=String(err?.message||'').trim();const safeReason=(rawMsg&&rawMsg.length<=130&&!/sql|jwt|stack|syntaxerror|typeerror|referenceerror/i.test(rawMsg))?rawMsg:'Không thể kết nối AI';drawerAiDraft=buildLocalDrawerAiDraft(t,mode,{source:'fallback',notice:`${safeReason} — đang hiển thị gợi ý cục bộ.`});
   syncBox(false);
  }
 }

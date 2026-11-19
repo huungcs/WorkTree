@@ -700,12 +700,17 @@ export class WorkspaceDialog {
         }
       } catch (err) {
         if (err?.name === 'AbortError' || seq !== this.bpReqSeq || this.currentDialog !== dialog) return;
+        console.warn('[WorkTree AI Blueprint]', err?.message || err);
+        const rawMsg = String(err?.message || '').trim();
+        const safeReason = (rawMsg && rawMsg.length <= 130 && !/sql|jwt|stack|syntaxerror|typeerror|referenceerror/i.test(rawMsg))
+          ? rawMsg
+          : 'AI tạm bận';
         const fallbackBp = generateOrgBlueprintFromDescription(description);
         renderPreview(fallbackBp, 'local');
         if (statusEl) {
           statusEl.textContent = fallbackBp
-            ? 'AI tạm bận — đang hiển thị gợi ý mẫu nhanh bên dưới.'
-            : 'AI tạm bận, vui lòng thử lại sau ít giây.';
+            ? `${safeReason} — đang hiển thị gợi ý mẫu nhanh bên dưới.`
+            : `${safeReason}, vui lòng thử lại sau ít giây.`;
         }
       } finally {
         if (seq === this.bpReqSeq && genBtn.isConnected) {

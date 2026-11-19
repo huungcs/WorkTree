@@ -749,9 +749,10 @@ function isRetryableModelCapacityError(err) {
   return /capacity|rate limit|too many requests|overload|回退分组均不可用/i.test(msg);
 }
 
-async function callUpstreamAiWithFallback({ fetchImpl, cfg, preferredModel, messages, tools, timeoutMs, maxTokens = 1800 }) {
+async function callUpstreamAiWithFallback({ fetchImpl, cfg, preferredModel, messages, tools, timeoutMs, maxTokens = 1800, totalBudgetMs = null }) {
   const primary = String(preferredModel || cfg.model).trim();
   const fallback = String(cfg.fallbackModel || '').trim();
+  const startedAt = Date.now();
   try {
     const completion = await callUpstreamAi({
       fetchImpl,
@@ -764,17 +765,24 @@ async function callUpstreamAiWithFallback({ fetchImpl, cfg, preferredModel, mess
     });
     return { completion, usedModel: primary, fallbackFrom: null };
   } catch (err) {
-    if (!fallback || fallback === primary || !isRetryableModelCapacityError(err)) {
+    const canFallback = fallback && fallback !== primary && (isRetryableModelCapacityError(err) || err?.status === 504);
+    if (!canFallback) {
       throw err;
     }
-    console.warn('[WorkTree AI Fallback]', `${primary} -> ${fallback}:`, err.upstreamStatus || err.message);
+    const elapsedMs = Date.now() - startedAt;
+    const budgetCap = Number(totalBudgetMs) > 0 ? (Number(totalBudgetMs) - elapsedMs) : timeoutMs;
+    if (Number(totalBudgetMs) > 0 && budgetCap < 4500) {
+      throw err;
+    }
+    const fallbackTimeoutMs = Math.min(timeoutMs, Math.max(4500, budgetCap));
+    console.warn('[WorkTree AI Fallback]', `${primary} -> ${fallback}:`, err.upstreamStatus || err.status || err.message);
     const completion = await callUpstreamAi({
       fetchImpl,
       cfg,
       model: fallback,
       messages,
       tools,
-      timeoutMs,
+      timeoutMs: fallbackTimeoutMs,
       maxTokens
     });
     return { completion, usedModel: fallback, fallbackFrom: primary };
@@ -859,8 +867,8 @@ async function runAiToolLoop({
   mcpCache,
   initialObservations = [],
   fetchImpl = globalThis.fetch,
-  totalBudgetMs = (process.env.VERCEL ? 13200 : 35000),
-  defaultRoundTimeout = (cfg.timeoutMs || (process.env.VERCEL ? 11500 : 25000)),
+  totalBudgetMs = (process.env.VERCEL ? 25000 : 35000),
+  defaultRoundTimeout = (cfg.timeoutMs ? (process.env.VERCEL ? Math.min(cfg.timeoutMs, 18500) : cfg.timeoutMs) : (process.env.VERCEL ? 18500 : 25000)),
   maxTokens = 1800,
   fallbackOnTimeout = true,
   timeoutReplyBuilder = buildDeterministicTimeoutReply
@@ -893,7 +901,8 @@ async function runAiToolLoop({
         messages: modelMessages,
         tools: openAiTools,
         timeoutMs: roundTimeoutMs,
-        maxTokens
+        maxTokens,
+        totalBudgetMs: Math.max(4000, remainingMs - 300)
       });
     } catch (upErr) {
       if (upErr.status === 504 && toolObservations.length > 0 && fallbackOnTimeout !== false) {
@@ -1148,7 +1157,7 @@ function parseStrictJsonFromLlm(rawText) {
   return null;
 }
 
-async function callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, maxTokens = 900 }) {
+async function callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, totalBudgetMs = null, maxTokens = 900 }) {
   const { completion, usedModel, fallbackFrom } = await callUpstreamAiWithFallback({
     fetchImpl,
     cfg,
@@ -1159,7 +1168,8 @@ async function callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, tim
     ],
     tools: [],
     timeoutMs,
-    maxTokens
+    maxTokens,
+    totalBudgetMs
   });
 
   const rawReply = String(completion?.choices?.[0]?.message?.content || '').trim();
@@ -1221,7 +1231,7 @@ function buildCompactTaskContextForPrompt(detail) {
   };
 }
 
-async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload = {}, timeoutMs }) {
+async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload = {}, timeoutMs, totalBudgetMs = null }) {
   const cleanMode = String(mode || '').trim();
   const safePayload = (payload && typeof payload === 'object' && !Array.isArray(payload)) ? payload : {};
   const today = mcp.getTodayInTimezone(grant.organization?.timezone);
@@ -1261,7 +1271,7 @@ async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload 
 
     const userPrompt = `Ngày hiện tại (${grant.organization?.timezone || 'Asia/Ho_Chi_Minh'}): ${today}\n<task_context>\n${JSON.stringify(taskCtx, null, 2)}\n</task_context>`;
 
-    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, maxTokens: 900 });
+    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, totalBudgetMs, maxTokens: 700 });
     const seen = new Set();
     const items = [];
     for (const rawItem of (Array.isArray(llm.parsed.items) ? llm.parsed.items : [])) {
@@ -1312,7 +1322,7 @@ async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload 
 
     const userPrompt = `Ngày hiện tại (${grant.organization?.timezone || 'Asia/Ho_Chi_Minh'}): ${today}\n<task_context>\n${JSON.stringify(taskCtx, null, 2)}\n</task_context>`;
 
-    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, maxTokens: 900 });
+    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, totalBudgetMs, maxTokens: 900 });
     const rawRisk = String(llm.parsed.riskLevel || '').trim().toLowerCase();
     const riskLevel = ['low', 'medium', 'high'].includes(rawRisk) ? rawRisk : 'low';
 
@@ -1428,7 +1438,7 @@ async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload 
       '</chat_transcript>'
     ].join('\n');
 
-    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, maxTokens: 900 });
+    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, totalBudgetMs, maxTokens: 900 });
     const overview = String(llm.parsed.overview || '').trim().slice(0, 500) || 'Đã tổng hợp nội dung cuộc trò chuyện.';
     const decisions = (Array.isArray(llm.parsed.decisions) ? llm.parsed.decisions : [])
       .map(d => String(d || '').trim().slice(0, 200))
@@ -1575,7 +1585,7 @@ async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload 
       '</available_employees>'
     ].join('\n');
 
-    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, maxTokens: 900 });
+    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, totalBudgetMs, maxTokens: 900 });
     const p = llm.parsed;
 
     const ownerIdRaw = p.ownerId != null ? String(p.ownerId).trim() : '';
@@ -1648,7 +1658,7 @@ async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload 
     ].join('\n');
 
     const userPrompt = `<business_description>\n${description}\n</business_description>`;
-    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, maxTokens: 1200 });
+    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, totalBudgetMs, maxTokens: 1200 });
     const p = llm.parsed;
 
     const departments = [];
@@ -1790,7 +1800,7 @@ async function runInlineAssist({ supabase, grant, cfg, fetchImpl, mode, payload 
     ].join('\n');
 
     const userPrompt = `<checkin_context>\n${JSON.stringify(checkinContext, null, 2)}\n</checkin_context>`;
-    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, maxTokens: 700 });
+    const llm = await callInlineJsonLlm({ fetchImpl, cfg, systemPrompt, userPrompt, timeoutMs, totalBudgetMs, maxTokens: 700 });
     const p = llm.parsed;
 
     return {
@@ -1930,7 +1940,9 @@ function createAiHandler(overrides = {}) {
       }
 
       if (action === 'inline_assist') {
-        const baseInlineTimeout = overrides.timeoutMs || cfg.timeoutMs || 25000;
+        const baseInlineTimeout = overrides.timeoutMs || cfg.timeoutMs || 22000;
+        const inlinePrimaryTimeout = process.env.VERCEL ? Math.min(baseInlineTimeout, 18500) : baseInlineTimeout;
+        const inlineTotalBudget = overrides.totalBudgetMs || (process.env.VERCEL ? 26500 : Math.max(baseInlineTimeout * 2, 35000));
         const inlineResult = await runInlineAssist({
           supabase,
           grant,
@@ -1938,7 +1950,8 @@ function createAiHandler(overrides = {}) {
           fetchImpl,
           mode: body.mode,
           payload: body.payload,
-          timeoutMs: process.env.VERCEL ? Math.min(baseInlineTimeout, 13500) : baseInlineTimeout
+          timeoutMs: inlinePrimaryTimeout,
+          totalBudgetMs: inlineTotalBudget
         });
         return res.status(200).json({
           ok: true,
@@ -2002,8 +2015,8 @@ function createAiHandler(overrides = {}) {
         mcpCache,
         initialObservations,
         fetchImpl,
-        totalBudgetMs: overrides.totalBudgetMs || (process.env.VERCEL ? 13200 : 35000),
-        defaultRoundTimeout: overrides.timeoutMs || cfg.timeoutMs || (process.env.VERCEL ? 11500 : 25000),
+        totalBudgetMs: overrides.totalBudgetMs || (process.env.VERCEL ? 25000 : 35000),
+        defaultRoundTimeout: overrides.timeoutMs || (process.env.VERCEL ? Math.min(cfg.timeoutMs || 22000, 18500) : (cfg.timeoutMs || 25000)),
         maxTokens: 1800,
         fallbackOnTimeout: overrides.fallbackOnTimeout !== false,
         timeoutReplyBuilder: buildDeterministicTimeoutReply

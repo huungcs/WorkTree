@@ -957,3 +957,76 @@ test('inline_assist enforces auth, tenant isolation, permissions and parses real
     await new Promise(resolve => inlineServer.close(resolve));
   }
 });
+
+test('inline_assist falls back to fallback_model when primary model times out (504)', async () => {
+  const fbMock = createMockSupabase();
+  const attemptedModels = [];
+  const slowPrimaryFetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body || '{}'));
+    attemptedModels.push(body.model);
+    if (body.model === 'claude-opus-5') {
+      await new Promise((_, reject) => {
+        const onAbort = () => {
+          const abortErr = new Error('The operation was aborted');
+          abortErr.name = 'AbortError';
+          reject(abortErr);
+        };
+        if (init?.signal?.aborted) return onAbort();
+        init?.signal?.addEventListener('abort', onAbort, { once: true });
+      });
+    }
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: JSON.stringify({
+            items: ['Kiểm tra link đích', 'Chốt ngân sách A/B', 'Bật pixel Lead', 'Đo lường CPL 24h'],
+            suggestedHours: 4,
+            rationale: 'Phản hồi từ mô hình dự phòng.'
+          })
+        }
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 15, total_tokens: 25 }
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  const fbHandler = createAiHandler({
+    supabase: fbMock,
+    fetchFn: slowPrimaryFetch,
+    timeoutMs: 60,
+    totalBudgetMs: 12000,
+    env: {
+      AI_API_BASE_URL: 'https://mock-ai.local/v1/chat/completions',
+      AI_API_KEY: 'mock-server-only-key',
+      AI_MODEL: 'claude-opus-5',
+      AI_FALLBACK_MODEL: 'claude-opus-4-6'
+    }
+  });
+  const fbServer = createServer({ aiHandler: fbHandler });
+  await new Promise(resolve => fbServer.listen(0, '127.0.0.1', resolve));
+  const fbOrigin = `http://127.0.0.1:${fbServer.address().port}`;
+
+  try {
+    const res = await fetch(`${fbOrigin}/api/ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer token-owner-a'
+      },
+      body: JSON.stringify({
+        action: 'inline_assist',
+        organizationId: ORG_A,
+        mode: 'task_checklist',
+        payload: { taskId: TASK_A1 }
+      })
+    }).then(r => r.json());
+
+    assert.equal(res.ok, true);
+    assert.equal(res.model, 'claude-opus-4-6');
+    assert.equal(res.fallbackFrom, 'claude-opus-5');
+    assert.equal(res.data.items.length, 4);
+    assert.deepEqual(attemptedModels, ['claude-opus-5', 'claude-opus-4-6']);
+  } finally {
+    await new Promise(resolve => fbServer.close(resolve));
+  }
+});

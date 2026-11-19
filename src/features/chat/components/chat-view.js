@@ -340,6 +340,11 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       if (error?.name === 'AbortError') return;
       if (!valid(captured) || reqId !== aiRequestSeq) return;
       if (controller && aiAbortControllers.get(conversationId) !== controller) return;
+      console.warn('[WorkTree Chat AI]', error?.message || error);
+      const rawMsg = String(error?.message || '').trim();
+      const safeReason = (rawMsg && rawMsg.length <= 130 && !/sql|jwt|stack|syntaxerror|typeerror|referenceerror/i.test(rawMsg))
+        ? rawMsg
+        : 'Không thể kết nối AI';
       aiSummaries.set(conversationId, {
         status: 'ready',
         requestId: reqId,
@@ -349,7 +354,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
         items: extractChatActionItems(messages),
         lastMessageId: latestId,
         analyzedCount: meaningful.length,
-        notice: 'Không thể kết nối AI — đang hiển thị lọc từ khóa cục bộ.'
+        notice: `${safeReason} — đang hiển thị lọc từ khóa cục bộ.`
       });
       if (current?.id === conversationId) renderAiSummary();
     } finally {
