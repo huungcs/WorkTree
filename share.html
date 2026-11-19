@@ -109,6 +109,7 @@
       color: var(--text);
     }
     .badge.status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+    .task-permission { display: none; }
     .badge.primary { background: var(--primary-soft); color: var(--primary-text); }
     .badge.green { background: var(--green-soft); color: var(--green); }
     .badge.amber { background: var(--amber-soft); color: var(--amber); }
@@ -398,14 +399,52 @@
     }
     @media (max-width: 620px) {
       .share-header { position: static; }
-      .share-header-inner { flex-wrap: wrap; }
-      .brand-group { flex: 1 1 100%; }
-      .brand-meta { overflow-wrap: anywhere; }
-      .header-actions { justify-content: space-between; width: 100%; }
-      .share-main { margin-top: 14px; gap: 12px; }
-      .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .share-header-inner { gap: 8px; }
+      .brand-group { flex: 1; }
+      .brand-meta { min-width: 0; flex: 1; }
+      .brand-title { flex-wrap: nowrap; }
+      .brand-title > span:first-child { flex: none; }
+      .brand-title #orgBadge {
+        display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        padding: 2px 7px; font-size: var(--text-sm);
+      }
+      .brand-sub { margin-top: 3px; line-height: 1.35; overflow-wrap: anywhere; }
+      body:has(.task-panel) #permBadge { display: none; }
+      .share-main { margin-top: 12px; gap: 12px; }
+      .task-panel { padding: 18px 16px 16px; }
+      .task-top { justify-content: flex-start; gap: 5px 7px; }
+      .task-top time { margin-inline-start: auto; }
+      .task-top .task-permission { display: inline-flex; max-width: 100%; }
+      .task-top .badge { padding: 3px 8px; }
+      .meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0; margin-top: 14px; padding: 0;
+      }
+      .meta-cell { padding: 10px 12px; }
+      .meta-cell:nth-child(even) { border-inline-start: 1px solid var(--line); }
+      .meta-cell:nth-child(n+3) { border-top: 1px solid var(--line); }
+      .meta-value { line-height: 1.4; }
+      .description-box { line-height: 1.65; }
+      .checklist-item > .checklist-static { min-height: 44px; }
+      .checklist-item.is-done .checklist-static .checklist-text {
+        text-decoration: none;
+        color: var(--text);
+      }
       .controls-row { grid-template-columns: minmax(0, 1fr); }
       .comment-head { flex-wrap: wrap; }
+      .comment-list { margin-bottom: 0; }
+      .comment-list + .compose-grid { margin-top: 14px; }
+      .attachment-pill { min-width: 0; max-width: 100%; }
+      .attachment-pill > .muted { flex: none; white-space: nowrap; }
+      .panel-title > .discussion-scope {
+        padding: 0; background: transparent; color: var(--muted);
+        font-weight: var(--weight-medium);
+      }
+    }
+    @media (max-width: 380px) {
+      .header-actions { gap: 4px; }
+      .share-header-inner #permBadge { max-width: 95px; }
+      .task-top time { font-size: var(--text-sm); }
     }
     @media (prefers-reduced-motion: reduce) {
       .btn, .progress-fill { transition: none; }
@@ -587,6 +626,7 @@
             <h1 class="task-heading" id="sharedTaskTitle">${esc(task.title)}</h1>
             <div class="task-top">
               <span class="badge status ${statusBadgeClass}">${esc(STATUS_LABEL[task.status] || task.status)}</span>
+              <span class="badge primary task-permission">${esc(PERMISSION_LABEL[share.permission] || share.permission)}</span>
               ${task.updatedAt ? `<time class="muted" datetime="${esc(task.updatedAt)}">Cập nhật ${esc(formatTime(task.updatedAt))}</time>` : ''}
             </div>
             <dl class="meta-grid">
@@ -674,7 +714,7 @@
           <section class="panel">
             <h2 class="panel-title">
               <span>Trao đổi (${comments.length})</span>
-              ${share.hideInternalComments ? '<span class="badge">Chỉ hiện trao đổi công khai</span>' : ''}
+              ${share.hideInternalComments ? '<span class="badge discussion-scope">Chỉ hiện trao đổi công khai</span>' : ''}
             </h2>
             <div class="comment-list">
               ${comments.length ? comments.map(c => `

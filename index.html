@@ -202,6 +202,9 @@
         <button type="button" class="view-tab" role="tab" id="hub-tab-settings" data-action="hub-tab" data-hub-tab="settings" aria-selected="false" aria-controls="hubPanelSettings">
           <span data-icon="settings"></span><span>Cài đặt &amp; Dữ liệu</span>
         </button>
+        <button type="button" class="view-tab" role="tab" id="hub-tab-notifications" data-action="hub-tab" data-hub-tab="notifications" aria-selected="false" aria-controls="hubPanelNotifications" tabindex="-1">
+          <span data-icon="bell"></span><span>Thông báo &amp; Nhắc việc</span>
+        </button>
       </div>
       <section id="hubPanelAccess" class="panel hub-panel" role="tabpanel" aria-labelledby="hub-tab-access">
         <h2 id="accessTitle" class="sr-only">Nhân sự &amp; tài khoản</h2>
@@ -213,6 +216,9 @@
       <section id="hubPanelSettings" class="panel hub-panel" role="tabpanel" aria-labelledby="hub-tab-settings" hidden>
         <h2 id="settingsTitle" class="sr-only">Cài đặt không gian</h2>
         <div id="settingsContent" class="hub-panel-body"></div>
+      </section>
+      <section id="hubPanelNotifications" class="panel hub-panel" role="tabpanel" aria-labelledby="hub-tab-notifications" hidden>
+        <div id="notificationSettingsContent" class="hub-panel-body"></div>
       </section>
     </main>
   </div>
@@ -280,8 +286,8 @@
 <div class="sr-only" role="status" aria-live="polite" id="liveStatus"></div>
 <noscript><div class="noscript">WorkTree X cần JavaScript để hoạt động. Vui lòng bật JavaScript trong trình duyệt.</div></noscript>
 
-<script src="js/core.js?v=8.2.31"></script>
-<script src="js/access.js?v=8.2.21"></script>
+<script src="js/core.js?v=8.2.36"></script>
+<script src="js/access.js?v=8.2.36"></script>
 <script src="js/mobile.js?v=8.2.7"></script>
 <script type="module" src="src/app/app.js?v=8.2.32"></script>
 </body>

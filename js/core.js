@@ -3840,6 +3840,7 @@ async function openNotifications(targetTab, forceRefresh = false){
  const section=(title,tasks)=>tasks.length?`<section class="notification-section"><h3>${title} · ${tasks.length}</h3>${tasks.slice(0,12).map(t=>`<button class="notification-item" data-action="open-task" data-id="${t.id}"><span class="notification-icon">${icon(isLate(t)?'alert':blockers(t).length?'link':'clock')}</span><span><strong>${esc(t.title)}</strong><small>${esc(nodeName(t.owner))} · ${esc(t.due?formatDate(t.due,true):'Chưa có hạn')}${blockers(t).length?' · Đang chờ phụ thuộc':''}</small></span></button>`).join('')}${tasks.length>12?`<p class="view-note">Đang hiển thị 12/${tasks.length} việc. Mở “Cần chú ý” để xem tất cả.</p>`:''}</section>`:'';
  $('infoContent').innerHTML=section('Công việc quá hạn',late)+section('Đến hạn hôm nay',today)+section('Khẩn cấp hoặc chờ phụ thuộc',other)||emptyState('Không có nhắc việc cần xử lý','Không có việc quá hạn, đến hạn hôm nay, khẩn cấp hoặc bị chặn.',null,'',false,'check-circle');
  $('infoContent').innerHTML+='<p class="view-note">Nhắc việc cục bộ trong phạm vi được cấp, không gửi email hoặc thông báo đẩy.</p>';
+ $('infoContent').innerHTML+=`<button type="button" class="btn" data-action="notif-settings">${icon('settings')}Thông báo &amp; Nhắc việc</button>`;
  showDialog('infoDialog');
 }
 
@@ -3881,18 +3882,25 @@ window.updateManualReminderPreview = function(val) {
  }
 };
 
-async function openNotificationSettings() {
- $('infoTitle').textContent = 'Cài đặt thông báo & Nhắc việc';
- $('infoEyebrow').textContent = 'Tùy chọn cá nhân';
- $('infoContent').innerHTML = '<div class="tree-empty" style="text-align:center;padding:24px 0">Đang tải cài đặt...</div>';
- showDialog('infoDialog');
+let notificationSettingsRequest = 0;
+async function renderNotificationSettings({ resetReminder = false } = {}) {
+ const target = $('notificationSettingsContent');
+ if (!target || !isSystemHubTabActive('notifications')) return;
+ const request = ++notificationSettingsRequest;
+ const organizationId = () => window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
+ const orgId = organizationId();
+ const accountId = currentAccount()?.id;
+ const isCurrent = () => request === notificationSettingsRequest && isSystemHubTabActive('notifications') && orgId === organizationId() && accountId === currentAccount()?.id;
+ if (!target.firstElementChild) target.innerHTML = '<p class="muted" role="status">Đang tải cài đặt…</p>';
 
  try {
-  const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
   const getPrefFn = window.NotificationService?.getPreferences || window.NotificationService?.getNotificationPreferences;
    const pref = (window.NotificationService && typeof getPrefFn === 'function') ? await getPrefFn.call(window.NotificationService).catch(() => ({})) : {};
   const reminders = (window.NotificationService && orgId) ? await window.NotificationService.getManualReminders(orgId).catch(() => []) : [];
-  const isDotOnly = pref?.badge_style === 'dot';
+  if (!isCurrent()) return;
+  const reminderDraft = resetReminder ? null : target.querySelector('#manualReminderTitle')?.value;
+  const reminderTime = resetReminder ? null : target.querySelector('#manualReminderTime')?.value;
+  const isDotOnly = (localStorage.getItem('wtx_notif_badge_style') || pref?.badge_style) === 'dot';
   const isPushOn = typeof Notification !== 'undefined' && Notification.permission === 'granted';
 
   const pendingReminders = reminders.filter(r => r.status === 'pending');
@@ -3983,7 +3991,7 @@ async function openNotificationSettings() {
    reminderListHtml += `</div>`;
   }
 
-  $('infoContent').innerHTML = `
+  target.innerHTML = `
    <div class="notif-settings-view">
     <section class="settings-section" style="margin-bottom:16px">
      <h3>${icon('bell')}Thông báo & Hiển thị quả chuông</h3>
@@ -3993,10 +4001,10 @@ async function openNotificationSettings() {
        <p>Chọn hiển thị số lượng chưa đọc hoặc chỉ hiện chấm đỏ tối giản (không để số).</p>
       </div>
       <div class="notif-setting-actions">
-       <button class="btn small ${isDotOnly ? '' : 'primary'}" data-action="set-badge-style" data-style="number" title="Hiển thị số lượng chưa đọc">
+       <button class="btn small ${isDotOnly ? '' : 'primary'}" data-action="set-badge-style" data-style="number" aria-pressed="${!isDotOnly}" title="Hiển thị số lượng chưa đọc">
         ${icon('bell')}Huy hiệu số
        </button>
-       <button class="btn small ${isDotOnly ? 'primary' : ''}" data-action="set-badge-style" data-style="dot" title="Chỉ hiện chấm đỏ tinh gọn, không số">
+       <button class="btn small ${isDotOnly ? 'primary' : ''}" data-action="set-badge-style" data-style="dot" aria-pressed="${isDotOnly}" title="Chỉ hiện chấm đỏ tinh gọn, không số">
         Chấm đỏ (không số)
        </button>
       </div>
@@ -4044,7 +4052,7 @@ async function openNotificationSettings() {
     </div>
    </section>
 
-   <section class="settings-section" style="margin-bottom:20px;padding:16px;border-radius:12px;background:var(--surface);border:1px solid var(--line-strong);box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+   <section class="settings-section notif-create-section" style="margin-bottom:20px;padding:16px;border-radius:12px;background:var(--surface);border:1px solid var(--line)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px">
      <div style="display:flex;align-items:center;gap:8px">
       <div style="width:28px;height:28px;border-radius:7px;background:var(--primary-soft);color:var(--primary-text);display:flex;align-items:center;justify-content:center">
@@ -4058,15 +4066,15 @@ async function openNotificationSettings() {
     
     <div style="display:grid;gap:10px">
      <div>
-      <label style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Nội dung nhắc việc <span style="color:var(--red)">*</span></label>
+      <label for="manualReminderTitle" style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Nội dung nhắc việc <span style="color:var(--red)">*</span></label>
       <input id="manualReminderTitle" class="field" placeholder="Ví dụ: Họp giao ban, nộp báo cáo, gọi điện khách hàng..." maxlength="240" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:12px;background:var(--surface);color:var(--text)">
      </div>
      
      <div>
-      <label style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Thời gian nhắc hẹn (Tự động cập nhật realtime) <span style="color:var(--red)">*</span></label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <label for="manualReminderTime" style="display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px">Thời gian nhắc hẹn <span style="color:var(--red)">*</span></label>
+      <div class="notif-datetime-group" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
        <input id="manualReminderTime" type="datetime-local" class="field" value="${defaultTimeIso}" min="${minTimeIso}" oninput="window.updateManualReminderPreview(this.value)" style="flex:1;min-width:210px;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid var(--line-strong);font-size:13px;font-weight:600;text-align:center;letter-spacing:0.3px;background:var(--surface);color:var(--text)">
-       <div style="display:flex;gap:4px;flex-wrap:wrap">
+       <div class="notif-quick-presets" style="display:flex;gap:4px;flex-wrap:wrap">
         <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="15" title="Hẹn sau 15 phút">+15p</button>
         <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="30" title="Hẹn sau 30 phút">+30p</button>
         <button type="button" class="btn small" data-action="quick-reminder-time" data-minutes="60" title="Hẹn sau 1 giờ">+1h</button>
@@ -4078,8 +4086,8 @@ async function openNotificationSettings() {
       </div>
      </div>
 
-     <div style="display:flex;justify-content:flex-start;margin-top:4px">
-      <button class="btn primary" data-action="submit-manual-reminder" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+     <div class="notif-submit-wrap" style="display:flex;justify-content:flex-start;margin-top:4px">
+      <button class="btn primary notif-submit-btn" data-action="submit-manual-reminder" style="padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
        ${icon('plus')}Lên lịch nhắc việc
       </button>
      </div>
@@ -4101,13 +4109,16 @@ async function openNotificationSettings() {
     </div>
     ${reminderListHtml}
    </section>
-   <div style="margin-top:16px"><button class="link-btn notif-back-btn" data-action="notifications">${icon('arrow-left')} Quay lại trung tâm thông báo</button></div>
    </div>
   `;
+  if (reminderDraft != null) $('manualReminderTitle').value = reminderDraft;
+  if (reminderTime != null) {
+   $('manualReminderTime').value = reminderTime;
+   window.updateManualReminderPreview(reminderTime);
+  }
  } catch (err) {
-  $('infoContent').innerHTML = emptyState('Lỗi', err.message, null, '', false, 'alert');
+  if (isCurrent()) target.innerHTML = emptyState('Không thể tải cài đặt', 'Thử mở lại mục Thông báo & Nhắc việc.', null, '', false, 'alert');
  }
- showDialog('infoDialog');
 }
 
 window.refreshNotificationBadge = async function(knownCount) {
@@ -4680,7 +4691,10 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     }
     break;
    }
-   case 'notif-settings':await openNotificationSettings();break;
+   case 'notif-settings':
+    if($('infoDialog')?.open)closeDialog('infoDialog',true);
+    await openSystemHub('notifications');
+    break;
    case 'set-badge-style':{
     const style = el.dataset.style || 'number';
     localStorage.setItem('wtx_notif_badge_style', style);
@@ -4688,7 +4702,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      window.refreshNotificationBadge();
     }
     toast(style === 'dot' ? 'Đã đổi sang: Chấm đỏ tối giản (không số)' : 'Đã đổi sang: Huy hiệu số cao cấp');
-    await openNotificationSettings();
+    await renderNotificationSettings();
     break;
    }
    case 'test-sound':{
@@ -4772,7 +4786,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      granted = perm === 'granted';
     }
     toast(granted ? 'Đã bật thông báo đẩy Web Push' : 'Chưa cấp quyền thông báo');
-    await openNotificationSettings();
+    await renderNotificationSettings();
     break;
    }
    case 'toggle-quiet-hours':{
@@ -4780,7 +4794,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      const enabled = el.dataset.enabled === 'true';
      await window.NotificationService.updatePreferences({ quiet_hours_enabled: !enabled });
      toast(!enabled ? 'Đã bật Giờ yên tĩnh (22h–07h)' : 'Đã tắt Giờ yên tĩnh');
-     await openNotificationSettings();
+     await renderNotificationSettings();
     }
     break;
    }
@@ -4807,7 +4821,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
       });
       toast(`Đã lên lịch nhắc: "${title}"`);
       await window.NotificationService.processDueReminders(orgId);
-      await openNotificationSettings();
+      await renderNotificationSettings({resetReminder:true});
      } catch (err) {
       console.error('Lỗi tạo nhắc hẹn:', err);
       toast(err.message || 'Không thể tạo lịch nhắc.', 'error');
@@ -4844,7 +4858,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      try {
       await window.NotificationService.cancelManualReminder(id);
       toast('Đã hủy nhắc việc');
-      await openNotificationSettings();
+      await renderNotificationSettings();
      } catch (err) {
       toast(err.message || 'Không thể hủy nhắc việc.', 'error');
      }
@@ -4857,7 +4871,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      try {
       await window.NotificationService.deleteManualReminder(id);
       toast('Đã xóa nhắc việc');
-      await openNotificationSettings();
+      await renderNotificationSettings();
      } catch (err) {
       toast(err.message || 'Không thể xóa nhắc việc.', 'error');
      }

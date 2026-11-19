@@ -468,11 +468,15 @@ Công việc, Tin nhắn và Quản trị & Cài đặt dùng khoảng đệm 18
 
 Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đa 50 sự kiện bảo mật gần nhất. Nhật ký có trạng thái tải, trống, lỗi và nút làm mới. Các hàng hiển thị thao tác, người thực hiện khi xác định được và thời điểm.
 
+### Thông báo và nhắc việc
+
+Quản trị & Cài đặt có tab Thông báo & Nhắc việc cho các tùy chọn cá nhân và lịch nhắc. Lối tắt trong trung tâm thông báo mở trực tiếp tab này.
+
 ### Chia sẻ công việc
 
 Hộp thoại dùng tiêu đề cố định và hiển thị tên công việc bên dưới. Phần quyền người nhận và danh sách liên kết cuộn chung. Chân hộp thoại giữ nút tạo liên kết trong tầm chạm. Trên điện thoại, thời hạn và mã PIN xếp dọc. Liên kết đã thu hồi chỉ hiển thị thông tin trạng thái.
 
-Trang dành cho người nhận dùng nhận diện WorkTree X, font Inter và màu trạng thái của hệ thống. Thông tin công việc xếp bốn cột trên màn hình rộng và hai cột trên điện thoại. Checklist dùng dấu trạng thái ở chế độ chỉ xem và ô đánh dấu khi liên kết cho phép chỉnh sửa.
+Trang dành cho người nhận dùng nhận diện WorkTree X, font Inter và màu trạng thái của hệ thống. Trên màn hình hẹp, đầu trang giữ logo, thông tin tổ chức và nút đổi giao diện trên cùng một hàng. Quyền của người nhận nằm cạnh trạng thái công việc. Thông tin công việc xếp bốn cột trên màn hình rộng và hai cột trên điện thoại. Checklist dùng dấu trạng thái ở chế độ chỉ xem và ô đánh dấu khi liên kết cho phép chỉnh sửa.
 
 ### Trợ lý AI và kết nối MCP
 

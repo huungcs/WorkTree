@@ -362,7 +362,7 @@ function lockWorkspace(message=T.sessionExpired){
  session=null;pendingUser=null;saveSession();dirtyTask=false;dirtyNode=false;drawerId=null;editingTask=null;editingNode=null;
  if(confirmResolver){confirmResolver(false);confirmResolver=null;}
  $$('dialog[open]').forEach(d=>{try{d.close();}catch(e){}});
- for(const id of ['viewContent','orgTree','savedViews','drawerContent','settingsContent','infoContent','commandResults','accessContent','accountContent','profileContent','passwordContent','pinContent']){
+ for(const id of ['viewContent','orgTree','savedViews','drawerContent','settingsContent','notificationSettingsContent','infoContent','commandResults','accessContent','accountContent','profileContent','passwordContent','pinContent']){
   const el=$(id);if(el)el.innerHTML='';
  }
  $('timerDock').hidden=true;$('toastRegion').innerHTML='';state.mobileOpen=false;document.body.style.overflow='';history=[];future=[];drawerDrafts.clear();state.selectedTasks.clear();commandOptions=[];
@@ -1746,7 +1746,7 @@ window.closeSystemHub=closeSystemHub;
 document.addEventListener('click',e=>{if(e.target.closest('[data-chat-open],[data-mobile="messages"]')&&isSystemHubOpen())closeSystemHub();},true);
 async function openSystemHub(hubTab=activeHubTab,subTab=null){
  if(!requireLogin())return;
- const allowed=demoAccount?['access']:['access','mcp','settings'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
+ const allowed=demoAccount?['access','notifications']:['access','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
  closeSidebar();if($('profileDialog')?.open)closeDialog('profileDialog',true);
  document.body.classList.remove('chat-is-open');
  if($('messagesContent'))$('messagesContent').hidden=true;
@@ -1755,12 +1755,16 @@ async function openSystemHub(hubTab=activeHubTab,subTab=null){
  $$('.primary-nav .nav-item').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current');});
  const navBtn=$('accessNav');if(navBtn){navBtn.classList.add('active');navBtn.setAttribute('aria-current','page');}
  if($('topScope'))$('topScope').textContent='Quản trị & Cài đặt';
- const tabMap={access:$('hubPanelAccess'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings')};
+ const tabMap={access:$('hubPanelAccess'),mcp:$('hubPanelMcp'),settings:$('hubPanelSettings'),notifications:$('hubPanelNotifications')};
  Object.entries(tabMap).forEach(([k,p])=>{if(p)p.hidden=(k!==activeHubTab);});
  $$('#systemHubTabs [data-hub-tab]').forEach(btn=>{const isSel=btn.dataset.hubTab===activeHubTab;btn.setAttribute('aria-selected',String(isSel));btn.tabIndex=isSel?0:-1;});
  if(activeHubTab==='access')renderAccessSection(subTab||accessTab);
  else if(activeHubTab==='mcp'){if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});if(typeof window.openMcpDialog==='function')await window.openMcpDialog({container:$('mcpHubContent'),switchToTab:false});else if($('mcpHubContent'))$('mcpHubContent').innerHTML='<div class="mcp-empty">Đang khởi tạo kết nối MCP. Vui lòng thử lại sau giây lát.</div>';}
  else if(activeHubTab==='settings'){renderSettingsSection();if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});}
+ else if(activeHubTab==='notifications'){
+  $('notificationSettingsContent').replaceChildren();
+  void renderNotificationSettings();
+ }
  document.dispatchEvent(new CustomEvent('worktree:system-hub-changed'));
  if(typeof window.syncUrlWithState==='function')window.syncUrlWithState({replace:false});
  if(hubEl&&typeof hydrateIcons==='function')hydrateIcons(hubEl);
