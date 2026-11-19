@@ -119,6 +119,9 @@ export function createSupabaseChatAdapter(initialContext) {
       p_organization_id: scope.organizationId,
       p_query: ''
     });
+    if (['PGRST202', '42883', '42703'].includes(error?.code)) {
+      throw Object.assign(new Error('Danh bạ chat cần được cập nhật.'), { code: 'MIGRATION_REQUIRED' });
+    }
     if (error) throw mapAdapterError(error);
     const nextMap = new Map();
     for (const row of data || []) {

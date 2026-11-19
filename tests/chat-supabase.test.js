@@ -234,6 +234,31 @@ test('internal chat migration enforces composite tenant FKs, RLS, idempotency in
   assert.equal(/public\.is_chat_participant/i.test(sql), true);
 });
 
+test('chat directory uses the employee job title and keeps the active tenant membership checks', () => {
+  const sql = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'migrations', '20261119131500_fix_chat_directory_employee_job_title.sql'),
+    'utf8'
+  );
+  assert.match(sql, /NULLIF\(btrim\(e\.job_title\), ''\)/);
+  assert.match(sql, /lower\(COALESCE\(e\.job_title, ''\)\)/);
+  assert.doesNotMatch(sql, /\be\.title\b/);
+  assert.match(sql, /NOT public\.is_org_member\(p_organization_id\)/);
+  assert.match(sql, /WHERE m\.organization_id = p_organization_id\s+AND m\.status = 'active'/);
+});
+
+test('chat directory reports a missing RPC or column as an update requirement', async () => {
+  for (const code of ['PGRST202', '42703']) {
+    const ctx = {
+      organizationId: ORG_A,
+      userId: USER_A,
+      supabase: { rpc: async () => ({ error: { code } }) }
+    };
+    const adapter = createSupabaseChatAdapter(ctx);
+    await assert.rejects(adapter.listEligibleParticipants(ctx), { code: 'MIGRATION_REQUIRED' });
+    adapter.dispose();
+  }
+});
+
 test('supabase chat adapter uploads attachments to scoped storage path and sends message', async () => {
   const sb = createMockSupabase();
   const ctx = { organizationId: ORG_A, userId: USER_A, displayName: 'Hữu', supabase: sb };

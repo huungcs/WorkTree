@@ -236,6 +236,9 @@ html[data-theme=dark] .chat-send{color:var(--bg)}
 .chat-dialog-error{font-size:12px;color:var(--red);margin:8px 0 0}
 .chat-dialog-error:empty{display:none}
 .chat-no-people{padding:25px 10px;text-align:center;color:var(--muted);font-size:12px}
+.chat-directory-error{display:grid;justify-items:center;gap:8px}
+.chat-directory-error p{margin:0}
+@media(max-width:900px){.chat-directory-error .btn{min-height:44px}}
 .chat-load-older{display:flex;margin:6px auto 12px;font-size:11px}
 body.chat-is-open{overflow:hidden}
 body.chat-is-open .primary-nav .nav-item.active:not([data-chat-open]){background:transparent;color:var(--sidebar-muted)}

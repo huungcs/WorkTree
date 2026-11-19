@@ -8,6 +8,8 @@ Tham khảo người dùng: https://fiine.pro/messages. Trang chuyển về đă
 
 - Agent giao diện: layout, navigation, component, state UI, mock adapter, accessibility, responsive, kiểm chứng light/dark và các kích thước quy định.
 - Agent backend: schema/migration, RLS, RPC, Storage, Realtime, repository adapter thật, test bảo mật và tài liệu vận hành.
+
+Nếu danh bạ cloud báo cần cập nhật, kiểm tra migration `20261119110000_add_internal_chat.sql` và bản vá `20261119131500_fix_chat_directory_employee_job_title.sql` trên cùng dự án Supabase. Bản vá đổi cột chức danh sang `employees.job_title` và giữ phạm vi doanh nghiệp cùng điều kiện thành viên đang hoạt động. Sau khi áp dụng, xác nhận bằng hai tài khoản đã kích hoạt trong cùng workspace.
 - Dùng hợp đồng bên dưới làm điểm nối. Thay đổi hợp đồng phải được ghi lại trước khi ghép hai phần.
 - Đây là feature slice trong modular monolith hiện tại; không đổi framework, auth hoặc các quyền task đang có.
 

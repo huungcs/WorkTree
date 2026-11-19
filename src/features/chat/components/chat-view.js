@@ -631,7 +631,12 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
   function renderPeople(search = '') {
     const target = dialog.querySelector('[data-chat-people]'); if (!target) return;
     const shown = dialogPeople.filter(p => fold(`${p.displayName} ${p.roleLabel}`).includes(fold(search)));
-    target.innerHTML = shown.length ? shown.map(p => `<label class="chat-person-option">${dialogMode === 'new-message' ? `<input type="radio" name="recipient" value="${escapeHtml(p.membershipId)}" ${selectedPeople.has(p.membershipId) ? 'checked' : ''}>` : `<input type="checkbox" value="${escapeHtml(p.membershipId)}" ${selectedPeople.has(p.membershipId) ? 'checked' : ''}>`}${avatar(p.displayName, p.tone, false, '', p.portrait, p.userId === context?.userId ? (localAvatarUrl || profileAvatarUrl) : null)}<span><strong>${escapeHtml(p.displayName)}</strong><small>${escapeHtml(p.roleLabel || 'Thành viên')}</small></span>${icon('check')}</label>`).join('') : '<p class="chat-no-people">Không tìm thấy người phù hợp.</p>';
+    const emptyText = dialogPeople.length
+      ? 'Không tìm thấy người phù hợp với từ khóa.'
+      : dialogMode === 'add-members'
+        ? 'Không có đồng nghiệp nào khác để thêm vào nhóm.'
+        : 'Chưa có đồng nghiệp có tài khoản WorkTree đang hoạt động trong doanh nghiệp này.';
+    target.innerHTML = shown.length ? shown.map(p => `<label class="chat-person-option">${dialogMode === 'new-message' ? `<input type="radio" name="recipient" value="${escapeHtml(p.membershipId)}" ${selectedPeople.has(p.membershipId) ? 'checked' : ''}>` : `<input type="checkbox" value="${escapeHtml(p.membershipId)}" ${selectedPeople.has(p.membershipId) ? 'checked' : ''}>`}${avatar(p.displayName, p.tone, false, '', p.portrait, p.userId === context?.userId ? (localAvatarUrl || profileAvatarUrl) : null)}<span><strong>${escapeHtml(p.displayName)}</strong><small>${escapeHtml(p.roleLabel || 'Thành viên')}</small></span>${icon('check')}</label>`).join('') : `<p class="chat-no-people">${emptyText}</p>`;
     renderSelectedPeople();
   }
   function renderSelectedPeople() {
@@ -652,13 +657,33 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (!dialog.open) dialog.showModal();
     dialog.querySelector('input')?.focus();
     if (rename) return;
+    await loadDialogPeople({ focusSearch: mode === 'new-message' });
+  }
+  async function loadDialogPeople({ focusSearch = false } = {}) {
+    const target = dialog.querySelector('[data-chat-people]');
+    const search = dialog.querySelector('[data-chat-people-search]');
+    if (!adapter || !dialog.open || !target || !search || target.getAttribute('aria-busy') === 'true') return;
     const captured = context;
+    const mode = dialogMode;
+    const isCurrent = () => valid(captured) && dialog.open && dialog.contains(target);
+    target.setAttribute('aria-busy', 'true');
+    target.innerHTML = skeleton();
+    search.disabled = true;
     try {
       const page = await adapter.listEligibleParticipants(captured, {});
-      if (!valid(captured) || !dialog.open || dialogMode !== mode) return;
+      if (!isCurrent()) return;
       dialogPeople = mode === 'add-members' ? page.items.filter(p => !participants.some(existing => existing.userId === p.userId)) : page.items;
-      renderPeople();
-    } catch (error) { if (valid(captured) && dialog.open) { dialog.querySelector('[data-chat-people]').innerHTML = '<p class="chat-no-people">Chưa tải được danh bạ. Đóng và mở lại để thử lại.</p>'; } }
+      search.disabled = false;
+      renderPeople(search.value);
+      if (focusSearch) search.focus();
+    } catch (error) {
+      if (!isCurrent() || error.name === 'AbortError') return;
+      const message = error.code === 'MIGRATION_REQUIRED'
+        ? 'Danh bạ chat cần được quản trị viên cập nhật.'
+        : 'Chưa tải được danh bạ.';
+      target.innerHTML = `<div class="chat-no-people chat-directory-error"><p role="status">${message}</p><button type="button" class="btn small" data-chat-action="retry-directory">Thử lại</button></div>`;
+      if (focusSearch) target.querySelector('button')?.focus();
+    } finally { target.removeAttribute('aria-busy'); }
   }
   async function submitDialog(event) {
     event.preventDefault();
@@ -693,6 +718,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (name === 'toggle-info') return setInfo(!infoOpen);
     if (name === 'back') { document.body.classList.remove('chat-conversation-open'); workbench.classList.remove('has-conversation'); selectedId = null; current = null; ++detailRequest; setInfo(false, false); renderList(); setRoute(null); $('[data-chat-search]')?.focus({ preventScroll: true }); return; }
     if (name === 'retry-list') return refreshList();
+    if (name === 'retry-directory') return loadDialogPeople({ focusSearch: true });
     if (name === 'retry-conversation') return selectConversation(selectedId);
     if (name === 'clear-filter') { filter = 'all'; query = ''; $('[data-chat-search]').value = ''; renderList(); return; }
     if (name === 'cancel-reply') { replyTo = null; renderReply(); return; }
