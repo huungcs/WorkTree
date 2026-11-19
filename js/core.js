@@ -117,6 +117,7 @@ const ICONS={
  help:'<circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
  'help-circle':'<circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
  question:'<circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+ grip:'<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>',
  bot:'<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'
 };
 const $=id=>document.getElementById(id);
@@ -239,6 +240,7 @@ function validateData(input){
 let data,byNode=new Map(),byTask=new Map(),byParent=new Map(),subtreeCache=new Map();
 let storageIssue='',storageProtected=false,lastRaw=null,externalRaw=null;
 let migrationMessage='',pendingImport=null,editingTask=null,editingNode=null,drawerId=null,dirtyTask=false,dirtyNode=false,editingChecklistItem=null,formCollaborators=[],formCollabPickerOpen=false,formCollabQuery='';
+let justDraggedUntil=0;
 let history=[],future=[],confirmResolver=null,commandOptions=[],commandIndex=0,returnFocus=new Map();
 let state={
  selected:1,view:'overview',includeChildren:true,collapsed:false,mobileOpen:false,filterOpen:false,filters:blankFilters(),sort:'smart',page:1,pageSize:15,
@@ -785,15 +787,40 @@ function setTaskStatus(t,status,lookup){
  }else if(t.status==='Hoàn thành'){t.progress=Math.min(99,t.resumeProgress||0);}
  t.status=status;touch(t);
 }
-function changeStatus(id,status){
+function resolveTaskId(raw){
+ if(raw===null||raw===undefined||raw==='')return null;
+ if(byTask.has(raw))return raw;
+ const parsed=parseEntityValue(raw);
+ if(parsed!==null&&byTask.has(parsed))return parsed;
+ const str=String(raw).trim();
+ if(/^-?\d+$/.test(str)){
+  const num=Number(str);
+  if(byTask.has(num))return num;
+ }
+ return parsed;
+}
+function changeStatus(rawId,status){
+ const id=resolveTaskId(rawId)??rawId;
+ if(!STATUS.includes(status))return;
  if(window.__worktree_is_cloud_workspace){
   if(!requireLogin()||!canUpdateTask(byTask.get(id)))return deny();
   const t=byTask.get(id);if(!t||t.status===status)return;
-  const prevStatus=t.status,prevProgress=t.progress;
+  if(t.status==='Hoàn thành'&&!canReopenCompleted()){renderView();return deny();}
+  if(status==='Hoàn thành'){
+   if(t.autoProgress&&t.checklist.some(c=>!c[1])){toast('Checklist chưa hoàn tất. Hoàn tất checklist hoặc tắt chế độ tự tính trước.','error');renderView();return;}
+   const blockedBy=blockers(t);
+   if(blockedBy.length){toast(`Chưa thể hoàn thành "${t.title}". Cần hoàn thành trước: ${blockedBy.map(x=>canReadTask(x)?x.title:T.hiddenDependency).slice(0,3).join('; ')}.`,'error');renderView();return;}
+  }
+  const prevStatus=t.status,prevProgress=t.progress,prevResumeProg=t.resumeProgress,prevResumeStatus=t.resumeStatus;
 
   // Optimistic UI update
   t.status=status;
-  if(status==='Hoàn thành')t.progress=100;
+  if(status==='Hoàn thành'){
+   if(prevStatus!=='Hoàn thành'){t.resumeProgress=prevProgress;t.resumeStatus=prevStatus;}
+   t.progress=100;
+  }else if(prevStatus==='Hoàn thành'){
+   t.progress=Math.min(99,prevResumeProg||0);
+  }
 
   // Optimistic activity log entry
   const actorName=window.__worktree_supabase_user?.name||(typeof person==='function'?person().name:'Tôi');
@@ -835,6 +862,8 @@ function changeStatus(id,status){
     // Rollback on failure
     t.status=prevStatus;
     t.progress=prevProgress;
+    t.resumeProgress=prevResumeProg;
+    t.resumeStatus=prevResumeStatus;
     const actIdx=data.activities.findIndex(a=>a.id===optAct.id);
     if(actIdx!==-1)data.activities.splice(actIdx,1);
     rebuild();
@@ -1189,12 +1218,13 @@ function renderList(arr){
 }
 function boardCard(t){
  const checks=t.checklist.length,checked=t.checklist.filter(c=>c[1]).length;
- return `<article class="board-card" draggable="true" data-drag-task="${t.id}" aria-label="${esc(t.title)}"><div class="board-card-header">${priorityBadge(t.priority)}<div class="board-card-actions"><button class="icon-btn small favorite-btn ${t.favorite?'is-favorite':''}" data-action="favorite" data-id="${t.id}" title="${t.favorite?'Bỏ đánh dấu sao':'Đánh dấu sao'}" aria-label="${esc('Đánh dấu sao: '+t.title)}" aria-pressed="${t.favorite}">${icon('star')}</button></div></div><button class="task-name" data-action="open-task" data-id="${t.id}">${esc(t.title)}</button><div class="board-path" title="${esc(pathName(t.node))}">${esc(nodeName(t.node))}</div><div class="tags">${t.tags.slice(0,3).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}${blockers(t).length?`<span class="tag" style="color:var(--amber)">${icon('link')} Chờ phụ thuộc</span>`:''}</div><div class="progress" role="progressbar" aria-label="Tiến độ" aria-valuenow="${t.progress}" aria-valuemin="0" aria-valuemax="100"><i style="width:${t.progress}%;${t.status==='Hoàn thành'?'background:var(--green)':''}"></i></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--muted);margin-bottom:8px">${dateLabel(t,true)}<span title="Checklist đã xong">${checks?`${checked}/${checks} mục`:t.progress+'%'}</span></div><div class="board-footer"><span style="display:inline-flex;align-items:center">${avatar(t.owner)}${collaboratorsStackHTML(t)}</span><select data-status-task="${t.id}" aria-label="${esc('Chuyển trạng thái: '+t.title)}">${STATUS.map(s=>`<option ${t.status===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div></article>`;
+ const movable=canUpdateTask(t);
+ return `<article class="board-card ${movable?'':'is-drag-locked'}" draggable="false" data-drag-task="${t.id}" data-can-drag="${movable}" aria-label="${esc(t.title)}"><div class="board-card-header">${priorityBadge(t.priority)}<div class="board-card-actions"><button class="icon-btn small favorite-btn ${t.favorite?'is-favorite':''}" data-action="favorite" data-id="${t.id}" title="${t.favorite?'Bỏ đánh dấu sao':'Đánh dấu sao'}" aria-label="${esc('Đánh dấu sao: '+t.title)}" aria-pressed="${t.favorite}">${icon('star')}</button><span class="board-card-grip" title="${movable?'Kéo sang cột tiến độ khác':'Chỉ xem'}" aria-hidden="true">${icon('grip')}</span></div></div><button class="task-name" data-action="open-task" data-id="${t.id}">${esc(t.title)}</button><div class="board-path" title="${esc(pathName(t.node))}">${esc(nodeName(t.node))}</div><div class="tags">${t.tags.slice(0,3).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}${blockers(t).length?`<span class="tag" style="color:var(--amber)">${icon('link')} Chờ phụ thuộc</span>`:''}</div><div class="progress" role="progressbar" aria-label="Tiến độ" aria-valuenow="${t.progress}" aria-valuemin="0" aria-valuemax="100"><i style="width:${t.progress}%;${t.status==='Hoàn thành'?'background:var(--green)':''}"></i></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--muted);margin-bottom:8px">${dateLabel(t,true)}<span title="Checklist đã xong">${checks?`${checked}/${checks} mục`:t.progress+'%'}</span></div><div class="board-footer"><span style="display:inline-flex;align-items:center">${avatar(t.owner)}${collaboratorsStackHTML(t)}</span><select data-status-task="${t.id}" aria-label="${esc('Chuyển trạng thái: '+t.title)}">${STATUS.map(s=>`<option ${t.status===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div></article>`;
 }
 function renderKanban(arr){
  return `<div class="board" aria-label="Bảng Kanban">${STATUS.map((s,i)=>{
   const cards=arr.filter(t=>t.status===s);
-  return `<section class="board-column" data-drop-status="${esc(s)}" aria-label="${esc(s)}"><div class="board-column-head"><span class="legend-dot" style="background:${['var(--muted)','var(--blue)','var(--amber)','var(--green)'][i]}"></span>${esc(s)}<span class="count">${cards.length}</span><button class="icon-btn" data-action="new-task" data-status="${esc(s)}" aria-label="${esc('Thêm công việc '+s)}">${icon('plus')}</button></div>${cards.length?cards.slice(0,75).map(boardCard).join(''):'<div class="board-empty">Kéo công việc vào đây<br>hoặc tạo một đầu việc mới.</div>'}${cards.length>75?`<button class="link-btn" data-action="board-more" data-status="${esc(s)}">Xem ${cards.length-75} việc còn lại</button>`:''}<button class="board-add" data-action="new-task" data-status="${esc(s)}">${icon('plus')}Thêm công việc</button></section>`;
+  return `<section class="board-column" data-drop-status="${esc(s)}" aria-label="${esc(s)}"><div class="board-column-head"><span class="legend-dot" style="background:${['var(--muted)','var(--blue)','var(--amber)','var(--green)'][i]}"></span>${esc(s)}<span class="count">${cards.length}</span><button class="icon-btn" data-action="new-task" data-status="${esc(s)}" aria-label="${esc('Thêm công việc '+s)}">${icon('plus')}</button></div><div class="board-column-body">${cards.length?cards.slice(0,75).map(boardCard).join(''):'<div class="board-empty">Kéo công việc vào đây<br>hoặc tạo một đầu việc mới.</div>'}${cards.length>75?`<button class="link-btn" data-action="board-more" data-status="${esc(s)}">Xem ${cards.length-75} việc còn lại</button>`:''}<button class="board-add" data-action="new-task" data-status="${esc(s)}">${icon('plus')}Thêm công việc</button></div></section>`;
  }).join('')}</div><p class="view-note">${icon('info')}Kéo thả giữa các cột để đổi trạng thái. Trên điện thoại hoặc bàn phím, dùng ô trạng thái trên từng thẻ. Không thể hoàn thành khi công việc phụ thuộc vẫn đang mở.</p>`;
 }
 function inferredStart(t){
@@ -5284,9 +5314,168 @@ document.addEventListener('keydown',e=>{
  else if(e.key==='Delete'&&state.view==='list'&&state.selectedTasks.size){e.preventDefault();deleteTasks([...state.selectedTasks]);}
 });
 let draggingId=null;
+let pointerDrag=null;
+
+function canDropTaskInStatus(t,targetStatus){
+ if(!t||!STATUS.includes(targetStatus))return {ok:false,reason:''};
+ if(t.status==='Hoàn thành'&&targetStatus!=='Hoàn thành'&&!canReopenCompleted()){
+  return {ok:false,reason:'Cần quyền quản lý để mở lại'};
+ }
+ if(targetStatus==='Hoàn thành'&&t.status!=='Hoàn thành'){
+  if(t.autoProgress&&t.checklist.some(c=>!c[1])){
+   return {ok:false,reason:'Checklist chưa hoàn tất'};
+  }
+  const b=blockers(t);
+  if(b.length){
+   return {ok:false,reason:'Cần xong việc phụ thuộc trước'};
+  }
+ }
+ return {ok:true,reason:''};
+}
+
+function findKanbanDropColumn(clientX,clientY){
+ const cols=$$('#viewContent .board-column[data-drop-status]');
+ if(!cols.length)return null;
+ if(typeof document.elementsFromPoint==='function'){
+  const hits=document.elementsFromPoint(clientX,clientY);
+  const direct=hits.find(n=>n.matches&&n.matches('.board-column[data-drop-status]'));
+  if(direct)return direct;
+ }
+ const board=document.querySelector('#viewContent .board');
+ const bRect=board?.getBoundingClientRect();
+ if(!bRect||clientY<bRect.top-28||clientY>bRect.bottom+48)return null;
+ for(const col of cols){
+  const r=col.getBoundingClientRect();
+  if(clientX>=r.left-8&&clientX<=r.right+8)return col;
+ }
+ return null;
+}
+
+function clearKanbanDragVisuals(){
+ $$('.board-column.drag-over,.board-column.drag-blocked').forEach(c=>c.classList.remove('drag-over','drag-blocked'));
+ $$('.board-card.dragging').forEach(el=>el.classList.remove('dragging'));
+ $$('.board-drop-indicator,.board-drag-ghost').forEach(el=>el.remove());
+ document.body.classList.remove('kanban-dragging');
+}
+
+function startPointerDrag(st){
+ st.active=true;
+ document.body.classList.add('kanban-dragging');
+ st.card.classList.add('dragging');
+ const ghost=st.card.cloneNode(true);
+ ghost.classList.remove('dragging');
+ ghost.classList.add('board-drag-ghost');
+ ghost.removeAttribute('data-drag-task');
+ ghost.style.width=`${st.rect.width}px`;
+ ghost.style.height=`${st.rect.height}px`;
+ ghost.style.transform=`translate3d(${st.rect.left}px,${st.rect.top}px,0) rotate(1.2deg) scale(1.02)`;
+ document.body.appendChild(ghost);
+ st.ghost=ghost;
+ const indicator=document.createElement('div');
+ indicator.className='board-drop-indicator';
+ st.indicator=indicator;
+}
+
+function updatePointerDrag(clientX,clientY){
+ if(!pointerDrag)return;
+ const dx=clientX-pointerDrag.startX,dy=clientY-pointerDrag.startY;
+ if(!pointerDrag.active){
+  if(Math.hypot(dx,dy)<=7)return;
+  startPointerDrag(pointerDrag);
+ }
+ const gx=clientX-pointerDrag.offsetX,gy=clientY-pointerDrag.offsetY;
+ pointerDrag.ghost.style.transform=`translate3d(${gx}px,${gy}px,0) rotate(1.2deg) scale(1.02)`;
+ const board=document.querySelector('#viewContent .board');
+ if(board){
+  const br=board.getBoundingClientRect();
+  if(clientX<br.left+56)board.scrollLeft-=14;
+  else if(clientX>br.right-56)board.scrollLeft+=14;
+ }
+ const col=findKanbanDropColumn(clientX,clientY);
+ pointerDrag.targetCol=col;
+ $$('.board-column.drag-over,.board-column.drag-blocked').forEach(c=>{
+  if(c!==col)c.classList.remove('drag-over','drag-blocked');
+ });
+ const taskObj=byTask.get(pointerDrag.taskId);
+ const targetStatus=col?.dataset?.dropStatus;
+ if(col&&taskObj&&targetStatus&&targetStatus!==taskObj.status){
+  const check=canDropTaskInStatus(taskObj,targetStatus);
+  col.classList.add('drag-over');
+  col.classList.toggle('drag-blocked',!check.ok);
+  pointerDrag.indicator.textContent=check.ok?`Thả để chuyển sang "${targetStatus}"`:`⛔ ${check.reason}`;
+  pointerDrag.indicator.classList.toggle('is-blocked',!check.ok);
+  const body=col.querySelector('.board-column-body')||col;
+  const addBtn=body.querySelector('.board-add');
+  if(pointerDrag.indicator.parentElement!==body){
+   if(addBtn)body.insertBefore(pointerDrag.indicator,addBtn);
+   else body.appendChild(pointerDrag.indicator);
+  }
+ }else{
+  pointerDrag.indicator.remove();
+ }
+}
+
+function finishPointerDrag(commitDrop){
+ const st=pointerDrag;
+ pointerDrag=null;
+ if(!st||!st.active)return;
+ justDraggedUntil=Date.now()+240;
+ const targetStatus=commitDrop?st.targetCol?.dataset?.dropStatus:null;
+ const taskId=st.taskId;
+ clearKanbanDragVisuals();
+ if(commitDrop&&targetStatus&&STATUS.includes(targetStatus)){
+  const t=byTask.get(taskId);
+  if(t&&t.status!==targetStatus)changeStatus(taskId,targetStatus);
+ }
+}
+
+document.addEventListener('pointerdown',e=>{
+ if(state.view!=='kanban')return;
+ if(e.pointerType==='mouse'&&e.button!==0)return;
+ const card=e.target.closest('.board-card[data-drag-task]');
+ if(!card)return;
+ if(e.target.closest('select,input,textarea,[data-action="favorite"],.task-pin-btn,.icon-btn'))return;
+ if(e.pointerType==='touch'&&!e.target.closest('.board-card-grip'))return;
+ const taskId=resolveTaskId(card.dataset.dragTask);
+ const taskObj=byTask.get(taskId);
+ if(!taskObj||!canUpdateTask(taskObj))return;
+ if(e.pointerType==='touch')e.preventDefault();
+ const rect=card.getBoundingClientRect();
+ pointerDrag={
+  pointerId:e.pointerId,
+  card,
+  taskId,
+  startX:e.clientX,
+  startY:e.clientY,
+  offsetX:e.clientX-rect.left,
+  offsetY:e.clientY-rect.top,
+  rect,
+  active:false,
+  ghost:null,
+  indicator:null,
+  targetCol:null
+ };
+});
+document.addEventListener('pointermove',e=>{
+ if(!pointerDrag||e.pointerId!==pointerDrag.pointerId)return;
+ updatePointerDrag(e.clientX,e.clientY);
+});
+document.addEventListener('pointerup',e=>{
+ if(!pointerDrag||e.pointerId!==pointerDrag.pointerId)return;
+ updatePointerDrag(e.clientX,e.clientY);
+ finishPointerDrag(true);
+});
+document.addEventListener('pointercancel',e=>{
+ if(!pointerDrag||e.pointerId!==pointerDrag.pointerId)return;
+ finishPointerDrag(false);
+});
+window.addEventListener('blur',()=>{if(pointerDrag)finishPointerDrag(false);});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&pointerDrag?.active){e.preventDefault();finishPointerDrag(false);}
+});
 document.addEventListener('dragstart',e=>{
  const card=e.target.closest('[data-drag-task]');if(!card)return;
- const cardTaskId=card.dataset.dragTask;
+ const cardTaskId=resolveTaskId(card.dataset.dragTask);
  if(!canUpdateTask(byTask.get(cardTaskId))){e.preventDefault();return;}
  if(e.target.closest('select,input')){e.preventDefault();return;}
  draggingId=cardTaskId;e.dataTransfer.setData('text/plain',String(draggingId));e.dataTransfer.effectAllowed='move';card.classList.add('dragging');
@@ -5297,10 +5486,10 @@ document.addEventListener('dragover',e=>{
 });
 document.addEventListener('drop',e=>{
  const col=e.target.closest('[data-drop-status]');if(!col||!draggingId)return;e.preventDefault();
- const id=e.dataTransfer.getData('text/plain'),status=col.dataset.dropStatus;draggingId=null;$$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));
- if(byTask.has(id)&&STATUS.includes(status))changeStatus(id,status);
+ const rawDropId=e.dataTransfer?.getData('text/plain')||draggingId,id=resolveTaskId(rawDropId),status=col.dataset.dropStatus;draggingId=null;clearKanbanDragVisuals();
+ if(id!==null&&byTask.has(id)&&STATUS.includes(status))changeStatus(id,status);
 });
-document.addEventListener('dragend',()=>{draggingId=null;$$('.drag-over,.dragging').forEach(el=>el.classList.remove('drag-over','dragging'));});
+document.addEventListener('dragend',()=>{draggingId=null;clearKanbanDragVisuals();});
 window.addEventListener('resize',()=>{if(innerWidth>900)state.mobileOpen=false;applySidebar();});
 window.addEventListener('storage',event=>{
  if(typeof demoAccount!=='undefined'&&demoAccount)return;

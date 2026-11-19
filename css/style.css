@@ -450,18 +450,31 @@ html[data-theme="dark"] .btn.primary{color:#111426}
 .bulk-bar select{max-width:160px;padding:6px;border:1px solid var(--line-strong);border-radius:6px;font-size:10px}
 .bulk-bar .btn{min-height:29px;font-size:10px;padding:5px 9px}
 .spacer{flex:1}
-.board{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:14px;overflow:auto;padding:0 1px 12px;align-items:start;scrollbar-width:thin}
-.board-column{min-height:440px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:11px;transition:border-color .15s}
-.board-column.drag-over{border-color:var(--primary);background:var(--primary-soft)}
+.board{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:14px;overflow:auto;padding:0 1px 12px;align-items:stretch;scrollbar-width:thin}
+.board-column{min-height:440px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:11px;transition:border-color .15s,background-color .15s,box-shadow .15s;display:flex;flex-direction:column}
+.board-column-body{display:flex;flex-direction:column;flex:1;min-height:120px}
+.board-column.drag-over{border-color:var(--primary);background:var(--primary-soft);box-shadow:inset 0 0 0 1px var(--primary)}
+.board-column.drag-over.drag-blocked{border-color:var(--amber);background:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--amber)}
+.board-column.drag-over .board-empty{display:none}
 .board-column-head{display:flex;align-items:center;gap:7px;margin:0 1px 14px;min-height:25px;font-size:11px;font-weight:600}
 .board-column-head .count{font-weight:500;color:var(--muted);background:var(--surface-3);font-size:9px;padding:1px 5px;border-radius:4px}
 .board-column-head .icon-btn{margin-left:auto;width:23px;height:23px}
 .board-column-head .icon-btn svg{width:14px;height:14px}
-.board-card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:10px;box-shadow:0 2px 5px #00000003;cursor:grab}
+.board-card{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:10px;box-shadow:0 2px 5px #00000003;cursor:grab;transition:border-color .15s,box-shadow .15s,opacity .15s}
 .board-card:hover{border-color:var(--line-strong);box-shadow:0 4px 12px #00000006}
-.board-card.dragging{opacity:.45}
+.board-card.is-drag-locked{cursor:pointer}
+.board-card.is-drag-locked .board-card-grip{display:none}
+.board-card.dragging{opacity:.35;border-style:dashed;border-color:var(--primary)}
 .board-card-header{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:7px}
 .board-card-actions{display:flex;align-items:center;gap:3px;margin-left:auto}
+.board-card-grip{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;color:var(--subtle);opacity:.55;cursor:grab;touch-action:none}
+.board-card:hover .board-card-grip{opacity:1;color:var(--text);background:var(--surface-2)}
+.board-card-grip .icon{width:13px;height:13px}
+.board-drop-indicator{border:1.5px dashed var(--primary);background:var(--surface);color:var(--primary-text);border-radius:8px;padding:12px 10px;margin-bottom:10px;font-size:11px;font-weight:600;text-align:center;pointer-events:none}
+.board-drop-indicator.is-blocked{border-color:var(--amber);background:var(--surface);color:var(--amber)}
+.board-drag-ghost{position:fixed;top:0;left:0;margin:0!important;z-index:9999;pointer-events:none;box-shadow:0 16px 36px rgba(15,23,42,.18);border-color:var(--primary)!important;cursor:grabbing;opacity:.96;transform-origin:center center}
+body.kanban-dragging,body.kanban-dragging *{user-select:none!important;cursor:grabbing!important}
+@media (prefers-reduced-motion:reduce){.board-drag-ghost,.board-card,.board-column{transition:none!important}}
 .board-card-actions .task-pin-btn{width:24px!important;height:24px!important;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
 .board-card-actions .task-pin-btn .icon{width:13px!important;height:13px!important}
 .board-card-header .task-pin-btn{margin-left:auto}

@@ -2326,7 +2326,14 @@ function applyPermissionUI(){
   if($('bulkOwner'))$('bulkOwner').disabled=!['owner','admin','manager'].includes(a.role);
   if($('bulkStatus'))$('bulkStatus').disabled=a.role==='viewer';
   $$('[data-select-task],#selectPage').forEach(el=>el.disabled=a.role==='viewer');
-  $$('[data-drag-task]').forEach(el=>el.draggable=canUpdateTask(byTask.get(el.dataset.dragTask)));
+  $$('[data-drag-task]').forEach(el=>{
+   const rawId=el.dataset.dragTask;
+   const resolvedId=typeof resolveTaskId==='function'?resolveTaskId(rawId):((rawId&&!isNaN(rawId))?Number(rawId):rawId);
+   const allowed=canUpdateTask(byTask.get(resolvedId));
+   el.draggable=false;
+   el.dataset.canDrag=String(allowed);
+   el.classList.toggle('is-drag-locked',!allowed);
+  });
  decoratePinButtons();
 }
 function handleV8Click(e){
