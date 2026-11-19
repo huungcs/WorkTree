@@ -25,11 +25,12 @@ test.describe('Desktop Layout (>= 901px)', () => {
     await page.locator('[data-preview-sidebar]').first().click();
     await expect(page.locator('#app')).toHaveClass(/sidebar-collapsed/);
 
-    // Allow transition (0.2s) to settle
-    await page.waitForTimeout(260);
-    const collapsedBox = await sidebar.boundingBox();
+    // Allow CSS grid-template-columns transition (0.2s) to settle reliably even under CI/local load
+    await expect.poll(async () => {
+      const box = await sidebar.boundingBox();
+      return box ? Math.round(box.width) : 0;
+    }, { timeout: 2500 }).toBe(76);
     const collapsedMainBox = await main.boundingBox();
-    expect(Math.round(collapsedBox.width)).toBe(76);
     expect(collapsedMainBox.width).toBeGreaterThan(expandedMainBox.width);
 
     // Light / Dark theme toggle
@@ -210,6 +211,46 @@ test.describe('Desktop Layout (>= 901px)', () => {
     await expect(aiBox).toBeVisible();
     await expect(aiBox.locator('.drawer-ai-title')).toContainText('Tóm tắt công việc');
     await expect(aiBox.locator('.drawer-ai-summary-row')).toHaveCount(3);
+    await page.locator('#drawer .drawer-top [data-action="close"][data-dialog="drawer"]').click();
+
+    // Verify Daily Check-in dialog autofill summary works cleanly without errors
+    await page.locator('#btnDailyCheckin, [data-action="daily-checkin"]').first().click();
+    await expect(page.locator('#wtDailyCheckinDialog')).toBeVisible();
+    await page.locator('#wtDailyCheckinDialog [data-chk-action="autofill-summary"]').click();
+    const summaryVal = await page.locator('#wtChkSummary').inputValue();
+    expect(summaryVal.trim().length).toBeGreaterThan(0);
+    await page.locator('#wtDailyCheckinDialog [data-chk-action="close"]').first().click();
+
+    // Verify AI Digest modal & rebalance button click handler do not throw `btn is not defined`
+    await page.locator('#tab-overview').click();
+    await page.locator('[data-action="ai-digest-modal"]').click();
+    await expect(page.locator('#aiDigestDialog')).toBeVisible();
+    const firstRebalance = page.locator('#aiDigestDialog [data-action="ai-rebalance-apply"]').first();
+    if (await firstRebalance.count()) {
+      await firstRebalance.click();
+      await expect(page.locator('#confirmDialog')).toBeVisible();
+      await page.locator('#confirmCancel').click();
+    } else {
+      const snap = await page.evaluate(() => {
+        const s = window.WorkTree.getSnapshot();
+        const t = s.tasks.find(x => x.status !== 'Hoàn thành');
+        const target = s.nodes.find(n => n.type === 'person' && String(n.id) !== String(t?.owner));
+        if (!t || !target) return false;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.action = 'ai-rebalance-apply';
+        b.dataset.id = String(t.id);
+        b.dataset.target = String(target.id);
+        document.getElementById('aiDigestDialog').appendChild(b);
+        b.click();
+        return true;
+      });
+      if (snap) {
+        await expect(page.locator('#confirmDialog')).toBeVisible();
+        await page.locator('#confirmCancel').click();
+      }
+    }
+    await page.locator('#aiDigestClose').click();
 
     expect(errors).toEqual([]);
   });

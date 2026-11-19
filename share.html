@@ -534,10 +534,74 @@
         return '';
       }
 
+      const urlParams = new URLSearchParams(window.location.search);
+      const demoShareToken = (!urlParams.get('token') && urlParams.get('demo_share')) ? urlParams.get('demo_share').trim() : '';
       const token = getTokenFromUrl();
-      let unlockedPin = token ? (sessionStorage.getItem(`wt_share_pin:${token}`) || '') : '';
+      const pinStoreKey = demoShareToken ? `wt_demo_share_pin:${demoShareToken}` : `wt_share_pin:${token}`;
+      let unlockedPin = (demoShareToken || token) ? (sessionStorage.getItem(pinStoreKey) || '') : '';
       let guestName = localStorage.getItem('worktree_share_guest_name') || '';
       let currentData = null;
+
+      const DEMO_STATUS_TO_API = { 'Chưa làm': 'todo', 'Đang làm': 'in_progress', 'Chờ duyệt': 'review', 'Hoàn thành': 'done' };
+      const DEMO_API_TO_STATUS = { todo: 'Chưa làm', in_progress: 'Đang làm', review: 'Chờ duyệt', done: 'Hoàn thành' };
+      const DEMO_PRIO_TO_API = { 'Khẩn cấp': 'urgent', 'Cao': 'high', 'Trung bình': 'medium', 'Thấp': 'low' };
+
+      function readDemoShareState() {
+        if (!demoShareToken) return null;
+        try {
+          if (localStorage.getItem('worktree_x_v8_demo_share_policy') === 'false') return null;
+          const sharesRaw = JSON.parse(localStorage.getItem('worktree_x_v8_demo_shares') || '{}');
+          let matched = null;
+          for (const list of Object.values(sharesRaw || {})) {
+            if (!Array.isArray(list)) continue;
+            const found = list.find(l => l.token === demoShareToken);
+            if (found) { matched = found; break; }
+          }
+          if (!matched || matched.revokedAt || !matched.isActive) return null;
+          if (matched.expiresAt && new Date(matched.expiresAt).getTime() <= Date.now()) return null;
+          const dataPack = JSON.parse(localStorage.getItem('worktree_x_v8_demo_data') || 'null');
+          const tasks = dataPack?.data?.tasks || [];
+          const nodes = dataPack?.data?.nodes || [];
+          const t = tasks.find(x => String(x.id) === String(matched.taskId));
+          if (!t) return null;
+          const nodeName = id => nodes.find(n => String(n.id) === String(id))?.name || '';
+          const orgName = nodes.find(n => n.parent === null)?.name || 'NTH GROUP (Demo)';
+          const checklist = (t.checklist || []).map((c, idx) => ({ id: String(idx), content: Array.isArray(c) ? c[0] : (c.text || ''), isDone: Boolean(Array.isArray(c) ? c[1] : c.done) }));
+          const comments = (t.comments || []).map((c, idx) => ({ id: String(c.id || idx), authorName: c.author || 'Thành viên', body: c.text || '', createdAt: c.at || t.updatedAt || '' }));
+          return {
+            matched, dataPack, tasks, t,
+            payload: {
+              ok: true,
+              share: {
+                organizationName: orgName,
+                permission: matched.permission || 'view',
+                allowChecklistToggle: Boolean(matched.allowChecklistToggle),
+                hideInternalComments: Boolean(matched.hideInternalComments),
+                label: matched.label || 'Công việc Demo'
+              },
+              task: {
+                id: t.id,
+                title: t.title,
+                description: t.desc || '',
+                status: DEMO_STATUS_TO_API[t.status] || 'todo',
+                priority: DEMO_PRIO_TO_API[t.priority] || 'medium',
+                progress: Number(t.progress) || 0,
+                dueDate: t.due || '',
+                nodeName: nodeName(t.node),
+                assigneeName: t.owner ? nodeName(t.owner) : '',
+                tags: t.tags || [],
+                checklistTotal: checklist.length,
+                checklistDone: checklist.filter(i => i.isDone).length
+              },
+              checklist,
+              attachments: [],
+              comments
+            }
+          };
+        } catch (_) {
+          return null;
+        }
+      }
       let isSaving = false;
       const draftFields = ['guestNameInput', 'guestCommentInput', 'newChecklistInput', 'guestStatusSelect', 'guestProgressInput', 'progressGuestName'];
 
@@ -622,7 +686,7 @@
           unlockedPin = val;
           const opened = await loadShare({ fromPinSubmit: true });
           if (opened) {
-            sessionStorage.setItem(`wt_share_pin:${token}`, val);
+            sessionStorage.setItem(pinStoreKey, val);
             document.getElementById('sharedTaskTitle')?.focus({ preventScroll: true });
           } else if (form.isConnected) {
             unlockedPin = '';
@@ -816,7 +880,50 @@
         }
       }
 
+      function applyDemoGuestMutation(payload) {
+        const state = readDemoShareState();
+        if (!state) return false;
+        const { matched, dataPack, t } = state;
+        const action = payload.guestAction;
+        if (action === 'update_progress' && matched.permission === 'edit_progress') {
+          if (DEMO_API_TO_STATUS[payload.status]) t.status = DEMO_API_TO_STATUS[payload.status];
+          if (Number.isFinite(payload.progress)) t.progress = Math.min(100, Math.max(0, Math.round(payload.progress)));
+          if (t.status === 'Hoàn thành') t.progress = 100;
+        } else if (action === 'toggle_checklist' && (matched.permission === 'edit_progress' || (matched.permission === 'comment' && matched.allowChecklistToggle))) {
+          const idx = Number(payload.itemId);
+          if (Array.isArray(t.checklist) && t.checklist[idx]) {
+            t.checklist[idx][1] = Boolean(payload.isDone);
+            if (t.autoProgress) {
+              const done = t.checklist.filter(c => c[1]).length;
+              t.progress = t.checklist.length ? Math.round((done / t.checklist.length) * 100) : t.progress;
+            }
+          }
+        } else if (action === 'add_checklist' && (matched.permission === 'edit_progress' || (matched.permission === 'comment' && matched.allowChecklistToggle))) {
+          if (!Array.isArray(t.checklist)) t.checklist = [];
+          t.checklist.push([String(payload.content || '').slice(0, 400), false]);
+        } else if (action === 'add_comment' && (matched.permission === 'comment' || matched.permission === 'edit_progress')) {
+          if (!Array.isArray(t.comments)) t.comments = [];
+          const numericCommentId = Math.floor(Date.now() * 100 + Math.random() * 99);
+          t.comments.push({
+            id: numericCommentId,
+            authorId: null,
+            author: String(payload.guestName || 'Khách').slice(0, 180),
+            text: String(payload.body || '').slice(0, 2000),
+            at: new Date().toISOString()
+          });
+        } else {
+          throw new Error('Liên kết không cho phép thao tác này.');
+        }
+        t.updatedAt = new Date().toISOString();
+        localStorage.setItem('worktree_x_v8_demo_data', JSON.stringify(dataPack));
+        return true;
+      }
+
       async function postGuest(payload) {
+        if (demoShareToken) {
+          applyDemoGuestMutation(payload);
+          return { ok: true };
+        }
         const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`, {
           method: 'POST',
           headers: {
@@ -921,6 +1028,33 @@
       }
 
       async function loadShare({ fromPinSubmit = false, feedback, success } = {}) {
+        if (demoShareToken) {
+          const demoState = readDemoShareState();
+          if (!demoState) {
+            renderNotFound();
+            return false;
+          }
+          const requiredPin = demoState.matched.pin;
+          if (requiredPin && String(unlockedPin || '') !== String(requiredPin)) {
+            if (fromPinSubmit) {
+              sessionStorage.removeItem(pinStoreKey);
+              unlockedPin = '';
+              renderPinGate(demoState.payload.share, 'Mã PIN không đúng.');
+            } else {
+              currentData = { share: demoState.payload.share };
+              renderPinGate(demoState.payload.share);
+            }
+            return false;
+          }
+          demoState.payload.share.expiresAt = demoState.matched.expiresAt || null;
+          if (feedback) {
+            refreshTaskView(demoState.payload);
+            showFeedback(feedback, 'ok', success);
+          } else {
+            renderTaskView(demoState.payload);
+          }
+          return true;
+        }
         if (!token) {
           renderNotFound('Thiếu mã liên kết chia sẻ.');
           return;

@@ -243,6 +243,131 @@ function formatExpiry(iso) {
   return `Hết hạn ${new Date(iso).toLocaleDateString('vi-VN')}`;
 }
 
+const DEMO_SHARES_KEY = 'worktree_x_v8_demo_shares';
+const DEMO_SHARE_POLICY_KEY = 'worktree_x_v8_demo_share_policy';
+
+function readDemoSharesMap() {
+  try {
+    const raw = localStorage.getItem(DEMO_SHARES_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function writeDemoSharesMap(map) {
+  try {
+    localStorage.setItem(DEMO_SHARES_KEY, JSON.stringify(map));
+  } catch (_) {}
+}
+
+function randomDemoToken() {
+  const bytes = new Uint8Array(12);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return 'wtdemo_' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function buildDemoShareUrl(token) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}/share.html?demo_share=${encodeURIComponent(token)}`;
+}
+
+const DemoTaskShareStore = {
+  getPolicy() {
+    try {
+      const raw = localStorage.getItem(DEMO_SHARE_POLICY_KEY);
+      return raw === null ? true : raw !== 'false';
+    } catch (_) {
+      return true;
+    }
+  },
+  setPolicy(allow) {
+    try {
+      localStorage.setItem(DEMO_SHARE_POLICY_KEY, String(Boolean(allow)));
+    } catch (_) {}
+  },
+  listLinks(taskId, role = 'member') {
+    const map = readDemoSharesMap();
+    const list = Array.isArray(map[String(taskId)]) ? map[String(taskId)] : [];
+    const activeLinks = list.filter(l => !l.revokedAt).map(l => ({
+      ...l,
+      status: l.revokedAt ? 'revoked' : (!l.isActive ? 'paused' : (l.expiresAt && new Date(l.expiresAt).getTime() <= Date.now() ? 'expired' : 'active'))
+    }));
+    return {
+      links: activeLinks,
+      canShare: role !== 'viewer',
+      isAdmin: role === 'owner' || role === 'admin',
+      allowExternalTaskShare: this.getPolicy()
+    };
+  },
+  createLink(taskId, opts = {}) {
+    const map = readDemoSharesMap();
+    const tid = String(taskId);
+    const list = Array.isArray(map[tid]) ? map[tid] : [];
+    const token = randomDemoToken();
+    const hours = Number(opts.expiresInHours) || 0;
+    const item = {
+      id: 'demo_sh_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      taskId: tid,
+      token,
+      url: buildDemoShareUrl(token),
+      label: opts.label || 'Liên kết chia sẻ',
+      permission: opts.permission || 'view',
+      hideInternalComments: Boolean(opts.hideInternalComments),
+      allowChecklistToggle: Boolean(opts.allowChecklistToggle),
+      hasPin: Boolean(opts.pin),
+      pin: opts.pin ? String(opts.pin) : null,
+      expiresAt: hours > 0 ? new Date(Date.now() + hours * 3600000).toISOString() : null,
+      isActive: true,
+      revokedAt: null,
+      accessCount: 0,
+      createdAt: new Date().toISOString()
+    };
+    map[tid] = [item, ...list];
+    writeDemoSharesMap(map);
+    return { link: item };
+  },
+  findByShareId(shareId) {
+    const map = readDemoSharesMap();
+    for (const [tid, list] of Object.entries(map)) {
+      if (!Array.isArray(list)) continue;
+      const idx = list.findIndex(l => String(l.id) === String(shareId));
+      if (idx !== -1) return { map, tid, idx, item: list[idx] };
+    }
+    return null;
+  },
+  toggleLink(shareId) {
+    const hit = this.findByShareId(shareId);
+    if (!hit) throw new Error('Không tìm thấy liên kết chia sẻ.');
+    hit.item.isActive = !hit.item.isActive;
+    writeDemoSharesMap(hit.map);
+    return { link: hit.item };
+  },
+  rotateLink(shareId) {
+    const hit = this.findByShareId(shareId);
+    if (!hit) throw new Error('Không tìm thấy liên kết chia sẻ.');
+    const token = randomDemoToken();
+    hit.item.token = token;
+    hit.item.url = buildDemoShareUrl(token);
+    hit.item.isActive = true;
+    writeDemoSharesMap(hit.map);
+    return { link: hit.item };
+  },
+  revokeLink(shareId) {
+    const hit = this.findByShareId(shareId);
+    if (!hit) throw new Error('Không tìm thấy liên kết chia sẻ.');
+    hit.item.revokedAt = new Date().toISOString();
+    hit.item.isActive = false;
+    writeDemoSharesMap(hit.map);
+    return { revoked: true };
+  }
+};
+
 export function initTaskShareUI({ getContext, onToast } = {}) {
   if (typeof document === 'undefined') return () => {};
   injectShareStyles();
@@ -252,6 +377,8 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     taskId: null,
     taskTitle: '',
     organizationId: null,
+    role: 'member',
+    isDemo: false,
     loading: false,
     error: '',
     canShare: false,
@@ -298,7 +425,9 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     state.error = '';
     renderDialog();
     try {
-      const data = await TaskShareService.listShareLinks(state.organizationId, state.taskId);
+      const data = state.isDemo
+        ? DemoTaskShareStore.listLinks(state.taskId, state.role)
+        : await TaskShareService.listShareLinks(state.organizationId, state.taskId);
       if (request !== listRequest) return;
       state.links = data.links || [];
       state.canShare = Boolean(data.canShare);
@@ -431,7 +560,8 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
 
     dlg.querySelector('#wtShareEnableOrgBtn')?.addEventListener('click', async () => {
       try {
-        await TaskShareService.setOrgSharePolicy(state.organizationId, true);
+        if (state.isDemo) DemoTaskShareStore.setPolicy(true);
+        else await TaskShareService.setOrgSharePolicy(state.organizationId, true);
         toast('Đã bật lại tính năng chia sẻ công việc ra ngoài.', 'success');
         await reloadLinks();
       } catch (err) {
@@ -462,14 +592,17 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Đang tạo liên kết…';
         try {
-          const res = await TaskShareService.createShareLink(state.organizationId, state.taskId, {
+          const shareInput = {
             permission: String(fd.get('permission') || 'view'),
             hideInternalComments: fd.get('hideInternalComments') === 'on',
             allowChecklistToggle: checklistCb ? checklistCb.checked : false,
             expiresInHours: Number(fd.get('expiresInHours') || 168),
             pin: String(fd.get('pin') || '').trim() || null,
             label: `Chia sẻ: ${state.taskTitle || 'Công việc'}`.slice(0, 120)
-          });
+          };
+          const res = state.isDemo
+            ? DemoTaskShareStore.createLink(state.taskId, shareInput)
+            : await TaskShareService.createShareLink(state.organizationId, state.taskId, shareInput);
           if (request !== listRequest || !dlg.open) return;
           if (res.link?.url) await copyUrl(res.link.url);
           if (request === listRequest && dlg.open) await reloadLinks();
@@ -493,7 +626,8 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     dlg.querySelectorAll('[data-share-toggle]').forEach(btn => {
       btn.addEventListener('click', async () => {
         try {
-          await TaskShareService.toggleShareLink(state.organizationId, btn.dataset.shareToggle);
+          if (state.isDemo) DemoTaskShareStore.toggleLink(btn.dataset.shareToggle);
+          else await TaskShareService.toggleShareLink(state.organizationId, btn.dataset.shareToggle);
           toast('Đã cập nhật trạng thái liên kết.', 'success');
           await reloadLinks();
         } catch (err) {
@@ -506,7 +640,9 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     dlg.querySelectorAll('[data-share-rotate]').forEach(btn => {
       btn.addEventListener('click', async () => {
         try {
-          const res = await TaskShareService.rotateShareLink(state.organizationId, btn.dataset.shareRotate);
+          const res = state.isDemo
+            ? DemoTaskShareStore.rotateLink(btn.dataset.shareRotate)
+            : await TaskShareService.rotateShareLink(state.organizationId, btn.dataset.shareRotate);
           if (res.link?.url) await copyUrl(res.link.url);
           toast('Đã đổi link mới và vô hiệu hóa link cũ.', 'success');
           await reloadLinks();
@@ -520,7 +656,8 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
     dlg.querySelectorAll('[data-share-revoke]').forEach(btn => {
       btn.addEventListener('click', async () => {
         try {
-          await TaskShareService.revokeShareLink(state.organizationId, btn.dataset.shareRevoke);
+          if (state.isDemo) DemoTaskShareStore.revokeLink(btn.dataset.shareRevoke);
+          else await TaskShareService.revokeShareLink(state.organizationId, btn.dataset.shareRevoke);
           toast('Đã thu hồi liên kết chia sẻ.', 'success');
           await reloadLinks();
         } catch (err) {
@@ -533,13 +670,17 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
 
   async function openTaskShareDialog({ taskId, taskTitle = '' } = {}) {
     const ctx = typeof getContext === 'function' ? getContext() : {};
-    const orgId = ctx?.organizationId;
-    if (!orgId || !UUID_REGEX.test(String(taskId || ''))) {
+    const isDemoShare = Boolean(ctx?.isDemo && !ctx?.isCloud);
+    const orgId = ctx?.organizationId || (isDemoShare ? 'demo-nth-group' : null);
+    const validId = isDemoShare ? Boolean(String(taskId || '').trim()) : UUID_REGEX.test(String(taskId || ''));
+    if (!orgId || !validId || (!ctx?.isCloud && !isDemoShare)) {
       toast('Tính năng chia sẻ ra ngoài khả dụng cho không gian làm việc đám mây.', 'info');
       return;
     }
 
     state.organizationId = orgId;
+    state.role = ctx?.role || 'member';
+    state.isDemo = isDemoShare;
     state.taskId = String(taskId);
     state.taskTitle = taskTitle || document.getElementById('drawerTitle')?.textContent?.trim() || 'Công việc';
     state.links = [];
@@ -561,7 +702,9 @@ export function initTaskShareUI({ getContext, onToast } = {}) {
   function attachDrawerShareButton(event) {
     const taskId = String(event?.detail?.taskId || '');
     const ctx = typeof getContext === 'function' ? getContext() : {};
-    if (!ctx?.isCloud || !UUID_REGEX.test(taskId)) return;
+    const isDemoShare = Boolean(ctx?.isDemo && !ctx?.isCloud);
+    if (!taskId) return;
+    if (!isDemoShare && (!ctx?.isCloud || !UUID_REGEX.test(taskId))) return;
     if (ctx.role === 'viewer') return;
 
     const tools = document.querySelector('#drawerContent .drawer-tools');

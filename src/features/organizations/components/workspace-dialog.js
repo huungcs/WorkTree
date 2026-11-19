@@ -575,6 +575,9 @@ export class WorkspaceDialog {
     dialog.setAttribute('aria-labelledby', 'aiBpTitle');
     dialog.setAttribute('aria-modal', 'true');
 
+    const canAiBlueprint = typeof window !== 'undefined' && typeof window.AiClientService?.inlineAssist === 'function';
+    const aiSparkleSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6z"/></svg>';
+
     dialog.innerHTML = `
       <form id="aiBpForm" method="dialog">
         <div class="dialog-head">
@@ -590,13 +593,17 @@ export class WorkspaceDialog {
           <div class="form-error" id="aiBpError" role="alert" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--red-soft);color:var(--red);border-radius:8px;font-size:13px;"></div>
           <label class="field full">
             <span>Mô tả 1–2 câu mô hình doanh nghiệp của bạn</span>
-            <textarea id="aiBpDesc" rows="3" maxlength="400" placeholder="Ví dụ: Agency marketing 12 người gồm Content, Ads, Design"></textarea>
+            <textarea id="aiBpDesc" rows="3" maxlength="500" placeholder="Ví dụ: Phòng khám nha khoa 20 nhân sự gồm Bác sĩ, Điều dưỡng, Chăm sóc khách hàng, Marketing"></textarea>
           </label>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px;">
-            <button type="button" class="btn small" data-bp-preset="Agency marketing 12 người gồm Content, Ads, Design">Agency Marketing</button>
-            <button type="button" class="btn small" data-bp-preset="Công ty phần mềm SaaS gồm Sản phẩm, Kỹ thuật, QA">Công ty Phần mềm</button>
-            <button type="button" class="btn small" data-bp-preset="Doanh nghiệp bán lẻ gồm Kinh doanh, CSKH, Kho vận">Kinh doanh &amp; Vận hành</button>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 10px;">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button type="button" class="btn small" data-bp-preset="Agency marketing 12 người gồm Content, Ads, Design">Agency Marketing</button>
+              <button type="button" class="btn small" data-bp-preset="Công ty phần mềm SaaS gồm Sản phẩm, Kỹ thuật, QA">Công ty Phần mềm</button>
+              <button type="button" class="btn small" data-bp-preset="Doanh nghiệp bán lẻ gồm Kinh doanh, CSKH, Kho vận">Kinh doanh &amp; Vận hành</button>
+            </div>
+            ${canAiBlueprint ? `<button type="button" class="btn small soft" id="aiBpGenerateBtn" style="display:inline-flex;align-items:center;gap:6px;">${aiSparkleSvg}<span>Thiết kế sơ đồ bằng AI</span></button>` : ''}
           </div>
+          <p id="aiBpStatus" role="status" aria-live="polite" style="margin:0 0 8px;font-size:12px;color:var(--muted);min-height:18px;"></p>
           <div id="aiBpPreview" style="padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font-size:12.5px;color:var(--muted);"></div>
         </div>
         <div class="dialog-foot">
@@ -608,19 +615,51 @@ export class WorkspaceDialog {
 
     document.body.appendChild(dialog);
     this.currentDialog = dialog;
+    this.bpReqSeq = (this.bpReqSeq || 0) + 1;
 
     const descEl = dialog.querySelector('#aiBpDesc');
     const previewEl = dialog.querySelector('#aiBpPreview');
+    const statusEl = dialog.querySelector('#aiBpStatus');
     const errorEl = dialog.querySelector('#aiBpError');
+    const genBtn = dialog.querySelector('#aiBpGenerateBtn');
     const submitBtn = dialog.querySelector('#aiBpSubmitBtn');
     let blueprint = null;
 
+    const renderPreview = (bp, source = 'local') => {
+      blueprint = bp;
+      submitBtn.disabled = !blueprint || this.isSubmitting;
+      if (!blueprint) {
+        previewEl.innerHTML = 'Nhập mô tả doanh nghiệp hoặc chọn một gợi ý mẫu để xem trước khung cây tổ chức.';
+        return;
+      }
+      const badgeLabel = source === 'ai' ? 'AI thiết kế riêng' : 'Mẫu nhanh';
+      const badgeBg = source === 'ai' ? 'var(--primary-soft)' : 'var(--surface-3)';
+      const badgeColor = source === 'ai' ? 'var(--primary-text)' : 'var(--muted)';
+      previewEl.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <strong style="color:var(--primary-text);">${this.escapeHtml(blueprint.summary)}:</strong>
+          <span style="padding:2px 7px;border-radius:var(--radius-badge,5px);background:${badgeBg};color:${badgeColor};font-size:11px;font-weight:600;white-space:nowrap;">${badgeLabel}</span>
+        </div>
+        <ul style="margin:0;padding-left:18px;display:grid;gap:5px;">
+          ${blueprint.departments.map(d => {
+            const projText = d.projects?.length ? ` · Dự án: ${this.escapeHtml(d.projects.map(p => p.name).join(', '))}` : '';
+            const taskCount = Array.isArray(d.starterTasks) ? d.starterTasks.length : 0;
+            const taskText = taskCount ? ` · ${taskCount} việc mẫu` : '';
+            return `<li><strong>${this.escapeHtml(d.name)}</strong>${projText}${taskText}</li>`;
+          }).join('')}
+        </ul>
+      `;
+    };
+
     const refreshPreview = () => {
-      blueprint = generateOrgBlueprintFromDescription(descEl.value);
-      submitBtn.disabled = !blueprint;
-      previewEl.innerHTML = blueprint
-        ? `<strong style="color:var(--primary-text);display:block;margin-bottom:6px;">${this.escapeHtml(blueprint.summary)}:</strong><ul style="margin:0;padding-left:18px;display:grid;gap:4px;">${blueprint.departments.map(d => `<li><strong>${this.escapeHtml(d.name)}</strong>${d.projects?.length ? ` · Dự án: ${this.escapeHtml(d.projects.map(p => p.name).join(', '))}` : ''}</li>`).join('')}</ul>`
-        : 'Nhập mô tả doanh nghiệp hoặc chọn một gợi ý mẫu để xem trước khung cây tổ chức.';
+      errorEl.style.display = 'none';
+      const localBp = generateOrgBlueprintFromDescription(descEl.value);
+      if (statusEl) {
+        statusEl.textContent = canAiBlueprint && descEl.value.trim()
+          ? 'Đang xem trước mẫu nhanh — bấm "Thiết kế sơ đồ bằng AI" để AI tạo chi tiết theo ngành của bạn.'
+          : '';
+      }
+      renderPreview(localBp, 'local');
     };
 
     descEl.addEventListener('input', refreshPreview);
@@ -628,6 +667,53 @@ export class WorkspaceDialog {
       descEl.value = b.getAttribute('data-bp-preset') || '';
       refreshPreview();
     }));
+    genBtn?.addEventListener('click', async () => {
+      const description = descEl.value.trim();
+      if (description.length < 3) {
+        errorEl.textContent = 'Vui lòng mô tả ngắn mô hình doanh nghiệp (ít nhất 3 ký tự).';
+        errorEl.style.display = 'block';
+        descEl.focus();
+        return;
+      }
+      errorEl.style.display = 'none';
+      try { this.bpAbort?.abort(); } catch {}
+      this.bpAbort = typeof AbortController === 'function' ? new AbortController() : null;
+      const seq = ++this.bpReqSeq;
+      genBtn.disabled = true;
+      genBtn.textContent = 'AI đang thiết kế…';
+      if (statusEl) statusEl.textContent = 'AI đang phân tích mô hình và đề xuất phòng ban, dự án & đầu việc ban đầu…';
+
+      try {
+        const res = await window.AiClientService.inlineAssist({
+          organizationId,
+          mode: 'org_blueprint',
+          payload: { description },
+          signal: this.bpAbort?.signal || null
+        });
+        if (seq !== this.bpReqSeq || this.currentDialog !== dialog) return;
+        const aiBp = res?.data;
+        if (aiBp?.departments?.length) {
+          renderPreview(aiBp, 'ai');
+          if (statusEl) statusEl.textContent = 'AI đã hoàn tất sơ đồ — kiểm tra lại rồi bấm "Áp dụng vào Workspace".';
+        } else {
+          refreshPreview();
+        }
+      } catch (err) {
+        if (err?.name === 'AbortError' || seq !== this.bpReqSeq || this.currentDialog !== dialog) return;
+        const fallbackBp = generateOrgBlueprintFromDescription(description);
+        renderPreview(fallbackBp, 'local');
+        if (statusEl) {
+          statusEl.textContent = fallbackBp
+            ? 'AI tạm bận — đang hiển thị gợi ý mẫu nhanh bên dưới.'
+            : 'AI tạm bận, vui lòng thử lại sau ít giây.';
+        }
+      } finally {
+        if (seq === this.bpReqSeq && genBtn.isConnected) {
+          genBtn.disabled = false;
+          genBtn.innerHTML = `${aiSparkleSvg}<span>Thiết kế sơ đồ bằng AI</span>`;
+        }
+      }
+    });
     dialog.querySelectorAll('[data-action="close-dialog"]').forEach(b => b.addEventListener('click', () => this.close()));
     dialog.addEventListener('cancel', () => this.close());
     dialog.querySelector('#aiBpForm').addEventListener('submit', async (e) => {
@@ -654,6 +740,9 @@ export class WorkspaceDialog {
   }
 
   close() {
+    try { this.bpAbort?.abort(); } catch {}
+    this.bpAbort = null;
+    this.bpReqSeq = (this.bpReqSeq || 0) + 1;
     if (this.currentDialog) {
       try {
         this.currentDialog.close();

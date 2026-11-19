@@ -1002,6 +1002,40 @@ function getToolDefinitions(grant) {
       available: true
     },
     {
+      name: 'worktree_list_daily_checkins',
+      title: 'Báo cáo cuối ngày (Daily Check-in)',
+      description: 'Dùng khi cần xem tình hình check-in cuối ngày của đội ngũ, trạng thái tiến độ (xanh/vàng/đỏ), người đang gặp vướng mắc cần hỗ trợ, kế hoạch ngày mai và danh sách nhân sự chưa báo cáo.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'Ngày cần xem định dạng YYYY-MM-DD (mặc định hôm nay theo múi giờ tổ chức)' },
+          only_needs_support: { type: 'boolean', description: 'Mặc định false — chỉ lọc các báo cáo đang vướng mắc hoặc ở mức Đỏ' },
+          include_missing: { type: 'boolean', description: 'Mặc định true (owner/admin/manager) — kèm danh sách nhân sự trong phạm vi chưa báo cáo' }
+        },
+        additionalProperties: false
+      },
+      outputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      available: true
+    },
+    {
+      name: 'worktree_list_recurring_templates',
+      title: 'Danh sách việc định kỳ (Recurring Tasks)',
+      description: 'Dùng khi cần xem các mẫu công việc định kỳ tự động tạo theo chức danh (job_title), vai trò hệ thống hoặc nhân sự cụ thể cùng chu kỳ chạy (hàng ngày, ngày làm việc, hàng tuần, hàng tháng).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          is_active: { type: 'boolean', description: 'Lọc theo trạng thái bật/tắt (true/false)' },
+          assignment_mode: { type: 'string', enum: ['job_title', 'org_role', 'employee'], description: 'Chế độ giao việc định kỳ' },
+          search: { type: 'string', description: 'Từ khóa tìm theo tiêu đề hoặc chức danh' }
+        },
+        additionalProperties: false
+      },
+      outputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      available: true
+    },
+    {
       name: 'worktree_create_task',
       title: 'Tạo công việc mới',
       description: 'Dùng khi cần tạo công việc mới trong đơn vị được phép (có thể tạo kèm checklist ban đầu). Gọi worktree_list_nodes và worktree_list_employees trước để lấy node_id và assignee_id hợp lệ.',
@@ -2075,6 +2109,170 @@ async function executeMcpTool(supabase, grant, toolName, rawArgs = {}, runtimeCa
     return formatSuccessResult(
       `Lấy thành công ${activities.length} dòng nhật ký hoạt động gần đây.`,
       { total: activities.length, activities }
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // 8. worktree_list_daily_checkins
+  // -------------------------------------------------------------------------
+  if (toolName === 'worktree_list_daily_checkins') {
+    const rawDate = args.date != null ? String(args.date).trim() : '';
+    if (rawDate && !DATE_REGEX.test(rawDate)) {
+      throw mcpToolError('invalid_argument', 'date phải dùng định dạng YYYY-MM-DD.');
+    }
+    const targetDate = rawDate || today;
+
+    const [{ data: rows = [], error }, allEmployees] = await Promise.all([
+      supabase
+        .from('daily_checkins')
+        .select('id, user_id, employee_id, checkin_date, mood, completed_task_ids, in_progress_task_ids, minutes_logged, summary, blockers, tomorrow_plan, submitted_at')
+        .eq('organization_id', grant.organizationId)
+        .eq('checkin_date', targetDate)
+        .order('submitted_at', { ascending: false }),
+      getEmployees()
+    ]);
+    if (error) throw error;
+
+    const empMap = new Map(allEmployees.map(e => [e.id, e]));
+    const isAdminScope = (grant.role === 'owner' || grant.role === 'admin') && !grant.mcpScopeNodeIds?.length;
+    const empCanSee = emp => Boolean(emp && emp.home_node_id && scopeCtx.actionableNodeIds.has(emp.home_node_id));
+
+    const visibleRows = (rows || []).filter(r => {
+      if (isAdminScope) return true;
+      if (grant.userId && r.user_id === grant.userId) return true;
+      if (['owner', 'admin', 'manager'].includes(grant.role)) {
+        const emp = r.employee_id ? empMap.get(r.employee_id) : null;
+        return empCanSee(emp);
+      }
+      return Boolean(grant.employeeId && r.employee_id === grant.employeeId);
+    });
+
+    const userIds = [...new Set(visibleRows.map(r => r.user_id).filter(Boolean))];
+    const { data: profiles = [] } = userIds.length
+      ? await supabase.from('profiles').select('id, display_name').in('id', userIds)
+      : { data: [] };
+    const profileMap = new Map((profiles || []).map(p => [p.id, p.display_name]));
+
+    const MOOD_VI = { green: 'Thuận lợi', amber: 'Cần lưu ý', red: 'Cần hỗ trợ' };
+    const mappedCheckins = visibleRows.map(r => {
+      const emp = r.employee_id ? empMap.get(r.employee_id) : null;
+      const homeNode = emp?.home_node_id ? scopeCtx.nodeMap.get(emp.home_node_id) : null;
+      const blockersText = String(r.blockers || '').trim();
+      return {
+        id: r.id,
+        checkin_date: r.checkin_date,
+        user_id: r.user_id,
+        employee_id: r.employee_id || null,
+        employee_name: emp?.full_name || profileMap.get(r.user_id) || 'Thành viên',
+        job_title: emp?.job_title || '',
+        home_node_name: homeNode?.name || null,
+        mood: r.mood || 'green',
+        mood_label: MOOD_VI[r.mood] || r.mood || 'Thuận lợi',
+        needs_support: r.mood === 'red' || Boolean(blockersText),
+        completed_count: Array.isArray(r.completed_task_ids) ? r.completed_task_ids.length : 0,
+        minutes_logged: Number(r.minutes_logged || 0),
+        summary: String(r.summary || '').slice(0, 600),
+        blockers: blockersText.slice(0, 400),
+        tomorrow_plan: String(r.tomorrow_plan || '').slice(0, 400),
+        submitted_at: r.submitted_at || null
+      };
+    });
+
+    const needsSupportCount = mappedCheckins.filter(c => c.needs_support).length;
+    const filteredCheckins = args.only_needs_support === true
+      ? mappedCheckins.filter(c => c.needs_support)
+      : mappedCheckins;
+
+    let missingEmployees = [];
+    if (['owner', 'admin', 'manager'].includes(grant.role) && args.include_missing !== false) {
+      const checkedEmpIds = new Set(visibleRows.map(r => r.employee_id).filter(Boolean));
+      const checkedUserIds = new Set(visibleRows.map(r => r.user_id).filter(Boolean));
+      missingEmployees = allEmployees
+        .filter(e => (isAdminScope || empCanSee(e)) && !checkedEmpIds.has(e.id) && !(e.user_id && checkedUserIds.has(e.user_id)))
+        .slice(0, 50)
+        .map(e => ({
+          employee_id: e.id,
+          full_name: e.full_name,
+          job_title: e.job_title || '',
+          home_node_name: e.home_node_id ? (scopeCtx.nodeMap.get(e.home_node_id)?.name || null) : null
+        }));
+    }
+
+    return formatSuccessResult(
+      `Báo cáo check-in ngày ${targetDate}: ${mappedCheckins.length} người đã gửi (${needsSupportCount} cần hỗ trợ${missingEmployees.length ? `, ${missingEmployees.length} chưa báo cáo` : ''}).`,
+      {
+        date: targetDate,
+        total_checkins: mappedCheckins.length,
+        needs_support_count: needsSupportCount,
+        checkins: filteredCheckins,
+        missing_employees: missingEmployees
+      }
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // 9. worktree_list_recurring_templates
+  // -------------------------------------------------------------------------
+  if (toolName === 'worktree_list_recurring_templates') {
+    const [{ data: rows = [], error }, allEmployees] = await Promise.all([
+      supabase
+        .from('recurring_task_templates')
+        .select('id, title, description, node_id, assignment_mode, target_job_title, target_org_role, target_employee_id, priority, estimate_minutes, checklist_items, cadence, days_of_week, day_of_month, due_offset_days, is_active, last_generated_date, created_at')
+        .eq('organization_id', grant.organizationId)
+        .order('created_at', { ascending: false }),
+      getEmployees()
+    ]);
+    if (error) throw error;
+
+    const empMap = new Map(allEmployees.map(e => [e.id, e]));
+    const isAdminScope = (grant.role === 'owner' || grant.role === 'admin') && !grant.mcpScopeNodeIds?.length;
+    const searchQ = String(args.search || '').trim().toLowerCase();
+
+    const templates = (rows || [])
+      .filter(t => {
+        if (isAdminScope) return true;
+        if (t.node_id && scopeCtx.readableNodeIds.has(t.node_id)) return true;
+        if (!t.node_id && !grant.mcpScopeNodeIds?.length) return true;
+        if (grant.employeeId && t.target_employee_id === grant.employeeId) return true;
+        return false;
+      })
+      .filter(t => {
+        if (args.is_active !== undefined && Boolean(t.is_active) !== Boolean(args.is_active)) return false;
+        if (args.assignment_mode && t.assignment_mode !== args.assignment_mode) return false;
+        if (searchQ) {
+          const empName = t.target_employee_id ? (empMap.get(t.target_employee_id)?.full_name || '') : '';
+          const nodeName = t.node_id ? (scopeCtx.nodeMap.get(t.node_id)?.name || '') : '';
+          const hay = `${t.title || ''} ${t.description || ''} ${t.target_job_title || ''} ${empName} ${nodeName}`.toLowerCase();
+          if (!hay.includes(searchQ)) return false;
+        }
+        return true;
+      })
+      .map(t => ({
+        id: t.id,
+        title: t.title,
+        description: String(t.description || '').slice(0, 300),
+        assignment_mode: t.assignment_mode,
+        target_job_title: t.target_job_title || null,
+        target_org_role: t.target_org_role || null,
+        target_employee_id: t.target_employee_id || null,
+        target_employee_name: t.target_employee_id ? (empMap.get(t.target_employee_id)?.full_name || null) : null,
+        node_id: t.node_id || null,
+        node_name: t.node_id ? (scopeCtx.nodeMap.get(t.node_id)?.name || null) : null,
+        cadence: t.cadence,
+        days_of_week: Array.isArray(t.days_of_week) ? t.days_of_week : [],
+        day_of_month: t.day_of_month ?? null,
+        due_offset_days: Number(t.due_offset_days || 0),
+        priority: t.priority,
+        priority_label: PRIORITY_VI[t.priority] || t.priority,
+        estimate_minutes: Number(t.estimate_minutes || 0),
+        checklist_count: Array.isArray(t.checklist_items) ? t.checklist_items.length : 0,
+        is_active: Boolean(t.is_active),
+        last_generated_date: t.last_generated_date || null
+      }));
+
+    return formatSuccessResult(
+      `Tìm thấy ${templates.length} mẫu việc định kỳ trong phạm vi được phép.`,
+      { total: templates.length, templates }
     );
   }
 

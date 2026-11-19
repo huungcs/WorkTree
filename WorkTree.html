@@ -3183,6 +3183,7 @@ html[data-theme="dark"] .worktree-tour-target-note {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
   }
+  .demo-role-strip .btn { min-height: 44px; padding-inline: 12px }
   #hubPanelAccess :is(.account-main, .cloud-audit-info) { overflow-wrap: anywhere }
   #hubPanelAccess .account-row .employee-ops {
     grid-column: 1 / -1 !important;
@@ -4776,6 +4777,19 @@ body[data-demo-workspace] #topAvatar {
 }
 .task-message-source-foot p { flex: 1 1 15em }
 .task-message-source-foot .btn { font-size: var(--text-label) }
+.demo-role-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.demo-role-strip-label {
+  font-size: var(--text-xs, 11px);
+  font-weight: var(--weight-semibold);
+  color: var(--muted);
+  margin-right: 4px;
+}
 
 @media (max-width: 900px) {
   .drawer-ai-bar .btn {
@@ -5667,7 +5681,7 @@ if(typeof window!=='undefined'){
  window.addEventListener('popstate',()=>{if(typeof currentAccount==='function'&&currentAccount())applyUrlStateToWorkspace({isInitialLoad:false});});
 }
 function persistData(force=false){
- if(typeof demoAccount!=='undefined'&&demoAccount)return true;
+ if(typeof demoAccount!=='undefined'&&demoAccount){const ok=window.WorkTreeDemoStore?.saveDemoDataset?window.WorkTreeDemoStore.saveDemoDataset(data):false;if($('saveStatus'))$('saveStatus').textContent=ok?'Bản demo · Đã lưu trên trình duyệt':'Bản demo · Bộ nhớ trình duyệt đầy';if($('saveDot'))$('saveDot').classList.toggle('error',!ok);return ok;}
  if(window.__worktree_is_cloud_workspace){
   if($('saveStatus')) $('saveStatus').textContent='Đồng bộ đám mây an toàn';
   if($('saveDot')) $('saveDot').classList.remove('error');
@@ -5686,7 +5700,7 @@ function persistData(force=false){
 function renderStorage(){
  if(typeof demoAccount!=='undefined'&&demoAccount){
   $('storageBanner').hidden=true;
-  $('saveStatus').textContent='Dữ liệu mẫu · Thay đổi chỉ trong phiên này';
+  $('saveStatus').textContent='Bản demo · Đã lưu trên trình duyệt';
   $('saveDot').classList.remove('error');
   return;
  }
@@ -5764,7 +5778,7 @@ function ask(title,message,okLabel='Xác nhận',danger=false,extra=''){
 function resolveConfirm(result){const resolve=confirmResolver;confirmResolver=null;closeDialog('confirmDialog',true);if(resolve)resolve(result);}
 function ensureWritable(){
  if(!requireLogin())return false;
- if(typeof demoAccount!=='undefined'&&demoAccount)return true;
+ if(typeof demoAccount!=='undefined'&&demoAccount){const ok=window.WorkTreeDemoStore?.saveDemoDataset?window.WorkTreeDemoStore.saveDemoDataset(data):false;if($('saveStatus'))$('saveStatus').textContent=ok?'Bản demo · Đã lưu trên trình duyệt':'Bản demo · Bộ nhớ trình duyệt đầy';if($('saveDot'))$('saveDot').classList.toggle('error',!ok);return ok;}
  if(externalRaw!==null){toast('Có dữ liệu mới từ tab khác. Hãy bấm “Tải bản mới” trước.','error');return false;}
  try{const current=localStorage.getItem(KEYS.data);if(current!==lastRaw&&!storageProtected){externalRaw=current??'';renderStorage();toast('Phát hiện thay đổi từ tab khác. Chưa ghi đè dữ liệu.','error');return false;}}catch(e){}
  return true;
@@ -6135,7 +6149,7 @@ function renderShell(arr){
  };
  const all=readableTasks(),mineCount=all.filter(t=>isMyTask(t)&&t.status!=='Hoàn thành').length,attentionCount=all.filter(attention).length;
  $('allCount').textContent=all.length;$('mineCount').textContent=mineCount;$('attentionCount').textContent=attentionCount;
- if(!window.__worktree_is_cloud_workspace){
+ if(!window.__worktree_is_cloud_workspace&&!(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore)){
   $('notificationDot').hidden=!attentionCount;document.querySelector('.notification-btn').setAttribute('aria-label',`Nhắc việc: ${attentionCount} công việc cần chú ý`);
  }else if(typeof window.refreshNotificationBadge==='function'){
   window.refreshNotificationBadge();
@@ -7236,7 +7250,7 @@ function openTaskForm(id=null,preset={}){
  if(hasMsgSource){
   const src=preset.messageSource;
   if(src.aiExtracted){
-   const baseHintDraft=parseTaskDraftFromChatMessage({text:`${src.senderName||''} ${src.text||''}`,conversationTitle:src.conversationTitle||''});
+   const baseHintDraft=parseTaskDraftFromChatMessage({text:`${src.aiExtracted.assigneeHint||''} ${src.text||''}`,conversationTitle:src.conversationTitle||''});
    const mergedDraft={...baseHintDraft,...src.aiExtracted,ownerId:src.aiExtracted.ownerId||baseHintDraft.ownerId,nodeId:src.aiExtracted.nodeId||baseHintDraft.nodeId,due:src.aiExtracted.due||baseHintDraft.due};
    const aiFields=applyExtractedTaskDraft(mergedDraft,{isAi:true});
    showTaskMessageSource(src,aiFields,{aiStatus:'ready'});
@@ -7769,7 +7783,7 @@ function renderDrawer(){
   dependenciesHTML=t.dependencies.map(id=>{
    const d=byTask.get(id);
    if(!canReadTask(d))return `<p class="muted">${T.hiddenDependency}</p>`;
-   return `<div class="dependency-row"><button type="button" class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button></div>`;
+   return `<div class="dependency-row"><button type="button" class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button>${canUpdateTask(t)?`<button type="button" class="icon-btn dependency-remove" data-action="delete-dependency" data-task-id="${t.id}" data-dep-id="${id}" title="Hủy liên kết phụ thuộc" aria-label="${esc('Hủy liên kết phụ thuộc: '+d.title)}">${icon('x')}</button>`:''}</div>`;
   }).join('');
  }else{
   dependenciesHTML='<p class="muted" style="font-size:11px;margin:0 0 10px">Chưa có liên kết phụ thuộc.</p>';
@@ -7831,7 +7845,7 @@ function renderDrawer(){
 
   // Attachments HTML
   let attachmentsHTML='';
-  const currentAttachments=isCloud?(detail.attachments||[]):[];
+  const currentAttachments=isCloud?(detail.attachments||[]):((typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore)?window.WorkTreeDemoStore.getAttachments(t.id):[]);
   const currentAcct=typeof currentAccount==='function'?currentAccount():null;
   const canCollab=typeof canUpdateTask==='function'?canUpdateTask(t):true;
   const canManage=typeof canManageTask==='function'?canManageTask(t):false;
@@ -7849,7 +7863,7 @@ function renderDrawer(){
      <div class="attachment-icon">${icon(getFileIcon(a.mime_type||a.original_name))}</div>
      <div class="attachment-info">
       <span class="attachment-name" title="${esc(a.original_name)}">${esc(a.original_name)}</span>
-      <div class="attachment-meta">${formatFileSizeUi(a.size_bytes)} · ${esc(resolveCommentAuthor(a.uploaded_by))} · ${esc(timeAgo(a.created_at))}</div>
+      <div class="attachment-meta">${formatFileSizeUi(a.size_bytes)} · ${esc(a.uploaded_by_name||resolveCommentAuthor(a.uploaded_by))} · ${esc(timeAgo(a.created_at))}</div>
      </div>
      <div class="attachment-actions">
       <button class="icon-btn" data-action="download-attachment" data-id="${t.id}" data-attach-id="${a.id}" data-path="${esc(a.storage_path)}" data-name="${esc(a.original_name)}" title="Tải xuống tệp" aria-label="${esc('Tải xuống '+a.original_name)}">${icon('download')}</button>
@@ -8119,7 +8133,7 @@ async function addDependencyForm(event){
  }
 }
 
-async function deleteDependencyInline(taskId,depId){
+async function deleteDependencyInline(rawTaskId,depId){const taskId=resolveTaskId(rawTaskId)??rawTaskId;
  if(!taskId||!depId)return;
  try{
   if(window.__worktree_is_cloud_workspace){
@@ -8319,7 +8333,7 @@ async function retryLoadChild(id,childType){
  }
 }
 
-async function uploadTaskAttachment(taskId, file){
+async function uploadTaskAttachment(taskId, file){ if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){const tid=resolveTaskId(taskId)??taskId;if(!tid||!file)return;if(!canUpdateTask(byTask.get(tid)))return deny();toast('Đang tải tệp lên...','info',true);try{const res=await window.WorkTreeDemoStore.uploadAttachment(tid,file);refreshDrawer();toast(res.persisted?'Đã tải tệp lên bản demo (đã lưu).':'Tệp >512KB đã gắn cho phiên demo hiện tại.','success',true);}catch(err){toast(err.message||'Không thể tải tệp lên.','error');}return;}
  if(!taskId||!file) return;
  if(!window.AttachmentService) return;
 
@@ -8347,7 +8361,7 @@ async function uploadTaskAttachment(taskId, file){
  }
 }
 
-async function downloadTaskAttachment(taskId, attachmentId, storagePath, originalName){
+async function downloadTaskAttachment(taskId, attachmentId, storagePath, originalName){ if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){if(!attachmentId)return;try{window.WorkTreeDemoStore.downloadAttachment(resolveTaskId(taskId)??taskId,attachmentId,originalName);}catch(err){toast(err.message||'Không thể tải tệp xuống.','error');}return;}
  if(!attachmentId||!storagePath) return;
  if(!window.AttachmentService) return;
 
@@ -8360,7 +8374,7 @@ async function downloadTaskAttachment(taskId, attachmentId, storagePath, origina
  }
 }
 
-async function deleteTaskAttachment(taskId, attachmentId, storagePath, originalName){
+async function deleteTaskAttachment(taskId, attachmentId, storagePath, originalName){ if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){const tid=resolveTaskId(taskId)??taskId;if(!attachmentId)return;if(!canUpdateTask(byTask.get(tid)))return deny();if(!await ask('Xóa tệp đính kèm?',`Xóa "${originalName||'tệp này'}" khỏi công việc?`,'Xóa tệp',true))return;window.WorkTreeDemoStore.deleteAttachment(tid,attachmentId);refreshDrawer();toast('Đã xóa tệp đính kèm.','success',true);return;}
  if(!attachmentId) return;
  if(!await ask('Xóa tệp đính kèm?','Tệp sẽ bị xóa khỏi đám mây và không thể khôi phục.','Xóa tệp',true)) return;
 
@@ -8532,7 +8546,7 @@ async function deleteTasks(ids){
   d.tasks=d.tasks.filter(t=>!set.has(t.id));
   d.tasks.forEach(t=>{if(t.dependencies.some(id=>set.has(id))){t.dependencies=t.dependencies.filter(id=>!set.has(id));if(t.dependency)t.dependency=(t.dependency.slice(0,870)+' · Một công việc phụ thuộc đã bị xóa.');touch(t);}});
  },{title:existing.length===1?byTask.get(existing[0])?.title:''})){
-  state.selectedTasks.clear();if(state.timer&&set.has(state.timer.taskId)){state.timer=null;if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();}savePrefs();renderAll(true);
+  if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){for(const deletedId of set)window.WorkTreeDemoStore.deleteTaskAttachments(deletedId);}state.selectedTasks.clear();if(state.timer&&set.has(state.timer.taskId)){state.timer=null;if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();}savePrefs();renderAll(true);
  }
 }
 function getAllowedChildTypes(parentType) {
@@ -8858,10 +8872,10 @@ async function importJSON(event){
 async function resetDemo(){
  if(!requireAdmin())return;
  if(!await ask('Khôi phục dữ liệu mẫu V6?','Thay thế dữ liệu đang mở bằng 21 đơn vị và 10 công việc mẫu tháng 9/2026. Công việc hiện tại được giữ trong lịch sử hoàn tác của phiên và bản dự phòng nếu lưu cục bộ khả dụng.','Khôi phục mẫu',true))return;
- const original=typeof demoAccount!=='undefined'&&demoAccount?createDemoDataset():validateData(SEED).data;
+ if(typeof demoAccount!=='undefined'&&demoAccount){window.WorkTreeDemoStore?.resetAll();}const original=typeof demoAccount!=='undefined'&&demoAccount?createDemoDataset():validateData(SEED).data;
  if(commit('Đã khôi phục dữ liệu mẫu',d=>{d.nodes=original.nodes;d.tasks=original.tasks;d.activities=[];})){
   state.selected=rootNode().id;state.expanded=[1,10,11,12,13];state.filters=blankFilters();state.timer=null;if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();state.savedViews=[];state.selectedTasks.clear();state.view='overview';state.page=1;
-  savePrefs();closeDialog('settingsDialog',true);if(typeof window.closeSystemHub==='function')window.closeSystemHub();closeDialog('drawer',true);renderAll(true);
+  savePrefs();if(typeof demoAccount!=='undefined'&&demoAccount){window.WorkTreeDemoStore?.seedNotificationsIfEmpty();if(typeof window.refreshNotificationBadge==='function')window.refreshNotificationBadge();}closeDialog('settingsDialog',true);if(typeof window.closeSystemHub==='function')window.closeSystemHub();closeDialog('drawer',true);renderAll(true);
  }
 }
 async function restoreBackup(){
@@ -9101,7 +9115,7 @@ window.renderNotificationCenter = function(targetTab) {
 };
 
 async function openNotifications(targetTab, forceRefresh = false){
- if(window.__worktree_is_cloud_workspace && window.NotificationService){
+ if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){$('infoTitle').textContent='Trung tâm thông báo';$('infoEyebrow').textContent='THÔNG BÁO & NHẮC VIỆC (DEMO)';window.WorkTreeDemoStore.processDueReminders({silentOnEmpty:true});const notifications=window.WorkTreeDemoStore.getNotifications(),reminders=window.WorkTreeDemoStore.getReminders(),unreadCount=notifications.filter(n=>!n.read_at).length;window.__notifCache={orgId:'demo',notifications,unreadCount,reminders};const activeTab=targetTab||window.__notifTab||(unreadCount>0?'unread':'all');window.renderNotificationCenter(activeTab);if(typeof window.refreshNotificationBadge==='function')window.refreshNotificationBadge(unreadCount);showDialog('infoDialog');return;} if(window.__worktree_is_cloud_workspace && window.NotificationService){
   const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
   $('infoTitle').textContent='Trung tâm thông báo';
   $('infoEyebrow').textContent='THÔNG BÁO & NHẮC VIỆC ĐÁM MÂY';
@@ -9212,8 +9226,8 @@ async function renderNotificationSettings({ resetReminder = false } = {}) {
 
  try {
   const getPrefFn = window.NotificationService?.getPreferences || window.NotificationService?.getNotificationPreferences;
-   const pref = (window.NotificationService && typeof getPrefFn === 'function') ? await getPrefFn.call(window.NotificationService).catch(() => ({})) : {};
-  const reminders = (window.NotificationService && orgId) ? await window.NotificationService.getManualReminders(orgId).catch(() => []) : [];
+   const pref = (typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore) ? window.WorkTreeDemoStore.getNotifPrefs() : ((window.NotificationService && typeof getPrefFn === 'function') ? await getPrefFn.call(window.NotificationService).catch(() => ({})) : {});
+  const reminders = (typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore) ? window.WorkTreeDemoStore.getReminders() : ((window.NotificationService && orgId) ? await window.NotificationService.getManualReminders(orgId).catch(() => []) : []);
   if (!isCurrent()) return;
   const reminderDraft = resetReminder ? null : target.querySelector('#manualReminderTitle')?.value;
   const reminderTime = resetReminder ? null : target.querySelector('#manualReminderTime')?.value;
@@ -9471,7 +9485,7 @@ window.refreshNotificationBadge = async function(knownCount) {
    console.warn('Lỗi refreshNotificationBadge:', e);
   }
  } else {
-  const all = readableTasks();
+  if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){const demoUnread=typeof knownCount==='number'?knownCount:window.WorkTreeDemoStore.getNotifications().filter(n=>!n.read_at).length;const hasNotif=demoUnread>0;if(dot){dot.hidden=!hasNotif;if(hasNotif){if(badgeStyle!=='dot'){dot.textContent=demoUnread>99?'99+':String(demoUnread);dot.className='notification-badge-count';}else{dot.textContent='';dot.className='notification-badge-dot';}}else{dot.textContent='';dot.className='';}}if(bell)bell.setAttribute('aria-label',`Thông báo: ${demoUnread} chưa đọc`);return;} const all = readableTasks();
   const attentionCount = all.filter(attention).length;
   if (dot) {
    dot.hidden = !attentionCount;
@@ -9899,7 +9913,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
        }
       }
      }
-     toast('Đã đánh dấu đã đọc');
+     toast('Đã đánh dấu đã đọc'); if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){window.WorkTreeDemoStore.markNotificationRead(notifId);break;}
      if (window.NotificationService) {
       window.NotificationService.markAsRead(notifId).catch(console.error);
      }
@@ -9922,7 +9936,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
        window.renderNotificationCenter(window.__notifTab);
       }
      }
-     toast('Đã xóa thông báo');
+     toast('Đã xóa thông báo'); if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){window.WorkTreeDemoStore.deleteNotification(notifId);break;}
      if (window.NotificationService) {
       window.NotificationService.deleteNotification(notifId).catch(console.error);
      }
@@ -9936,7 +9950,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
       window.renderNotificationCenter(window.__notifTab);
      }
     }
-    toast('Đã dọn dẹp các thông báo đã đọc');
+    toast('Đã dọn dẹp các thông báo đã đọc'); if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){window.WorkTreeDemoStore.clearReadNotifications();break;}
     if (window.NotificationService) {
      const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
      window.NotificationService.clearReadNotifications(orgId).catch(console.error);
@@ -9956,14 +9970,14 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
      if (window.__notifCache && Array.isArray(window.__notifCache.notifications)) {
       const item = window.__notifCache.notifications.find(n => String(n.id) === String(notifId));
       if (item && !item.read_at) {
-       item.read_at = new Date().toISOString();
+       item.read_at = new Date().toISOString(); if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore)window.WorkTreeDemoStore.markNotificationRead(notifId);
        window.__notifCache.unreadCount = Math.max(0, (window.__notifCache.unreadCount || 1) - 1);
        if (typeof window.refreshNotificationBadge === 'function') {
         window.refreshNotificationBadge(window.__notifCache.unreadCount);
        }
       }
      }
-     if (window.NotificationService) {
+     if (window.NotificationService && !(typeof demoAccount!=='undefined'&&demoAccount)) {
       window.NotificationService.markAsRead(notifId).catch(console.error);
      }
     }
@@ -10006,7 +10020,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
       window.renderNotificationCenter(window.__notifTab);
      }
     }
-    toast('Đã đánh dấu tất cả thông báo là đã đọc');
+    toast('Đã đánh dấu tất cả thông báo là đã đọc'); if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){window.WorkTreeDemoStore.markAllNotificationsRead();break;}
     if (window.NotificationService) {
      const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
      window.NotificationService.markAllAsRead(orgId).catch(console.error);
@@ -10111,7 +10125,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     await renderNotificationSettings();
     break;
    }
-   case 'toggle-quiet-hours':{
+   case 'toggle-quiet-hours':{ if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){const enabled=el.dataset.enabled==='true';window.WorkTreeDemoStore.updateNotifPrefs({quiet_hours_enabled:!enabled});toast(!enabled?'Đã bật Giờ yên tĩnh (22h–07h)':'Đã tắt Giờ yên tĩnh');await renderNotificationSettings();break;}
     if (window.NotificationService) {
      const enabled = el.dataset.enabled === 'true';
      await window.NotificationService.updatePreferences({ quiet_hours_enabled: !enabled });
@@ -10134,7 +10148,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     }
     const orgId = window.appState?.activeOrganizationId || window.__active_org_id || window.__worktree_supabase_user?.organization?.organizationId || window.__worktree_supabase_user?.organization?.id;
     const a = window.__worktree_supabase_user?.rawUser || window.__worktree_supabase_user?.user || currentAccount();
-    if(window.NotificationService && orgId && a?.id){
+    if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore){window.WorkTreeDemoStore.createReminder({recipientUserId:a?.id,title,scheduledFor:targetDate.toISOString()});toast(`Đã lên lịch nhắc: "${title}"`);window.WorkTreeDemoStore.processDueReminders();await renderNotificationSettings({resetReminder:true});}else if(window.NotificationService && orgId && a?.id){
      try {
       await window.NotificationService.createManualReminder(orgId, {
        recipientUserId: a.id,
@@ -10174,7 +10188,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     input.focus();
     break;
    }
-   case 'cancel-manual-reminder':{
+   case 'cancel-manual-reminder':{ if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore&&el.dataset.id){window.WorkTreeDemoStore.cancelReminder(el.dataset.id);toast('Đã hủy nhắc việc');await renderNotificationSettings();break;}
     const id = el.dataset.id;
     if(window.NotificationService && id){
      try {
@@ -10187,7 +10201,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
     }
     break;
    }
-   case 'delete-manual-reminder':{
+   case 'delete-manual-reminder':{ if(typeof demoAccount!=='undefined'&&demoAccount&&window.WorkTreeDemoStore&&el.dataset.id){window.WorkTreeDemoStore.deleteReminder(el.dataset.id);toast('Đã xóa nhắc việc');await renderNotificationSettings();break;}
     const id = el.dataset.id;
     if(window.NotificationService && id){
      try {
@@ -10251,7 +10265,7 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'ai-close-drawer-box':closeDrawerAiPreview();break;
    case 'ai-digest-modal':openAiExecutiveDigest();break;
    case 'ai-rebalance-apply':{
-    const targetId=parseEntityValue(btn.dataset.target);
+    const targetId=parseEntityValue(el.dataset.target);
     const pid=parseEntityValue(id);
     const t=byTask.get(pid);
     if(!t||!targetId||!requireLogin()||!canUpdateTask(t))return deny();
@@ -11543,9 +11557,41 @@ const DEMO_ROLES={
  member:{name:'Phạm Chi',personId:302,scopes:[11],icon:'user',detail:'Công việc được giao trong Phòng Marketing'},
  viewer:{name:'Khách xem Demo',personId:null,scopes:[1],icon:'eye',detail:'Xem công việc trong toàn bộ không gian'}
 };
+const DEMO_KEYS={
+ data:'worktree_x_v8_demo_data',
+ role:'worktree_x_v8_demo_role',
+ prefsPrefix:'worktree_x_v8_demo_prefs:',
+ uiPrefs:'worktree_x_v8_demo_ui_prefs',
+ pins:'worktree_x_v8_demo_pins',
+ attachments:'worktree_x_v8_demo_attachments',
+ shares:'worktree_x_v8_demo_shares',
+ sharePolicy:'worktree_x_v8_demo_share_policy',
+ reminders:'worktree_x_v8_demo_reminders',
+ notifications:'worktree_x_v8_demo_notifications',
+ notifPrefs:'worktree_x_v8_demo_notif_prefs',
+ recRules:'worktree_x_v8_demo_rec_rules',
+ recRuns:'worktree_x_v8_demo_rec_runs',
+ checkins:'worktree_x_v8_demo_checkins',
+ directory:'worktree_x_v8_demo_directory',
+ timer:'worktree_x_v8_timer:demo'
+};
+const demoMemoryAttachments=new Map();
 let demoAccount=null;
 const demoPins=new Map();
 function isDemoRoute(){return new URLSearchParams(window.location.search).get('demo')==='1';}
+function readDemoJson(key,fallback){
+ try{
+  const raw=localStorage.getItem(key);
+  if(raw===null)return fallback;
+  return JSON.parse(raw);
+ }catch(_){return fallback;}
+}
+function writeDemoJson(key,value){
+ try{
+  localStorage.setItem(key,JSON.stringify(value));
+  return true;
+ }catch(_){return false;}
+}
 function createDemoDataset(){
  const sample=validateData(SEED).data;
  sample.nodes.find(n=>n.parent===null).name='NTH GROUP';
@@ -11558,31 +11604,376 @@ function createDemoDataset(){
  }
  return sample;
 }
+const WorkTreeDemoStore={
+ KEYS:DEMO_KEYS,
+ loadDemoDataset(){
+  try{
+   const raw=localStorage.getItem(DEMO_KEYS.data);
+   if(raw){
+    const parsed=JSON.parse(raw);
+    const validated=validateData(parsed);
+    if(validated?.data){lastRaw=raw;return validated.data;}
+   }
+  }catch(_){}
+  const fresh=createDemoDataset();
+  this.saveDemoDataset(fresh);
+  return fresh;
+ },
+ saveDemoDataset(dataset){
+  try{
+   const packed=JSON.stringify({schemaVersion:APP_VERSION,app:'WorkTree X Demo',revision:uid(),savedAt:new Date().toISOString(),data:dataset});
+   localStorage.setItem(DEMO_KEYS.data,packed);
+   lastRaw=packed;
+   return true;
+  }catch(_){return false;}
+ },
+ loadDemoRole(){
+  try{
+   const saved=localStorage.getItem(DEMO_KEYS.role);
+   return saved&&Object.hasOwn(DEMO_ROLES,saved)?saved:'owner';
+  }catch(_){return 'owner';}
+ },
+ saveDemoRole(role){
+  if(!Object.hasOwn(DEMO_ROLES,role))return;
+  try{localStorage.setItem(DEMO_KEYS.role,role);}catch(_){}
+ },
+ loadDemoPins(){
+  demoPins.clear();
+  const saved=readDemoJson(DEMO_KEYS.pins,null);
+  if(isObject(saved)){
+   for(const [k,v] of Object.entries(saved)){
+    demoPins.set(k,normalPins(v));
+   }
+  }
+ },
+ saveDemoPins(){
+  const out={};
+  for(const [k,v] of demoPins.entries())out[k]=normalPins(v);
+  return writeDemoJson(DEMO_KEYS.pins,out);
+ },
+ getAttachments(taskId){
+  const tid=String(taskId);
+  const stored=readDemoJson(DEMO_KEYS.attachments,{});
+  const persisted=Array.isArray(stored?.[tid])?stored[tid]:[];
+  const mem=demoMemoryAttachments.get(tid)||[];
+  const seen=new Set(persisted.map(a=>a.id));
+  return [...persisted,...mem.filter(a=>!seen.has(a.id))];
+ },
+ uploadAttachment(taskId,file){
+  return new Promise((resolve,reject)=>{
+   if(!file){reject(new Error('Thiếu tệp tải lên.'));return;}
+   if(file.size>10*1024*1024){reject(new Error('Bản demo hỗ trợ tệp tối đa 10 MB.'));return;}
+   const reader=new FileReader();
+   reader.onload=()=>{
+    const tid=String(taskId);
+    const cur=typeof currentAccount==='function'?currentAccount():demoAccount;
+    const item={
+     id:'demo_att_'+uid(),
+     task_id:tid,
+     organization_id:'demo-nth-group',
+     original_name:file.name,
+     mime_type:file.type||'application/octet-stream',
+     size_bytes:Number(file.size)||0,
+     uploaded_by:cur?.id||'demo-owner',
+     uploaded_by_name:cur?.name||'Demo',
+     created_at:new Date().toISOString(),
+     storage_path:'demo/'+tid+'/'+file.name,
+     data_url:typeof reader.result==='string'?reader.result:''
+    };
+    let persistedOk=false;
+    if(file.size<=512*1024&&item.data_url){
+     const stored=readDemoJson(DEMO_KEYS.attachments,{});
+     const next=isObject(stored)?stored:{};
+     const list=Array.isArray(next[tid])?next[tid]:[];
+     next[tid]=[item,...list];
+     persistedOk=writeDemoJson(DEMO_KEYS.attachments,next);
+    }
+    if(!persistedOk){
+     const memList=demoMemoryAttachments.get(tid)||[];
+     demoMemoryAttachments.set(tid,[item,...memList]);
+    }
+    resolve({item,persisted:persistedOk});
+   };
+   reader.onerror=()=>reject(new Error('Không thể đọc tệp đã chọn.'));
+   reader.readAsDataURL(file);
+  });
+ },
+ downloadAttachment(taskId,attachmentId,fallbackName){
+  const list=this.getAttachments(taskId);
+  const found=list.find(a=>String(a.id)===String(attachmentId));
+  if(!found||!found.data_url)throw new Error('Không tìm thấy dữ liệu tệp trong phiên demo.');
+  const a=document.createElement('a');
+  a.href=found.data_url;
+  a.download=found.original_name||fallbackName||'tep-dinh-kem';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+ },
+ deleteAttachment(taskId,attachmentId){
+  const tid=String(taskId);
+  const stored=readDemoJson(DEMO_KEYS.attachments,{});
+  if(isObject(stored)&&Array.isArray(stored[tid])){
+   stored[tid]=stored[tid].filter(a=>String(a.id)!==String(attachmentId));
+   if(!stored[tid].length)delete stored[tid];
+   writeDemoJson(DEMO_KEYS.attachments,stored);
+  }
+  const mem=demoMemoryAttachments.get(tid);
+  if(Array.isArray(mem)){
+   const nextMem=mem.filter(a=>String(a.id)!==String(attachmentId));
+   if(nextMem.length)demoMemoryAttachments.set(tid,nextMem);
+   else demoMemoryAttachments.delete(tid);
+  }
+ },
+ deleteTaskAttachments(taskId){
+  const tid=String(taskId);
+  const stored=readDemoJson(DEMO_KEYS.attachments,{});
+  if(isObject(stored)&&stored[tid]){delete stored[tid];writeDemoJson(DEMO_KEYS.attachments,stored);}
+  demoMemoryAttachments.delete(tid);
+ },
+ getNotifPrefs(){
+  const p=readDemoJson(DEMO_KEYS.notifPrefs,null);
+  return isObject(p)?{quiet_hours_enabled:p.quiet_hours_enabled===true}:{quiet_hours_enabled:false};
+ },
+ updateNotifPrefs(patch){
+  const next={...this.getNotifPrefs(),...(isObject(patch)?patch:{})};
+  writeDemoJson(DEMO_KEYS.notifPrefs,next);
+  return next;
+ },
+ getReminders(){
+  const list=readDemoJson(DEMO_KEYS.reminders,[]);
+  return Array.isArray(list)?list:[];
+ },
+ saveReminders(list){
+  return writeDemoJson(DEMO_KEYS.reminders,Array.isArray(list)?list:[]);
+ },
+ createReminder({title,scheduledFor,recipientUserId}){
+  const list=this.getReminders();
+  const item={
+   id:'demo_rem_'+uid(),
+   organization_id:'demo-nth-group',
+   recipient_user_id:recipientUserId||demoAccount?.id||'demo-owner',
+   title:String(title||'').trim(),
+   scheduled_for:scheduledFor,
+   status:'pending',
+   created_at:new Date().toISOString(),
+   sent_at:null
+  };
+  this.saveReminders([item,...list]);
+  return item;
+ },
+ cancelReminder(id){
+  const list=this.getReminders().map(r=>String(r.id)===String(id)?{...r,status:'cancelled'}:r);
+  this.saveReminders(list);
+ },
+ deleteReminder(id){
+  const list=this.getReminders().filter(r=>String(r.id)!==String(id));
+  this.saveReminders(list);
+ },
+ seedNotificationsIfEmpty(){
+  try{
+   if(localStorage.getItem(DEMO_KEYS.notifications)!==null)return;
+  }catch(_){return;}
+  const now=Date.now();
+  const seeded=[
+   {id:'demo_n_welcome',kind:'system',title:'Không gian Demo đã sẵn sàng tương tác',body:'Mọi thao tác sửa việc, gắn phụ thuộc, tệp đính kèm, nhắc lịch và check-in đều được lưu tự động trên trình duyệt.',task_id:null,created_at:new Date(now-300000).toISOString(),read_at:null},
+   {id:'demo_n_due',kind:'due_soon',title:'Gọi lại 12 khách đang quan tâm đang cần ưu tiên',body:'Công việc có mức ưu tiên Khẩn cấp — bấm để mở chi tiết ngay.',task_id:2,created_at:new Date(now-120000).toISOString(),read_at:null}
+  ];
+  writeDemoJson(DEMO_KEYS.notifications,seeded);
+ },
+ getNotifications(){
+  this.seedNotificationsIfEmpty();
+  const list=readDemoJson(DEMO_KEYS.notifications,[]);
+  return Array.isArray(list)?list:[];
+ },
+ saveNotifications(list){
+  return writeDemoJson(DEMO_KEYS.notifications,Array.isArray(list)?list:[]);
+ },
+ addNotification(n){
+  const list=this.getNotifications();
+  const item={id:'demo_n_'+uid(),kind:n.kind||'system',title:n.title||'Thông báo',body:n.body||'',task_id:n.task_id??null,created_at:new Date().toISOString(),read_at:null};
+  const next=[item,...list].slice(0,50);
+  this.saveNotifications(next);
+  return item;
+ },
+ markNotificationRead(id){
+  const now=new Date().toISOString();
+  const next=this.getNotifications().map(n=>String(n.id)===String(id)?{...n,read_at:n.read_at||now}:n);
+  this.saveNotifications(next);
+ },
+ markAllNotificationsRead(){
+  const now=new Date().toISOString();
+  const next=this.getNotifications().map(n=>n.read_at?n:{...n,read_at:now});
+  this.saveNotifications(next);
+ },
+ deleteNotification(id){
+  const next=this.getNotifications().filter(n=>String(n.id)!==String(id));
+  this.saveNotifications(next);
+ },
+ clearReadNotifications(){
+  const next=this.getNotifications().filter(n=>!n.read_at);
+  this.saveNotifications(next);
+ },
+ processDueReminders({silentOnEmpty=false}={}){
+  const list=this.getReminders();
+  const nowMs=Date.now();
+  let triggered=0;
+  const next=list.map(r=>{
+   if(r.status!=='pending')return r;
+   const t=new Date(r.scheduled_for).getTime();
+   if(!Number.isFinite(t)||t>nowMs)return r;
+   triggered++;
+   this.addNotification({kind:'reminder',title:'Nhắc việc: '+r.title,body:'Đã đến thời gian nhắc hẹn bạn đã đặt.'});
+   if(!silentOnEmpty&&typeof toast==='function')toast('🔔 Nhắc việc: '+r.title,'info');
+   return {...r,status:'sent',sent_at:new Date().toISOString()};
+  });
+  if(triggered>0){
+   this.saveReminders(next);
+   const prefs=this.getNotifPrefs();
+   if(!silentOnEmpty&&!prefs.quiet_hours_enabled&&typeof window.playNotificationSound==='function'){
+    window.playNotificationSound();
+   }
+   if(typeof window.refreshNotificationBadge==='function')window.refreshNotificationBadge();
+  }
+  return triggered;
+ },
+ getDirectoryMeta(){
+  const raw=readDemoJson(DEMO_KEYS.directory,{});
+  return isObject(raw)?raw:{};
+ },
+ saveDirectoryMeta(meta){
+  return writeDemoJson(DEMO_KEYS.directory,isObject(meta)?meta:{});
+ },
+ getPersonRole(personId){
+  const meta=this.getDirectoryMeta();
+  if(meta?.[String(personId)]?.role)return meta[String(personId)].role;
+  const pid=Number(personId);
+  if(pid===306)return 'owner';
+  if(pid===302)return 'manager';
+  return 'member';
+ },
+ applyRecurringGeneratedTasks(createdItems){
+  if(!Array.isArray(createdItems)||!createdItems.length||typeof commit!=='function')return [];
+  const createdIds=[];
+  const priorityMap={low:'Thấp',medium:'Trung bình',high:'Cao',critical:'Khẩn cấp'};
+  commit(`Tạo ${createdItems.length} công việc định kỳ`,d=>{
+   for(const spec of createdItems){
+    const taskId=uid();
+    const ownerNum=/^\d+$/.test(String(spec.owner||''))?Number(spec.owner):null;
+    const rawNode=/^\d+$/.test(String(spec.node||''))?Number(spec.node):null;
+    const fallbackNode=(ownerNum&&byNode.get(ownerNum)?.parent)||rootNode()?.id||1;
+    const nodeNum=rawNode&&byNode.has(rawNode)?rawNode:fallbackNode;
+    const row={
+     id:taskId,
+     node:nodeNum,
+     title:String(spec.title||'Việc định kỳ').slice(0,180),
+     owner:ownerNum,
+     collaborators:[],
+     status:'Chưa làm',
+     priority:priorityMap[spec.priority]||spec.priority||'Trung bình',
+     start:TODAY,
+     due:spec.due||TODAY,
+     estimate:Math.round(((Number(spec.estimate_minutes)||30)/60)*100)/100,
+     actual:0,
+     progress:0,
+     tags:Array.isArray(spec.tags)?spec.tags:['hang-ngay'],
+     dependency:'',
+     dependencies:[],
+     desc:String(spec.description||''),
+     checklist:Array.isArray(spec.checklist_items)?spec.checklist_items.map(c=>[String(c),false]):[],
+     autoProgress:true,
+     favorite:false,
+     comments:[],
+     logs:[],
+     createdAt:new Date().toISOString(),
+     updatedAt:new Date().toISOString()
+    };
+    d.tasks.unshift(row);
+    createdIds.push({templateId:spec.templateId,employeeId:spec.owner,taskId});
+   }
+  });
+  return createdIds;
+ },
+ applyDailyCheckin({completedTaskIds=[],inProgressTaskIds=[],perTaskMinutes={}}={}){
+  if(typeof commit!=='function')return {updated:0};
+  const compSet=new Set((completedTaskIds||[]).map(String));
+  const progSet=new Set((inProgressTaskIds||[]).map(String));
+  const minsMap=isObject(perTaskMinutes)?perTaskMinutes:{};
+  let updated=0;
+  commit('Cập nhật Báo cáo hôm nay',d=>{
+   const actorName=typeof currentPerson==='function'?currentPerson().name:(demoAccount?.name||'Demo');
+   for(const t of d.tasks){
+    const sid=String(t.id);
+    const mins=Math.max(0,Math.round(Number(minsMap[sid])||0));
+    let changed=false;
+    if(compSet.has(sid)&&t.status!=='Hoàn thành'){
+     t.status='Hoàn thành';
+     t.progress=100;
+     changed=true;
+    }else if(progSet.has(sid)&&t.status==='Chưa làm'){
+     t.status='Đang làm';
+     t.progress=Math.max(Number(t.progress)||0,25);
+     changed=true;
+    }
+    if(mins>0){
+     const hrs=Math.round((mins/60)*100)/100;
+     t.actual=Math.round(((Number(t.actual)||0)+hrs)*100)/100;
+     if(!Array.isArray(t.logs))t.logs=[];
+     t.logs.unshift({id:uid(),hours:hrs,note:`Check-in cuối ngày (${mins} phút)`,at:new Date().toISOString(),author:actorName});
+     changed=true;
+    }
+    if(changed){touch(t);updated++;}
+   }
+  });
+  return {updated};
+ },
+ resetAll(){
+  demoPins.clear();
+  demoMemoryAttachments.clear();
+  try{
+   const toRemove=[];
+   for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&(k.startsWith('worktree_x_v8_demo_')||k===DEMO_KEYS.timer))toRemove.push(k);
+   }
+   for(const k of toRemove)localStorage.removeItem(k);
+  }catch(_){}
+ }
+};
+if(typeof window!=='undefined')window.WorkTreeDemoStore=WorkTreeDemoStore;
 function startDemoWorkspace(){
  if(!isDemoRoute()||window.__worktree_supabase_user||window.__worktree_is_cloud_workspace)return false;
- data=createDemoDataset();
+ data=WorkTreeDemoStore.loadDemoDataset();
  rebuild();
+ WorkTreeDemoStore.loadDemoPins();
+ WorkTreeDemoStore.seedNotificationsIfEmpty();
+ WorkTreeDemoStore.processDueReminders({silentOnEmpty:true});
  document.body.dataset.demoWorkspace='true';
  $('workspaceSub').textContent='Bản demo';
- for(const id of ['hub-tab-mcp','hub-tab-settings'])$(id).hidden=true;
+ $('hub-tab-mcp').hidden=true;
+ $('hub-tab-settings').hidden=false;
  $('authScreen').hidden=true;$('authScreen').innerHTML='';
  $('app').hidden=false;$('app').inert=false;
- selectDemoRole('owner',{preserveUrl:true});
+ selectDemoRole(WorkTreeDemoStore.loadDemoRole(),{preserveUrl:true});
  if(typeof window.applyUrlStateToWorkspace==='function')window.applyUrlStateToWorkspace({isInitialLoad:true});
- if(!$('drawer')?.open)$('mainContent').focus({preventScroll:true});
+ if(!$('drawer')?.open&&!isSystemHubOpen())$('mainContent').focus({preventScroll:true});
  return true;
 }
 function selectDemoRole(role,{preserveUrl=false}={}){
  if((!demoAccount&&!isDemoRoute())||!Object.hasOwn(DEMO_ROLES,role)||window.__worktree_supabase_user)return;
+ const wasDemo=Boolean(demoAccount);
  const previous={theme:state.theme,density:state.density,collapsed:state.collapsed};
  demoAccount={...DEMO_ROLES[role],id:'demo-'+role,role};
+ WorkTreeDemoStore.saveDemoRole(role);
  closeDialog('profileDialog',true);
  closeSystemHub();
  resetPersonalState();
- Object.assign(state,previous,{currentUser:demoAccount.personId,savedViews:[]});
- if(role==='member')state.view='list';
+ state.savedViews=[];
+ loadPrefs();
+ if(wasDemo)Object.assign(state,previous);
+ if(role==='member'&&!readDemoJson(DEMO_KEYS.prefsPrefix+role,null)?.view)state.view='list';
  if(typeof restoreActiveTimerFromStorage==='function')restoreActiveTimerFromStorage();
  applyTheme();applySidebar();renderAll(true);renderStorage();
+ if(typeof window.refreshNotificationBadge==='function')window.refreshNotificationBadge();
  if(!preserveUrl)syncUrlWithState({replace:true});
  $('liveStatus').textContent='Đang xem demo với vai trò '+T[role];
  window.appState?.notify();
@@ -11828,7 +12219,34 @@ function resetPersonalState(){
  Object.assign(state,PERSONAL_DEFAULTS,{timelineStart:addDays(TODAY,-2),calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),selected:rootId,view:'overview',includeChildren:true,filters:blankFilters(),page:1,expanded:rootId?[rootId]:[],savedViews:preservedSavedViews,timer:null,selectedTasks:new Set(),treeQuery:'',filterOpen:false,mobileOpen:false});history=[];future=[];drawerDrafts.clear();commandOptions=[];pinUndo=null;pinsExpanded=false;
 }
 function loadPrefs(){
- const a=currentAccount();if(!a)return;const key=KEYS.prefs;KEYS.prefs=key+'_'+a.id;
+ const a=currentAccount();if(!a)return;
+ if(demoAccount){
+  const ui=readDemoJson(DEMO_KEYS.uiPrefs,null);
+  if(isObject(ui)){
+   if(['light','dark','auto'].includes(ui.theme))state.theme=ui.theme;
+   if(['comfortable','compact'].includes(ui.density))state.density=ui.density;
+   state.collapsed=ui.collapsed===true;
+  }
+  const rolePrefs=readDemoJson(DEMO_KEYS.prefsPrefix+a.role,null);
+  if(isObject(rolePrefs)){
+   try{
+    localStorage.setItem(KEYS.prefs+'_demo_tmp',JSON.stringify(rolePrefs));
+    const prevKey=KEYS.prefs;KEYS.prefs=prevKey+'_demo_tmp';
+    try{legacyLoadPrefs();}finally{KEYS.prefs=prevKey;localStorage.removeItem(prevKey+'_demo_tmp');}
+   }catch(_){}
+  }
+  state.currentUser=a.personId;
+  const dr=typeof rootNode==='function'?rootNode():null;
+  if(dr&&!visibleNodeIds().has(state.selected))state.selected=dr.id;
+  if(typeof restoreActiveTimerFromStorage==='function')restoreActiveTimerFromStorage();
+  if(state.timer){
+   const resolvedTid=typeof resolveTaskId==='function'?(resolveTaskId(state.timer.taskId)??state.timer.taskId):state.timer.taskId;
+   if(!canUpdateTask(byTask.get(resolvedTid)))state.timer=null;
+   else state.timer.taskId=resolvedTid;
+  }
+  return;
+ }
+ const key=KEYS.prefs;KEYS.prefs=key+'_'+a.id;
  try{
   legacyLoadPrefs();
   if(window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views)){
@@ -11845,7 +12263,16 @@ function loadPrefs(){
   else state.timer.taskId=resolvedTid;
  }
 }
-function savePrefs(){if(typeof persistActiveTimer==='function'&&state.timer)persistActiveTimer(state.timer);if(demoAccount)return;const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}
+function savePrefs(){
+ if(typeof persistActiveTimer==='function'&&state.timer)persistActiveTimer(state.timer);
+ if(demoAccount){
+  writeDemoJson(DEMO_KEYS.uiPrefs,{theme:state.theme,density:state.density,collapsed:state.collapsed});
+  writeDemoJson(DEMO_KEYS.prefsPrefix+demoAccount.role,prefsObject());
+  return;
+ }
+ const a=currentAccount();if(!a)return;
+ try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}
+}
 async function enterWorkspace(a,first=false,restore=false){
  resetPersonalState();if(!restore)session={id:a.id,version:a.version,startedAt:Date.now(),lastActive:Date.now()};saveSession();loadPrefs();
  if(window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views)){
@@ -13280,7 +13707,7 @@ $('systemHubTabs')?.addEventListener('keydown', event => {
 });
 async function openSystemHub(hubTab=activeHubTab,subTab=null){
  if(!requireLogin())return;
- const allowed=demoAccount?['access','recurring','notifications']:['access','recurring','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
+ const allowed=demoAccount?['access','recurring','settings','notifications']:['access','recurring','mcp','settings','notifications'];activeHubTab=allowed.includes(hubTab)?hubTab:'access';
  closeSidebar();if($('profileDialog')?.open)closeDialog('profileDialog',true);
  document.body.classList.remove('chat-is-open');
  if($('messagesContent'))$('messagesContent').hidden=true;
@@ -13318,15 +13745,157 @@ async function openSystemHub(hubTab=activeHubTab,subTab=null){
  window.scrollTo({top:0,behavior:'instant'});
 }
 function openAccess(tab=accessTab){if(!requireLogin())return;return openSystemHub('access',tab);}
+function demoRoleSwitcherStripHTML(activeRole){
+ return `<div class="demo-role-strip" role="group" aria-label="Đổi vai trò thử nghiệm trong bản demo">
+  <span class="demo-role-strip-label">Đổi vai trò:</span>
+  ${Object.entries(DEMO_ROLES).map(([r])=>`<button type="button" class="btn small ${activeRole===r?'primary':''}" data-v8="demo-role" data-role="${r}" aria-pressed="${activeRole===r}">${esc(T[r])}</button>`).join('')}
+ </div>`;
+}
+function renderDemoEmployeeList(){
+ const listEl=$('accountList');
+ if(!listEl)return;
+ const q=fold(accountQuery);
+ const staff=people().filter(n=>{
+  if(!q)return true;
+  const parentName=n.parent?nodeName(n.parent):'';
+  const roleLabel=T[WorkTreeDemoStore.getPersonRole(n.id)]||'';
+  return fold(`${n.name} ${n.desc||''} ${parentName} ${roleLabel}`).includes(q);
+ });
+ if(!staff.length){
+  listEl.innerHTML='<p class="muted" style="padding:16px 0">Chưa có nhân sự phù hợp với từ khóa tìm kiếm.</p>';
+  return;
+ }
+ listEl.innerHTML=`<div>${staff.map(p=>{
+  const pTasks=data.tasks.filter(t=>String(t.owner)===String(p.id));
+  const openCount=pTasks.filter(t=>t.status!=='Hoàn thành').length;
+  const doneCount=pTasks.filter(t=>t.status==='Hoàn thành').length;
+  const roleKey=WorkTreeDemoStore.getPersonRole(p.id);
+  const deptLabel=p.parent?shortPath(p.parent):'NTH GROUP';
+  const canEdit=isAdmin();
+  return `<div class="account-row">
+   ${avatar(p.id)}
+   <div class="account-main">
+    <div>
+     <strong>${esc(p.name)}</strong>
+     <span class="role-badge role-${esc(roleKey)}">${esc(T[roleKey]||roleKey)}</span>
+    </div>
+    <p>${esc(p.desc||'Chuyên viên')} · ${openCount} việc đang mở · ${doneCount} hoàn thành</p>
+    <small>${icon('building')}${esc(deptLabel)} · ${Number(p.capacity)||40}g/tuần</small>
+   </div>
+   <div class="account-ops employee-ops">
+    <button type="button" class="btn small" data-action="owner-tasks" data-id="${p.id}" data-v8="demo-close-hub-owner" data-owner-id="${p.id}">${icon('list')}Xem việc</button>
+    ${canEdit?`<button type="button" class="btn small" data-v8="demo-person-edit" data-id="${p.id}">${icon('edit')}Sửa</button>`:''}
+   </div>
+  </div>`;
+ }).join('')}</div>`;
+ if(typeof hydrateIcons==='function')hydrateIcons(listEl);
+}
+function openDemoEmployeeModal(personId=null){
+ if(!demoAccount)return;
+ const existing=personId?byNode.get(Number(personId)):null;
+ const curRole=existing?WorkTreeDemoStore.getPersonRole(existing.id):'member';
+ const unitNodes=visibleNodes().filter(n=>n.type!=='person');
+ const defaultParent=existing?.parent??(unitNodes.find(n=>n.id===state.selected)?.id||unitNodes[0]?.id||rootNode()?.id||1);
+ $('accountContent').innerHTML=`<form id="demoPersonForm">
+  ${dialogHead(existing?'Cập nhật nhân sự Demo':'Thêm nhân sự Demo','accountTitle','accountDialog')}
+  <div class="dialog-scroll">
+   <div class="form-error" id="demoPersonError" role="alert" hidden></div>
+   <div class="form-grid">
+    <label class="field">Họ và tên <input id="demoEmpName" type="text" required maxlength="120" value="${esc(existing?.name||'')}"></label>
+    <label class="field">Chức danh <input id="demoEmpDesc" type="text" required maxlength="120" placeholder="Ví dụ: Sales Executive" value="${esc(existing?.desc||'')}"></label>
+    <label class="field">Đơn vị / Nhóm
+     <select id="demoEmpParent">
+      ${unitNodes.map(n=>`<option value="${n.id}" ${Number(n.id)===Number(defaultParent)?'selected':''}>${esc(pathName(n.id)||n.name)}</option>`).join('')}
+     </select>
+    </label>
+    <label class="field">Vai trò phân quyền
+     <select id="demoEmpRole">
+      ${['owner','admin','manager','member'].map(r=>`<option value="${r}" ${curRole===r?'selected':''}>${esc(T[r])}</option>`).join('')}
+     </select>
+    </label>
+    <label class="field">Công suất tuần (giờ) <input id="demoEmpCap" type="number" min="0" max="168" value="${Number(existing?.capacity ?? 40)}"></label>
+   </div>
+  </div>
+  <div class="dialog-foot">
+   <button type="button" class="btn" data-action="close" data-dialog="accountDialog">${T.cancel}</button>
+   <button type="submit" class="btn primary">${existing?T.save:'Thêm nhân sự'}</button>
+  </div>
+ </form>`;
+ $('demoPersonForm')?.addEventListener('submit',e=>{
+  e.preventDefault();
+  const name=$('demoEmpName').value.trim();
+  const desc=$('demoEmpDesc').value.trim();
+  const parent=Number($('demoEmpParent').value);
+  const roleVal=$('demoEmpRole').value||'member';
+  const cap=Math.max(0,Math.min(168,Number($('demoEmpCap').value)||40));
+  if(!name){
+   $('demoPersonError').textContent='Vui lòng nhập họ tên nhân sự.';
+   $('demoPersonError').hidden=false;
+   return;
+  }
+  const targetId=existing?existing.id:uid();
+  const ok=commit(existing?'Đã cập nhật nhân sự Demo':'Đã thêm nhân sự Demo',d=>{
+   const row=d.nodes.find(n=>Number(n.id)===Number(targetId));
+   if(row){row.name=name;row.desc=desc;row.parent=parent;row.capacity=cap;}
+   else{d.nodes.push({id:targetId,parent,type:'person',name,desc,capacity:cap});}
+  },{nodeId:parent,title:name});
+  if(ok){
+   const meta=WorkTreeDemoStore.getDirectoryMeta();
+   meta[String(targetId)]={role:roleVal};
+   WorkTreeDemoStore.saveDirectoryMeta(meta);
+   closeDialog('accountDialog',true);
+   $('accountContent').innerHTML='';
+   renderAccessSection('accounts');
+  }
+ });
+ showDialog('accountDialog','#demoEmpName');
+}
 function renderAccessSection(tab=accessTab){
  if(!requireLogin())return;
- if(demoAccount||!canOpenPeopleAccess()){
+ if(demoAccount){
+  const cur=currentAccount(),roleLabel=T[cur?.role]||cur?.role||'Thành viên';
+  const canBrowseTeam=isAdmin()||cur?.role==='manager';
+  if(!canBrowseTeam){
+   $('accessTitle').textContent='Vai trò & Phạm vi truy cập (Demo)';
+   $('accessContent').innerHTML=`<div class="access-banner access-summary">
+    <span class="access-banner-icon" aria-hidden="true">${icon('shield')}</span>
+    <div><h3>${esc(roleLabel)}</h3>
+    <p>Phạm vi hiện tại: ${esc(cur?accountSummary(cur):'Không gian được phân công')}.</p>
+    ${demoRoleSwitcherStripHTML(cur?.role)}
+    </div>
+   </div>${matrixHTML()}`;
+   if(typeof hydrateIcons==='function')hydrateIcons($('accessContent'));return;
+  }
+  const activeSub=tab==='matrix'?'matrix':'accounts';
+  accessTab=activeSub;
+  const staffCount=people().length;
+  $('accessTitle').textContent='Nhân sự & Phân quyền (Demo)';
+  const tabs=[['accounts','Nhân sự Demo'],['matrix',T.matrix]];
+  $('accessContent').innerHTML=`
+   <div class="access-banner">
+    <div>
+     <span class="access-banner-icon">${icon('shield')}</span>
+     <h3>${esc(roleLabel)} · NTH GROUP</h3>
+     <p>Phạm vi hiện tại: ${esc(cur?accountSummary(cur):'Toàn bộ không gian')}. Thêm nhân sự hoặc đổi vai trò để kiểm thử quyền thực tế.</p>
+     ${demoRoleSwitcherStripHTML(cur?.role)}
+    </div>
+    <div class="access-stat"><strong>${staffCount}</strong><span>Nhân sự</span></div>
+   </div>
+   <div class="access-tabs" role="tablist">${tabs.map(([key,label])=>`<button role="tab" aria-selected="${key===activeSub}" data-v8="access-tab" data-tab="${key}">${label}</button>`).join('')}</div>
+   <div id="accessPanel" role="tabpanel">${activeSub==='matrix'?matrixHTML():`<div class="access-toolbar"><label class="access-search">${icon('search')}<input id="accountSearch" type="search" value="${esc(accountQuery)}" placeholder="Tìm nhân sự, chức danh, đơn vị..." aria-label="Tìm nhân sự Demo"></label>${isAdmin()?`<button type="button" class="btn primary" data-v8="demo-person-new">${icon('plus')}Thêm nhân sự</button>`:''}</div><div id="accountList"></div>`}</div>`;
+  if(activeSub==='accounts'){
+   renderDemoEmployeeList();
+   $('accountSearch')?.addEventListener('input',e=>{accountQuery=e.target.value;renderDemoEmployeeList();});
+  }
+  if(typeof hydrateIcons==='function')hydrateIcons($('accessContent'));return;
+ }
+ if(!canOpenPeopleAccess()){
   const cur=currentAccount(),roleLabel=T[cur?.role]||cur?.role||'Thành viên';
   $('accessTitle').textContent='Vai trò & Phạm vi truy cập';
   $('accessContent').innerHTML=`<div class="access-banner access-summary">
    <span class="access-banner-icon" aria-hidden="true">${icon('shield')}</span>
-   <div><h3>${esc(demoAccount?roleLabel:cur?.name||'Thành viên')}</h3>
-   <p>${demoAccount?'':esc(roleLabel)+' · '}Phạm vi hiện tại: ${esc(cur?accountSummary(cur):'Không gian được phân công')}.</p></div>
+   <div><h3>${esc(cur?.name||'Thành viên')}</h3>
+   <p>${esc(roleLabel)} · Phạm vi hiện tại: ${esc(cur?accountSummary(cur):'Không gian được phân công')}.</p></div>
   </div>${matrixHTML()}`;
   if(typeof hydrateIcons==='function')hydrateIcons($('accessContent'));return;
  }
@@ -13454,6 +14023,7 @@ function savePins(list,remember=true){
  if(demoAccount){
   const before=ownPins();
   demoPins.set(demoAccount.id,normalPins(list));
+  WorkTreeDemoStore.saveDemoPins();
   if(remember)pinUndo={user:demoAccount.id,list:before};
   renderPins();decoratePinButtons();return true;
  }
@@ -13806,6 +14376,35 @@ function renderSettingsSection(){
  if(!requireLogin())return;legacyOpenSettings();
  const sections=$$('.settings-section',$('settingsContent'));
  const profileSection=sections.find(s=>s.querySelector('#profileSelect'));
+ if(demoAccount){
+  const cur=currentAccount();
+  const dataSec=sections.find(s=>s.querySelector('[data-action="export-json"]'));
+  const resetSec=sections.find(s=>s.querySelector('[data-action="reset-demo"]'));
+  if(profileSection){
+   profileSection.innerHTML=`<h3>${icon('shield')}Không gian Demo đang mở</h3>
+    <div class="settings-row">
+     <div><strong>${esc(T[cur?.role]||cur?.name||'Demo')}</strong><p>Phạm vi: ${esc(cur?accountSummary(cur):'Toàn công ty')} · Dữ liệu lưu riêng cho bản demo trên trình duyệt.</p></div>
+     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn" data-v8="profile">Đổi vai trò</button>
+      <button type="button" class="btn" data-v8="demo-exit">Thoát demo</button>
+     </div>
+    </div>`;
+  }
+  if(dataSec){
+   dataSec.querySelector('[data-action="restore-backup"]')?.closest('.settings-row')?.remove();
+  }
+  if(!isAdmin()){
+   [sections[0],dataSec,resetSec].filter(Boolean).forEach(s=>s.remove());
+  }else if(resetSec){
+   resetSec.innerHTML=`<h3>${icon('refresh')}Dữ liệu mẫu Demo</h3><div class="settings-row"><div><strong>Khôi phục lại bộ dữ liệu mẫu ban đầu</strong><p>Đưa công việc, đơn vị, ghim, tệp đính kèm, chia sẻ và nhắc việc demo về trạng thái gốc.</p></div><button class="btn small danger" data-action="reset-demo">Khôi phục mẫu</button></div>`;
+  }
+  const last=sections.at(-1);
+  if(last&&last!==resetSec){
+   last.innerHTML=`<h3>${icon('info')}Chế độ dùng thử WorkTree X</h3><p>Mọi chỉnh sửa trong bản demo (công việc, phụ thuộc, tệp đính kèm, ghim, lịch nhắc, việc định kỳ và check-in) đều được lưu riêng trên trình duyệt này và tách biệt hoàn toàn với dữ liệu thật.</p><button class="link-btn" data-v8="help">Hướng dẫn sử dụng ${icon('arrow-right')}</button>`;
+  }
+  applyPermissionUI();
+  return;
+ }
  if(profileSection){profileSection.innerHTML=`<h3>${icon('shield')}${T.account}</h3><div class="settings-row"><div><strong>${esc(currentAccount().name)}</strong><p>${T[currentAccount().role]} · ${esc(accountSummary(currentAccount()))}</p></div><button class="btn" data-v8="profile">${T.account}</button></div><p>${T.idle}</p>`;}
  if(!isAdmin()){sections.filter((s,i)=>[0,3,4].includes(i)).forEach(s=>s.remove());}
  const last=sections.at(-1);
@@ -13831,7 +14430,7 @@ function safeSnapshot(){
 function permissionForAction(action,id){
  if(['notif-tab','mark-read-cloud-notif','delete-cloud-notif','clear-read-notifs','mark-all-read','open-cloud-notif','notif-settings','nav-attention-from-notif','close','set-badge-style','test-sound','test-device-notification','notif-pref-toggle','notif-quiet-toggle','reminder-create','reminder-cancel','reminder-delete','cancel-manual-reminder','delete-manual-reminder','ignore'].includes(action))return true;
  if(action==='access')return canOpenPeopleAccess();
- if(demoAccount&&['import-json','restore-backup','accept-recovery','load-external'].includes(action))return false;
+ if(demoAccount&&['restore-backup','accept-recovery','load-external'].includes(action))return false;
  if(['import-json','export-json','restore-backup','reset-demo','accept-recovery'].includes(action))return isAdmin();
  if(action==='new-node')return canCreateChildNode(id||state.selected);
  if(action==='new-child-node')return canCreateChildNode(id);
@@ -13895,6 +14494,9 @@ function handleV8Click(e){
     case 'logout':await logout();break;
     case 'profile':openProfile();break;
     case 'demo-role':if(demoAccount)selectDemoRole(v.dataset.role);break;
+    case 'demo-person-new':if(demoAccount)openDemoEmployeeModal(null);break;
+    case 'demo-person-edit':if(demoAccount)openDemoEmployeeModal(id);break;
+    case 'demo-close-hub-owner':if(demoAccount){if(typeof window.closeSystemHub==='function')window.closeSystemHub();applyPreset({owner:String(v.dataset.ownerId||id)},'list');}break;
     case 'demo-exit':if(demoAccount)window.location.assign(window.location.pathname);break;
     case 'help':openHelp();break;
     case 'access-tab':openAccess(v.dataset.tab);break;
@@ -13972,7 +14574,7 @@ function bootV8(){
   $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
   if(typeof window.renderSupabaseAuth==='function') window.renderSupabaseAuth();
  }
- let tick=0;setInterval(()=>{if(session||demoAccount||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer){if(typeof syncTimerDisplays==='function')syncTimerDisplays();else $$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}}if(++tick%30===0&&currentAccount())checkDate();},1000);
+ let tick=0;setInterval(()=>{if(session||demoAccount||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer){if(typeof syncTimerDisplays==='function')syncTimerDisplays();else $$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}}if(++tick%15===0&&demoAccount&&typeof WorkTreeDemoStore!=='undefined')WorkTreeDemoStore.processDueReminders();if(tick%30===0&&currentAccount())checkDate();},1000);
  window.openAddEmployeeDialog = openAddEmployeeDialog;
  window.openEditEmployeeDialog = openEditEmployeeDialog;
  window.openInviteExistingEmployeeDialog = openInviteExistingEmployeeDialog;
@@ -14195,6 +14797,6 @@ bootV8();
 </script>
 
 
-<script type="module" src="src/app/app.js?v=8.2.35"></script>
+<script type="module" src="src/app/app.js?v=8.2.36"></script>
 </body>
 </html>

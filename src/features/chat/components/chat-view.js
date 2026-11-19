@@ -800,6 +800,7 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       senderName: sourceMsg ? personName(sourceMsg.senderUserId) : (item.assigneeHint || ''),
       aiExtracted: {
         title: item.title,
+        assigneeHint: item.assigneeHint || '',
         description: item.context || '',
         priority: item.priority || 'Trung bình',
         due: /^\d{4}-\d{2}-\d{2}$/.test(item.dueHint || '') ? item.dueHint : ''

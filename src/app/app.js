@@ -1056,6 +1056,17 @@ export async function bootstrapApp() {
     });
   }
 
+  // 2. Thiết lập Desktop Sidebar Toggle & chia sẻ công việc (cả Demo lẫn Cloud)
+  initTaskShareUI({
+    getContext: () => ({
+      organizationId: isDemo ? demoWorkspace.organizationId : appState.activeOrganizationId,
+      role: appState.activeMembership?.role || callLegacyGlobal('currentAccount')?.role || 'member',
+      isCloud: Boolean(appState.activeOrganizationId),
+      isDemo
+    }),
+    onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
+  });
+
   if (isDemo) {
     workspaceDialogInstance = new WorkspaceDialog();
     window.openWorkspaceSwitcher = () => workspaceDialogInstance.openSwitcher({
@@ -1063,6 +1074,15 @@ export async function bootstrapApp() {
       activeOrganizationId: demoWorkspace.organizationId,
       canCreateWorkspace: false
     });
+    const topWsDemo = document.getElementById('topWorkspace');
+    if (topWsDemo) {
+      topWsDemo.style.cursor = 'pointer';
+      topWsDemo.setAttribute('title', 'Bấm để xem thông tin không gian làm việc');
+      topWsDemo.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.openWorkspaceSwitcher();
+      });
+    }
     setupSidebarToggle();
     callLegacyGlobal('startDemoWorkspace');
     return;
@@ -1090,15 +1110,6 @@ export async function bootstrapApp() {
 
   // 2. Thiết lập Desktop Sidebar Toggle (278px / 76px)
   setupSidebarToggle();
-
-  initTaskShareUI({
-    getContext: () => ({
-      organizationId: appState.activeOrganizationId,
-      role: appState.activeMembership?.role || callLegacyGlobal('currentAccount')?.role || 'member',
-      isCloud: Boolean(appState.activeOrganizationId)
-    }),
-    onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
-  });
 
   // 3. Khởi tạo WorkspaceDialog
   workspaceDialogInstance = new WorkspaceDialog({
@@ -1555,29 +1566,61 @@ function openWorkspaceAiBlueprintDialog() {
   });
 }
 
+function buildDemoRecurringContext() {
+  const snapshot = typeof window !== 'undefined' && typeof window.WorkTree?.getSnapshot === 'function'
+    ? window.WorkTree.getSnapshot()
+    : { nodes: [], tasks: [] };
+  const demoStore = typeof window !== 'undefined' ? window.WorkTreeDemoStore : null;
+  const allNodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : [];
+  const employees = allNodes
+    .filter(n => n.type === 'person')
+    .map(p => ({
+      id: String(p.id),
+      full_name: p.name,
+      job_title: p.desc || 'Chuyên viên',
+      home_node_id: p.parent != null ? String(p.parent) : null,
+      employment_status: 'active',
+      role: demoStore?.getPersonRole ? demoStore.getPersonRole(p.id) : 'member'
+    }));
+  const nodes = allNodes
+    .filter(n => n.type !== 'person')
+    .map(n => ({ ...n, id: String(n.id), parent_id: n.parent != null ? String(n.parent) : null }));
+  const tasks = Array.isArray(snapshot?.tasks) ? snapshot.tasks : [];
+  return { nodes, employees, tasks };
+}
+
 async function openWorkspaceRecurringHub(opts = {}) {
   const container = opts.container || (typeof document !== 'undefined' ? document.getElementById('recurringHubContent') : null);
   const orgId = appState.activeOrganizationId;
+  const isDemo = !orgId;
   const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
-  const role = appState.activeMembership?.role || activeOrg?.role || callLegacyGlobal('currentAccount')?.role || 'member';
+  const account = callLegacyGlobal('currentAccount');
+  const role = appState.activeMembership?.role || activeOrg?.role || account?.role || 'member';
+  const demoCtx = isDemo ? buildDemoRecurringContext() : null;
   return renderRecurringTasksHub({
     container,
-    organizationId: orgId,
-    userId: appState.user?.id || null,
+    organizationId: orgId || 'demo-nth-group',
+    userId: appState.user?.id || account?.id || null,
     role,
-    employees: appState.employees || [],
-    nodes: appState.nodes || [],
-    tasks: appState.tasks || [],
-    scopes: appState.activeMembership?.scopes || [],
-    isDemo: !orgId,
-    onTasksGenerated: async () => {
+    employees: isDemo ? demoCtx.employees : (appState.employees || []),
+    nodes: isDemo ? demoCtx.nodes : (appState.nodes || []),
+    tasks: isDemo ? demoCtx.tasks : (appState.tasks || []),
+    scopes: isDemo ? (account?.scopes || []) : (appState.activeMembership?.scopes || []),
+    isDemo,
+    onTasksGenerated: async (createdItems) => {
+      if (isDemo && typeof window !== 'undefined' && window.WorkTreeDemoStore?.applyRecurringGeneratedTasks) {
+        return window.WorkTreeDemoStore.applyRecurringGeneratedTasks(createdItems);
+      }
       if (orgId && orgId === appState.activeOrganizationId) {
         await syncCloudTasksQuietly(orgId);
       }
+      return [];
     },
     onOpenTask: (taskId) => {
       if (typeof window.closeSystemHub === 'function') window.closeSystemHub();
-      if (typeof window.openDrawer === 'function') window.openDrawer(taskId);
+      const raw = String(taskId || '');
+      const parsed = /^\d+$/.test(raw) ? Number(raw) : raw;
+      if (typeof window.openDrawer === 'function') window.openDrawer(parsed);
     },
     onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
   });
@@ -1585,30 +1628,41 @@ async function openWorkspaceRecurringHub(opts = {}) {
 
 async function openWorkspaceDailyCheckinDialog(opts = {}) {
   const orgId = appState.activeOrganizationId;
+  const isDemo = !orgId;
   const activeOrg = (appState.organizations || []).find(o => o.organizationId === orgId);
-  const role = appState.activeMembership?.role || activeOrg?.role || callLegacyGlobal('currentAccount')?.role || 'member';
+  const account = callLegacyGlobal('currentAccount');
+  const role = appState.activeMembership?.role || activeOrg?.role || account?.role || 'member';
   const fallbackName = typeof window !== 'undefined' && typeof window.currentWorkspaceLabel === 'function'
     ? window.currentWorkspaceLabel()
     : 'WorkTree X';
-  const tasksList = appState.tasks?.length
-    ? appState.tasks
-    : (typeof window !== 'undefined' && typeof window.WorkTree?.getSnapshot === 'function'
-        ? (window.WorkTree.getSnapshot()?.tasks || [])
-        : []);
+  const demoCtx = isDemo ? buildDemoRecurringContext() : null;
+  const tasksList = isDemo
+    ? demoCtx.tasks
+    : (appState.tasks?.length
+      ? appState.tasks
+      : (typeof window !== 'undefined' && typeof window.WorkTree?.getSnapshot === 'function'
+          ? (window.WorkTree.getSnapshot()?.tasks || [])
+          : []));
   return openDailyCheckinDialog({
-    organizationId: orgId,
+    organizationId: orgId || 'demo-nth-group',
     organizationName: activeOrg?.name || fallbackName,
-    userId: appState.user?.id || null,
-    employeeId: appState.activeMembership?.employeeId || (typeof window !== 'undefined' ? window.__worktree_supabase_user?.personId : null) || null,
+    userId: appState.user?.id || account?.id || null,
+    employeeId: appState.activeMembership?.employeeId
+      || (isDemo ? account?.personId : (typeof window !== 'undefined' ? window.__worktree_supabase_user?.personId : null))
+      || null,
     role,
-    employees: appState.employees || [],
+    employees: isDemo ? demoCtx.employees : (appState.employees || []),
     tasks: tasksList,
-    isDemo: !orgId,
+    isDemo,
     initialTab: opts?.initialTab || 'mine',
-    onMutated: async () => {
+    onMutated: async (detail) => {
+      if (isDemo && detail?.demoCheckin && typeof window !== 'undefined' && window.WorkTreeDemoStore?.applyDailyCheckin) {
+        return window.WorkTreeDemoStore.applyDailyCheckin(detail.demoCheckin);
+      }
       if (orgId && orgId === appState.activeOrganizationId) {
         await syncCloudTasksQuietly(orgId);
       }
+      return null;
     },
     onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
   });

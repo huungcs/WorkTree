@@ -82,7 +82,83 @@ function createMockSupabase({ missingMcpTable = false } = {}) {
     activity_logs: [],
     security_audit_logs: [],
     mcp_servers: [],
-    mcp_call_logs: []
+    mcp_call_logs: [],
+    daily_checkins: [
+      {
+        id: '96111111-1111-4111-8111-111111111111',
+        organization_id: ORG_A,
+        user_id: USER_MEMBER_A,
+        employee_id: EMP_MEMBER_A,
+        checkin_date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+        mood: 'red',
+        completed_task_ids: [TASK_A1],
+        in_progress_task_ids: [],
+        minutes_logged: 120,
+        summary: 'Đã gửi báo giá sơ bộ cho khách VIP.',
+        blockers: 'Cần sếp duyệt chiết khấu 10%.',
+        tomorrow_plan: 'Chốt ký hợp đồng Q4.',
+        submitted_at: '2026-11-19T10:30:00Z'
+      },
+      {
+        id: '96222221-2222-4222-8222-222222222222',
+        organization_id: ORG_B,
+        user_id: USER_OWNER_B,
+        employee_id: EMP_OWNER_B,
+        checkin_date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+        mood: 'green',
+        completed_task_ids: [],
+        in_progress_task_ids: [],
+        minutes_logged: 60,
+        summary: 'Bí mật Beta check-in',
+        blockers: '',
+        tomorrow_plan: '',
+        submitted_at: '2026-11-19T10:35:00Z'
+      }
+    ],
+    recurring_task_templates: [
+      {
+        id: '97111111-1111-4111-8111-111111111111',
+        organization_id: ORG_A,
+        title: 'Kiểm tra pipeline khách hàng hằng ngày',
+        description: 'Rà soát các lead nóng phát sinh trong 24h.',
+        node_id: NODE_A_DEPT1,
+        assignment_mode: 'job_title',
+        target_job_title: 'Sales',
+        target_org_role: null,
+        target_employee_id: null,
+        priority: 'high',
+        estimate_minutes: 30,
+        checklist_items: ['Mở CRM', 'Phân loại lead nóng'],
+        cadence: 'weekdays',
+        days_of_week: [1, 2, 3, 4, 5],
+        day_of_month: null,
+        due_offset_days: 0,
+        is_active: true,
+        last_generated_date: '2026-11-19',
+        created_at: '2026-11-18T08:00:00Z'
+      },
+      {
+        id: '97222221-2222-4222-8222-222222222222',
+        organization_id: ORG_B,
+        title: 'Việc định kỳ bí mật Beta',
+        description: '',
+        node_id: NODE_B_ROOT,
+        assignment_mode: 'org_role',
+        target_job_title: null,
+        target_org_role: 'member',
+        target_employee_id: null,
+        priority: 'medium',
+        estimate_minutes: 30,
+        checklist_items: [],
+        cadence: 'daily',
+        days_of_week: [0, 1, 2, 3, 4, 5, 6],
+        day_of_month: null,
+        due_offset_days: 0,
+        is_active: true,
+        last_generated_date: null,
+        created_at: '2026-11-18T08:00:00Z'
+      }
+    ]
   };
 
   let auditSeq = 1;
@@ -393,12 +469,14 @@ test('Zero-auth MCP link works end-to-end for ChatGPT/Claude without Authorizati
   });
   assert.equal(notifRes.status, 202);
 
-  // 3. tools/list -> all 17 tools for owner full mode
+  // 3. tools/list -> all 19 tools for owner full mode
   const listRes = await callMcpRpc(mcpUrl, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
   assert.equal(listRes.status, 200);
   const toolNames = listRes.data.result.tools.map(t => t.name);
-  assert.equal(toolNames.length, 17);
+  assert.equal(toolNames.length, 19);
   assert.ok(toolNames.includes('worktree_get_workspace'));
+  assert.ok(toolNames.includes('worktree_list_daily_checkins'));
+  assert.ok(toolNames.includes('worktree_list_recurring_templates'));
   assert.ok(toolNames.includes('worktree_create_task'));
   assert.ok(toolNames.includes('worktree_manage_dependency'));
   assert.ok(toolNames.includes('worktree_archive_task'));
@@ -532,7 +610,9 @@ test('Read-only MCP mode & role/scope limits restrict tools and data properly', 
 
   const roList = await callMcpRpc(roUrl, { jsonrpc: '2.0', id: 1, method: 'tools/list' });
   const roNames = roList.data.result.tools.map(t => t.name);
-  assert.equal(roNames.length, 7);
+  assert.equal(roNames.length, 9);
+  assert.ok(roNames.includes('worktree_list_daily_checkins'));
+  assert.ok(roNames.includes('worktree_list_recurring_templates'));
   assert.equal(roNames.includes('worktree_create_task'), false);
 
   const roCallWrite = await callMcpRpc(roUrl, {
@@ -1064,5 +1144,99 @@ test('MCP UI feature module adheres to AGENTS.md architecture and zero-secret ru
     assert.doesNotMatch(content, /app\/state\.js/, 'Feature must not import app/state.js');
     assert.doesNotMatch(content, /(?<!&)#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/, 'UI feature must use CSS design tokens, no hardcoded hex colors');
     assert.doesNotMatch(content, /\balert\s*\(/, 'Must not use browser alert()');
+  }
+});
+
+test('worktree_list_daily_checkins & worktree_list_recurring_templates enforce role/scope & tenant isolation', async () => {
+  const ownerCreated = await callManagement('POST', {
+    action: 'create',
+    organizationId: ORG_A,
+    name: 'Checkin Owner MCP',
+    accessMode: 'read_only'
+  }, 'token-owner-a');
+  const memberCreated = await callManagement('POST', {
+    action: 'create',
+    organizationId: ORG_A,
+    name: 'Checkin Member MCP',
+    accessMode: 'read_only'
+  }, 'token-member-a');
+  const managerCreated = await callManagement('POST', {
+    action: 'create',
+    organizationId: ORG_A,
+    name: 'Checkin Manager MCP',
+    accessMode: 'read_only'
+  }, 'token-manager-a');
+
+  const ownerUrl = ownerCreated.data.server.url;
+  const memberUrl = memberCreated.data.server.url;
+  const managerUrl = managerCreated.data.server.url;
+
+  try {
+    // 1. Owner reads all org checkins + missing employees, never ORG_B
+    const ownerChk = await callMcpRpc(ownerUrl, {
+      jsonrpc: '2.0',
+      id: 301,
+      method: 'tools/call',
+      params: { name: 'worktree_list_daily_checkins', arguments: { only_needs_support: true } }
+    });
+    assert.equal(ownerChk.data.result.isError, false);
+    const ownerData = ownerChk.data.result.structuredContent;
+    assert.equal(ownerData.total_checkins, 1);
+    assert.equal(ownerData.needs_support_count, 1);
+    assert.equal(ownerData.checkins[0].employee_id, EMP_MEMBER_A);
+    assert.equal(ownerData.checkins[0].needs_support, true);
+    assert.ok(ownerData.missing_employees.some(e => e.employee_id === EMP_OWNER_A));
+    assert.equal(JSON.stringify(ownerData).includes('Bí mật Beta'), false);
+
+    // 2. Scoped manager (NODE_A_DEPT1) sees in-scope check-ins & scoped missing only (excludes EMP_OWNER_A at NODE_A_ROOT)
+    const mgrChk = await callMcpRpc(managerUrl, {
+      jsonrpc: '2.0',
+      id: 302,
+      method: 'tools/call',
+      params: { name: 'worktree_list_daily_checkins', arguments: {} }
+    });
+    assert.equal(mgrChk.data.result.isError, false);
+    const mgrData = mgrChk.data.result.structuredContent;
+    assert.equal(mgrData.checkins.length, 1);
+    assert.equal(mgrData.missing_employees.some(e => e.employee_id === EMP_OWNER_A), false);
+
+    // 3. Member sees only own check-in & no missing_employees list
+    const memberChk = await callMcpRpc(memberUrl, {
+      jsonrpc: '2.0',
+      id: 303,
+      method: 'tools/call',
+      params: { name: 'worktree_list_daily_checkins', arguments: {} }
+    });
+    assert.equal(memberChk.data.result.isError, false);
+    assert.equal(memberChk.data.result.structuredContent.checkins.length, 1);
+    assert.deepEqual(memberChk.data.result.structuredContent.missing_employees, []);
+
+    // 4. Invalid date format fails closed with invalid_argument
+    const badDateRes = await callMcpRpc(ownerUrl, {
+      jsonrpc: '2.0',
+      id: 304,
+      method: 'tools/call',
+      params: { name: 'worktree_list_daily_checkins', arguments: { date: '19-11-2026' } }
+    });
+    assert.equal(badDateRes.data.result.isError, true);
+    assert.equal(badDateRes.data.result.structuredContent.error.code, 'invalid_argument');
+
+    // 5. worktree_list_recurring_templates returns only ORG_A templates
+    const tplRes = await callMcpRpc(ownerUrl, {
+      jsonrpc: '2.0',
+      id: 305,
+      method: 'tools/call',
+      params: { name: 'worktree_list_recurring_templates', arguments: { assignment_mode: 'job_title', is_active: true } }
+    });
+    assert.equal(tplRes.data.result.isError, false);
+    const tplData = tplRes.data.result.structuredContent;
+    assert.equal(tplData.total, 1);
+    assert.equal(tplData.templates[0].target_job_title, 'Sales');
+    assert.equal(tplData.templates[0].checklist_count, 2);
+    assert.equal(JSON.stringify(tplData).includes('Bí mật Beta'), false);
+  } finally {
+    await callManagement('POST', { action: 'delete', organizationId: ORG_A, mcpId: ownerCreated.data.server.id }, 'token-owner-a');
+    await callManagement('POST', { action: 'delete', organizationId: ORG_A, mcpId: memberCreated.data.server.id }, 'token-member-a');
+    await callManagement('POST', { action: 'delete', organizationId: ORG_A, mcpId: managerCreated.data.server.id }, 'token-owner-a');
   }
 });

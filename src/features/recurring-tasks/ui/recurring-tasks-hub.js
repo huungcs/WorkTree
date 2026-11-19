@@ -44,10 +44,74 @@ const NODE_TYPE_ICONS = {
 const UNFOLD_ICON = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg>';
 
 const DEMO_RULES = [
-  { id: 'demo-sales', title: 'Gọi lại khách quan tâm', assignment_mode: 'job_title', target_job_title: 'Nhân viên kinh doanh', cadence: 'weekdays', estimate_minutes: 30, checklist_items: ['Xem danh sách khách', 'Ghi kết quả cuộc gọi'], is_active: true },
-  { id: 'demo-stock', title: 'Kiểm tra tồn kho đầu ca', assignment_mode: 'job_title', target_job_title: 'Nhân viên kho', cadence: 'daily', estimate_minutes: 20, checklist_items: ['Đối chiếu số liệu'], is_active: true },
-  { id: 'demo-weekly', title: 'Tổng hợp công việc trong tuần', assignment_mode: 'org_role', target_org_role: 'manager', cadence: 'weekly', days_of_week: [5], estimate_minutes: 25, is_active: false }
+  { id: 'demo-sales', title: 'Gọi lại khách quan tâm', assignment_mode: 'job_title', target_job_title: 'Sales Executive', cadence: 'weekdays', priority: 'high', estimate_minutes: 30, checklist_items: ['Xem danh sách khách', 'Ghi kết quả cuộc gọi'], tags: ['Sales', 'hang-ngay'], is_active: true },
+  { id: 'demo-content', title: 'Rà soát lịch nội dung hằng ngày', assignment_mode: 'job_title', target_job_title: 'Content Executive', cadence: 'daily', priority: 'medium', estimate_minutes: 25, checklist_items: ['Kiểm tra bài đăng hôm nay', 'Cập nhật tương tác'], tags: ['Content', 'hang-ngay'], is_active: true },
+  { id: 'demo-weekly', title: 'Tổng hợp KPI & công việc trong tuần', assignment_mode: 'org_role', target_org_role: 'manager', cadence: 'weekly', days_of_week: [5], priority: 'medium', estimate_minutes: 45, checklist_items: ['Kiểm tra tiến độ đội nhóm', 'Gửi báo cáo cuối tuần'], tags: ['KPI', 'hang-tuan'], is_active: true }
 ];
+
+const DEMO_RULES_KEY = 'worktree_x_v8_demo_rec_rules';
+const DEMO_RUNS_KEY = 'worktree_x_v8_demo_rec_runs';
+
+function readDemoStorage(key, fallback) {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    if (raw == null) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function writeDemoStorage(key, value) {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
+  } catch (_) {}
+}
+
+function getDemoTemplates() {
+  const stored = readDemoStorage(DEMO_RULES_KEY, null);
+  if (Array.isArray(stored)) return stored;
+  const seeded = DEMO_RULES.map(r => ({ ...r, checklist_items: [...(r.checklist_items || [])], tags: [...(r.tags || [])], days_of_week: [...(r.days_of_week || [1, 2, 3, 4, 5])] }));
+  writeDemoStorage(DEMO_RULES_KEY, seeded);
+  return seeded;
+}
+
+function getDemoRuns() {
+  const stored = readDemoStorage(DEMO_RUNS_KEY, []);
+  return Array.isArray(stored) ? stored : [];
+}
+
+function matchDemoEmployees(tpl, employees = []) {
+  const active = (employees || []).filter(e => (e.employment_status || 'active') === 'active');
+  if (tpl.assignment_mode === 'employee') {
+    return active.filter(e => String(e.id) === String(tpl.target_employee_id));
+  }
+  if (tpl.assignment_mode === 'job_title') {
+    const target = foldText(tpl.target_job_title || '');
+    return target ? active.filter(e => foldText(e.job_title || '') === target) : [];
+  }
+  if (tpl.assignment_mode === 'org_role') {
+    return active.filter(e => e.role === tpl.target_org_role);
+  }
+  return [];
+}
+
+function isDemoDueOnDate(tpl, dateStr) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
+  if (!m) return true;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  const isoDow = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+  const lastDom = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0)).getUTCDate();
+  if (tpl.cadence === 'daily') return true;
+  if (tpl.cadence === 'weekdays') return isoDow >= 1 && isoDow <= 5;
+  if (tpl.cadence === 'weekly') {
+    const days = Array.isArray(tpl.days_of_week) && tpl.days_of_week.length ? tpl.days_of_week.map(Number) : [1];
+    return days.includes(isoDow);
+  }
+  if (tpl.cadence === 'monthly') return Number(m[3]) === Math.min(Number(tpl.day_of_month) || 1, lastDom);
+  return false;
+}
 
 const activeHubRender = new WeakMap();
 
@@ -279,7 +343,7 @@ export async function renderRecurringTasksHub({
   activeHubRender.set(container, renderId);
   const isLatest = () => activeHubRender.get(container) === renderId && container.isConnected;
 
-  const canManage = !isDemo && ['owner', 'admin', 'manager'].includes(role);
+  const canManage = ['owner', 'admin', 'manager'].includes(role);
   const service = RecurringTasksService;
 
   const jobTitleCounts = new Map();
@@ -349,8 +413,8 @@ export async function renderRecurringTasksHub({
     loading: !isDemo && Boolean(organizationId),
     busy: false,
     error: '',
-    templates: isDemo ? DEMO_RULES : [],
-    runs: [],
+    templates: isDemo ? getDemoTemplates() : [],
+    runs: isDemo ? getDemoRuns() : [],
     editingId: null,
     showForm: false,
     pendingDeleteId: null,
@@ -409,7 +473,15 @@ export async function renderRecurringTasksHub({
   }
 
   async function loadAll() {
-    if (isDemo || !organizationId) {
+    if (isDemo) {
+      state.templates = getDemoTemplates();
+      state.runs = getDemoRuns();
+      state.loading = false;
+      state.busy = false;
+      render();
+      return;
+    }
+    if (!organizationId) {
       state.loading = false;
       render();
       return;
@@ -1150,7 +1222,7 @@ export async function renderRecurringTasksHub({
           ` : ''}
         </div>
 
-        ${isDemo ? '<p class="wt-rec-note">Dữ liệu minh họa. Có thể thiết lập quy tắc trong không gian làm việc đám mây.</p>' : ''}
+        ${isDemo ? '<p class="wt-rec-note">Chế độ Demo tương tác: bạn có thể tạo/sửa quy tắc và bấm "Tạo việc hôm nay" để sinh việc mẫu ngay lập tức.</p>' : ''}
         ${renderForm()}
         ${renderTemplates()}
       </section>
@@ -1229,20 +1301,56 @@ export async function renderRecurringTasksHub({
             daysOfWeek: state.draft.daysOfWeek,
             dayOfMonth: state.draft.dayOfMonth
           };
-          if (state.editingId) {
-            await service.updateTemplate(organizationId, state.editingId, payload);
-            onToast('Đã cập nhật quy tắc việc định kỳ.');
-          } else {
-            await service.createTemplate(payload, userId);
-            onToast('Đã tạo quy tắc việc định kỳ mới.');
-          }
-          try {
-            const genRes = await service.generateForOrganization(organizationId, getLocalDateString());
-            if (genRes?.created > 0) {
-              await onTasksGenerated();
+          if (isDemo) {
+            const cleanTitle = String(state.draft.title || '').trim();
+            if (!cleanTitle) throw new Error('Vui lòng nhập tên công việc định kỳ.');
+            const existingRules = getDemoTemplates();
+            const tagsArr = String(state.draft.tags || '').split(',').map(s => s.trim()).filter(Boolean);
+            const checklistArr = String(state.draft.checklistText || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            const ruleObj = {
+              id: state.editingId || ('demo_rec_' + Date.now()),
+              title: cleanTitle.slice(0, 180),
+              description: String(state.draft.description || '').trim(),
+              node_id: state.draft.nodeId || null,
+              assignment_mode: state.draft.assignmentMode || 'job_title',
+              target_job_title: state.draft.targetJobTitle || null,
+              target_org_role: state.draft.targetOrgRole || null,
+              target_employee_id: state.draft.targetEmployeeId || null,
+              priority: state.draft.priority || 'medium',
+              estimate_minutes: Math.max(5, Number(state.draft.estimateMinutes) || 30),
+              due_offset_days: Math.max(0, Number(state.draft.dueOffsetDays) || 0),
+              tags: tagsArr.length ? tagsArr : ['hang-ngay'],
+              checklist_items: checklistArr,
+              cadence: state.draft.cadence || 'weekdays',
+              days_of_week: Array.isArray(state.draft.daysOfWeek) ? state.draft.daysOfWeek.map(Number) : [1, 2, 3, 4, 5],
+              day_of_month: Math.min(31, Math.max(1, Number(state.draft.dayOfMonth) || 1)),
+              is_active: state.draft.isActive !== false
+            };
+            const nextRules = state.editingId
+              ? existingRules.map(r => (String(r.id) === String(state.editingId) ? ruleObj : r))
+              : [ruleObj, ...existingRules];
+            writeDemoStorage(DEMO_RULES_KEY, nextRules);
+            onToast(state.editingId ? 'Đã cập nhật quy tắc việc định kỳ.' : 'Đã tạo quy tắc việc định kỳ mới.');
+            const genRes = await generateDemoToday();
+            if (genRes.created > 0) {
               onToast(`Đã tự động tạo ${genRes.created} đầu việc định kỳ cho hôm nay.`);
             }
-          } catch (_) {}
+          } else {
+            if (state.editingId) {
+              await service.updateTemplate(organizationId, state.editingId, payload);
+              onToast('Đã cập nhật quy tắc việc định kỳ.');
+            } else {
+              await service.createTemplate(payload, userId);
+              onToast('Đã tạo quy tắc việc định kỳ mới.');
+            }
+            try {
+              const genRes = await service.generateForOrganization(organizationId, getLocalDateString());
+              if (genRes?.created > 0) {
+                await onTasksGenerated();
+                onToast(`Đã tự động tạo ${genRes.created} đầu việc định kỳ cho hôm nay.`);
+              }
+            } catch (_) {}
+          }
           state.showForm = false;
           state.editingId = null;
           state.nodePickerOpen = false;
@@ -1255,6 +1363,47 @@ export async function renderRecurringTasksHub({
           render();
         }
       });
+    }
+
+    async function generateDemoToday() {
+      const today = getLocalDateString();
+      const rules = getDemoTemplates().filter(r => r.is_active !== false && isDemoDueOnDate(r, today));
+      const runs = getDemoRuns();
+      const existingKeys = new Set(runs.map(r => `${r.template_id}:${r.employee_id || ''}:${r.run_date}`));
+      const specs = [];
+      for (const tpl of rules) {
+        const targets = matchDemoEmployees(tpl, employees);
+        for (const emp of targets) {
+          const key = `${tpl.id}:${emp.id}:${today}`;
+          if (existingKeys.has(key)) continue;
+          existingKeys.add(key);
+          specs.push({
+            templateId: tpl.id,
+            title: tpl.title,
+            description: tpl.description || '',
+            owner: emp.id,
+            node: tpl.node_id || emp.home_node_id || null,
+            priority: tpl.priority || 'medium',
+            estimate_minutes: tpl.estimate_minutes || 30,
+            due: today,
+            tags: tpl.tags || ['hang-ngay'],
+            checklist_items: tpl.checklist_items || []
+          });
+        }
+      }
+      if (!specs.length) return { created: 0, skipped: rules.length };
+      const createdPairs = await onTasksGenerated(specs);
+      const newRuns = (Array.isArray(createdPairs) ? createdPairs : []).map((p, idx) => ({
+        id: `demo_run_${Date.now()}_${idx}`,
+        template_id: p.templateId,
+        employee_id: String(p.employeeId || ''),
+        run_date: today,
+        status: 'created',
+        task_id: p.taskId,
+        created_at: new Date().toISOString()
+      }));
+      writeDemoStorage(DEMO_RUNS_KEY, [...newRuns, ...runs].slice(0, 60));
+      return { created: specs.length, skipped: 0 };
     }
 
     container.querySelectorAll('[data-rec-action]').forEach(btn => {
@@ -1302,7 +1451,12 @@ export async function renderRecurringTasksHub({
           state.busy = true;
           render();
           try {
-            await service.toggleTemplateActive(organizationId, id, !tpl.is_active);
+            if (isDemo) {
+              const nextRules = getDemoTemplates().map(r => (String(r.id) === String(id) ? { ...r, is_active: !tpl.is_active } : r));
+              writeDemoStorage(DEMO_RULES_KEY, nextRules);
+            } else {
+              await service.toggleTemplateActive(organizationId, id, !tpl.is_active);
+            }
             onToast(tpl.is_active ? 'Đã tạm dừng quy tắc.' : 'Đã bật lại quy tắc.');
             await loadAll();
           } catch (err) {
@@ -1327,7 +1481,12 @@ export async function renderRecurringTasksHub({
           state.busy = true;
           render();
           try {
-            await service.deleteTemplate(organizationId, id);
+            if (isDemo) {
+              const nextRules = getDemoTemplates().filter(r => String(r.id) !== String(id));
+              writeDemoStorage(DEMO_RULES_KEY, nextRules);
+            } else {
+              await service.deleteTemplate(organizationId, id);
+            }
             state.pendingDeleteId = null;
             onToast('Đã xóa quy tắc việc định kỳ.');
             await loadAll();
@@ -1343,11 +1502,13 @@ export async function renderRecurringTasksHub({
           state.busy = true;
           render();
           try {
-            const res = await service.generateForOrganization(organizationId, getLocalDateString());
+            const res = isDemo
+              ? await generateDemoToday()
+              : await service.generateForOrganization(organizationId, getLocalDateString());
             const created = Number(res?.created || 0);
             const skipped = Number(res?.skipped || 0);
             if (created > 0) {
-              await onTasksGenerated();
+              if (!isDemo) await onTasksGenerated();
               onToast(`Đã sinh ${created} đầu việc định kỳ cho hôm nay${skipped ? ` (${skipped} việc đã có trước đó)` : ''}.`);
             } else {
               onToast(`Hôm nay chưa có thêm đầu việc định kỳ mới cần sinh${skipped ? ` (${skipped} việc đã được tạo sẵn)` : ''}.`);

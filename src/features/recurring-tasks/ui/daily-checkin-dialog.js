@@ -89,6 +89,24 @@ export function selectTodayFocusTasks({ tasks = [], employeeId = null, role = 'm
     .map(item => item.task);
 }
 
+const DEMO_CHECKINS_KEY = 'worktree_x_v8_demo_checkins';
+
+function readDemoCheckinsMap() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(DEMO_CHECKINS_KEY) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function writeDemoCheckinsMap(map) {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(DEMO_CHECKINS_KEY, JSON.stringify(map));
+  } catch (_) {}
+}
+
 export async function openDailyCheckinDialog({
   organizationId,
   organizationName = 'WorkTree X',
@@ -112,7 +130,7 @@ export async function openDailyCheckinDialog({
   }
 
   const today = getLocalDateString();
-  const canViewTeam = !isDemo && ['owner', 'admin', 'manager'].includes(role);
+  const canViewTeam = ['owner', 'admin', 'manager'].includes(role);
   const checkinTasks = (tasks || []).map(task => ({
     ...task,
     status: CHECKIN_TASK_STATUS[task.status] || task.status
@@ -141,16 +159,69 @@ export async function openDailyCheckinDialog({
     minutesByTask: {},
     summary: '',
     blockers: '',
-    tomorrowPlan: ''
+    tomorrowPlan: '',
+    aiDrafting: false
   };
+  let aiDraftAbort = null;
+  let aiDraftSeq = 0;
 
   function closeModal() {
+    try { aiDraftAbort?.abort(); } catch (_) {}
+    aiDraftAbort = null;
+    aiDraftSeq += 1;
     try { dialog.close(); } catch (_) {}
     dialog.remove();
   }
 
   async function loadInitial({ teamOnly = false } = {}) {
-    if (isDemo || !organizationId) {
+    if (isDemo) {
+      const map = readDemoCheckinsMap();
+      const dayList = Array.isArray(map[today]) ? map[today] : null;
+      let seededList = dayList;
+      if (!seededList) {
+        const sampleRows = [];
+        const candidates = (employees || []).filter(e => String(e.id) !== String(employeeId || '')).slice(0, 3);
+        const moods = ['green', 'green', 'amber'];
+        candidates.forEach((emp, idx) => {
+          sampleRows.push({
+            id: `demo_chk_${today}_${emp.id}`,
+            user_id: `demo-user-${emp.id}`,
+            employee_id: String(emp.id),
+            checkin_date: today,
+            mood: moods[idx % moods.length],
+            completed_task_ids: [],
+            in_progress_task_ids: [],
+            minutes_logged: 45 + idx * 15,
+            summary: idx === 2
+              ? 'Đã hoàn tất khung content tuần, đang chờ duyệt brief creative mới.'
+              : 'Đã xử lý các đầu việc ưu tiên theo kế hoạch hôm nay.',
+            blockers: idx === 2 ? 'Cần bổ sung ngân sách test nhóm quảng cáo mới.' : '',
+            tomorrow_plan: 'Tiếp tục rà soát các đầu việc đến hạn sáng mai.',
+            created_at: new Date().toISOString()
+          });
+        });
+        seededList = sampleRows;
+        map[today] = seededList;
+        writeDemoCheckinsMap(map);
+      }
+      const myKey = String(employeeId || userId || 'demo-user');
+      const mine = !teamOnly ? seededList.find(r => String(r.employee_id || r.user_id || '') === myKey) : null;
+      if (mine) {
+        state.existingCheckin = mine;
+        state.mood = mine.mood || 'green';
+        const merged = new Set(state.completedIds);
+        for (const id of mine.completed_task_ids || []) merged.add(String(id));
+        state.completedIds = merged;
+        state.summary = mine.summary || '';
+        state.blockers = mine.blockers || '';
+        state.tomorrowPlan = mine.tomorrow_plan || '';
+      }
+      state.teamCheckins = canViewTeam ? seededList : [];
+      state.loading = false;
+      render();
+      return;
+    }
+    if (!organizationId) {
       state.loading = false;
       render();
       return;
@@ -463,16 +534,82 @@ export async function openDailyCheckinDialog({
           return;
         }
         if (action === 'autofill-summary') {
+          if (state.aiDrafting) return;
           syncDraftFromDom();
           const { completed, inProgress } = computeSelectedTasks();
-          state.summary = buildAutoSummaryText({
-            completedTasks: completed,
-            inProgressTasks: inProgress,
-            minutesLogged: computeMinutesTotal()
-          }) || 'Đã rà soát danh sách công việc trong ngày.';
-          const summary = dialog.querySelector('#wtChkSummary');
-          summary.value = state.summary;
-          summary.focus();
+          const totalMins = computeMinutesTotal();
+          const canCloudAiDraft = !isDemo
+            && Boolean(organizationId)
+            && typeof window !== 'undefined'
+            && typeof window.AiClientService?.inlineAssist === 'function';
+
+          const applyLocalSummary = () => {
+            state.summary = buildAutoSummaryText({
+              completedTasks: completed,
+              inProgressTasks: inProgress,
+              minutesLogged: totalMins
+            }) || 'Đã rà soát danh sách công việc trong ngày.';
+            const summaryEl = dialog.querySelector('#wtChkSummary');
+            if (summaryEl) {
+              summaryEl.value = state.summary;
+              summaryEl.focus();
+            }
+          };
+
+          if (!canCloudAiDraft) {
+            applyLocalSummary();
+            return;
+          }
+
+          try { aiDraftAbort?.abort(); } catch (_) {}
+          aiDraftAbort = typeof AbortController === 'function' ? new AbortController() : null;
+          const seq = ++aiDraftSeq;
+          state.aiDrafting = true;
+          btn.disabled = true;
+          btn.innerHTML = `${ICONS.sparkles}<span>AI đang soạn…</span>`;
+
+          try {
+            const res = await window.AiClientService.inlineAssist({
+              organizationId,
+              mode: 'checkin_draft',
+              payload: {
+                mood: state.mood,
+                completedTaskIds: completed.map(t => String(t.id)),
+                inProgressTaskIds: inProgress.map(t => String(t.id)),
+                minutesLogged: totalMins,
+                currentSummary: state.summary,
+                currentBlockers: state.blockers,
+                currentTomorrowPlan: state.tomorrowPlan
+              },
+              signal: aiDraftAbort?.signal || null
+            });
+            if (seq !== aiDraftSeq || !dialog.isConnected) return;
+            const d = res?.data || {};
+            if (d.summary) state.summary = d.summary;
+            if (!state.blockers.trim() && d.blockers) state.blockers = d.blockers;
+            if (!state.tomorrowPlan.trim() && d.tomorrowPlan) state.tomorrowPlan = d.tomorrowPlan;
+
+            const summaryEl = dialog.querySelector('#wtChkSummary');
+            const blockersEl = dialog.querySelector('#wtChkBlockers');
+            const tomorrowEl = dialog.querySelector('#wtChkTomorrow');
+            if (summaryEl) summaryEl.value = state.summary;
+            if (blockersEl && d.blockers) blockersEl.value = state.blockers;
+            if (tomorrowEl && d.tomorrowPlan) tomorrowEl.value = state.tomorrowPlan;
+            summaryEl?.focus();
+            onToast('AI đã soạn nháp báo cáo hôm nay.');
+          } catch (err) {
+            if (err?.name === 'AbortError' || seq !== aiDraftSeq || !dialog.isConnected) return;
+            applyLocalSummary();
+            onToast('AI tạm bận — đã tự điền nhanh từ danh sách việc.');
+          } finally {
+            if (seq === aiDraftSeq) {
+              state.aiDrafting = false;
+              if (btn.isConnected) {
+                btn.disabled = false;
+                btn.innerHTML = `${ICONS.sparkles}<span>Tự điền kết quả</span>`;
+              }
+            }
+          }
           return;
         }
         if (action === 'refresh-team') {
@@ -510,8 +647,53 @@ export async function openDailyCheckinDialog({
           if (state.submitting || !dialog.querySelector('#wtChkForm')?.reportValidity()) return;
           syncDraftFromDom();
           if (isDemo) {
-            onToast('Đã xem thử Check-in Demo.');
-            closeModal();
+            state.submitting = true;
+            render();
+            try {
+              const { completed, inProgress } = computeSelectedTasks();
+              const totalMins = computeMinutesTotal();
+              const finalSummary = state.summary.trim() || buildAutoSummaryText({
+                completedTasks: completed,
+                inProgressTasks: inProgress,
+                minutesLogged: totalMins
+              });
+              const myKey = String(employeeId || userId || 'demo-user');
+              const map = readDemoCheckinsMap();
+              const dayList = Array.isArray(map[today]) ? [...map[today]] : [];
+              const row = {
+                id: state.existingCheckin?.id || `demo_chk_${today}_${myKey}`,
+                user_id: String(userId || `demo-user-${myKey}`),
+                employee_id: employeeId ? String(employeeId) : null,
+                checkin_date: today,
+                mood: state.mood,
+                completed_task_ids: completed.map(t => String(t.id)),
+                in_progress_task_ids: inProgress.map(t => String(t.id)),
+                minutes_logged: totalMins,
+                summary: finalSummary,
+                blockers: state.blockers.trim(),
+                tomorrow_plan: state.tomorrowPlan.trim(),
+                created_at: new Date().toISOString()
+              };
+              const idx = dayList.findIndex(r => String(r.employee_id || r.user_id || '') === myKey);
+              if (idx !== -1) dayList[idx] = row;
+              else dayList.unshift(row);
+              map[today] = dayList;
+              writeDemoCheckinsMap(map);
+              const res = await onMutated({
+                demoCheckin: {
+                  completedTaskIds: row.completed_task_ids,
+                  inProgressTaskIds: row.in_progress_task_ids,
+                  perTaskMinutes: state.minutesByTask
+                }
+              });
+              const updatedCount = Number(res?.updated || 0);
+              onToast(`Đã gửi Báo cáo hôm nay${updatedCount ? ` và đồng bộ ${updatedCount} đầu việc` : ''}!`);
+              closeModal();
+            } catch (err) {
+              onToast(err?.message || 'Không thể lưu báo cáo hôm nay.', 'error');
+              state.submitting = false;
+              render();
+            }
             return;
           }
           if (!organizationId || !userId) {

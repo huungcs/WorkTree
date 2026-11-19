@@ -653,6 +653,7 @@ test('AI UI feature and tracked code adhere to AGENTS.md architecture and zero-s
     path.join(__dirname, '..', 'src', 'features', 'chat', 'components', 'chat-view.js'),
     path.join(__dirname, '..', 'src', 'features', 'chat', 'styles', 'chat.css'),
     path.join(__dirname, '..', 'src', 'features', 'organizations', 'components', 'workspace-dialog.js'),
+    path.join(__dirname, '..', 'src', 'features', 'recurring-tasks', 'ui', 'daily-checkin-dialog.js'),
     path.join(__dirname, '..', 'src', 'features', 'onboarding', 'ui', 'getting-started-card.js')
   ];
   for (const f of aiFiles) {
@@ -728,6 +729,58 @@ test('inline_assist enforces auth, tenant isolation, permissions and parses real
                   context: ''
                 }
               ]
+            })
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (sys.includes('"departments"')) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              summary: 'Cơ cấu phòng khám nha khoa 3 khối trọng tâm',
+              departments: [
+                {
+                  name: 'Khối Điều trị & Bác sĩ',
+                  type: 'department',
+                  description: 'Thăm khám và điều trị lâm sàng',
+                  projects: [{ name: 'Chuẩn hóa quy trình vô khuẩn', description: 'SOP phòng khám' }],
+                  starterTasks: [{
+                    title: 'Rà soát lịch khám theo ca sáng/chiều',
+                    priority: 'high',
+                    estimateMinutes: 99999,
+                    tags: ['Y tế', 'Vận hành', 'SOP', 'Extra'],
+                    checklist: ['Kiểm tra danh mục dụng cụ', 'Chốt ca trực tuần']
+                  }]
+                },
+                {
+                  name: 'Chăm sóc Khách hàng',
+                  type: 'department',
+                  description: 'Đặt lịch & tái khám',
+                  projects: [{ name: 'Chăm sóc sau điều trị', description: '' }],
+                  starterTasks: [{ title: 'Nhắc lịch tái khám 7 ngày', priority: 'medium', estimateMinutes: 60, tags: ['CSKH'], checklist: ['Gửi tin nhắn nhắc lịch'] }]
+                }
+              ]
+            })
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (sys.includes('"tomorrowPlan"')) {
+      assert.equal(usr.includes('Chốt hợp đồng Q4'), true, 'Scoped task context should appear in prompt');
+      assert.equal(usr.includes('Bí mật Beta'), false, 'Other tenant tasks must never leak into prompt');
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              summary: 'Đã xử lý trọng tâm chốt hợp đồng Q4 với 90 phút tập trung.',
+              blockers: '',
+              tomorrowPlan: 'Hoàn tất gửi hợp đồng bản cuối và theo dõi phản hồi khách VIP.'
             })
           }
         }]
@@ -853,6 +906,53 @@ test('inline_assist enforces auth, tenant isolation, permissions and parses real
     assert.equal(extractRes.data.nodeId, NODE_A_DEPT1);
     assert.deepEqual(extractRes.data.collaboratorIds, []);
     assert.deepEqual(extractRes.data.tags, ['sales', 'Q4']);
+
+    // 5. org_blueprint restricts to owner/admin & sanitizes output
+    const memberBp = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-member-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'org_blueprint', payload: { description: 'Phòng khám nha khoa 20 người' } })
+    });
+    assert.equal(memberBp.status, 403);
+
+    const shortBp = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-owner-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'org_blueprint', payload: { description: 'ab' } })
+    });
+    assert.equal(shortBp.status, 400);
+
+    const ownerBp = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-owner-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'org_blueprint', payload: { description: 'Phòng khám nha khoa 20 nhân sự gồm Bác sĩ và CSKH' } })
+    }).then(r => r.json());
+    assert.equal(ownerBp.ok, true);
+    assert.equal(ownerBp.data.departments.length, 2);
+    assert.equal(ownerBp.data.departments[0].starterTasks[0].estimateMinutes, 2400);
+    assert.equal(ownerBp.data.departments[0].starterTasks[0].tags.length, 3);
+
+    // 6. checkin_draft restricts viewer & drafts structured check-in from scoped tasks
+    const viewerCheckin = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-viewer-a' },
+      body: JSON.stringify({ action: 'inline_assist', organizationId: ORG_A, mode: 'checkin_draft', payload: { mood: 'green' } })
+    });
+    assert.equal(viewerCheckin.status, 403);
+
+    const memberCheckin = await fetch(`${inlineOrigin}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-member-a' },
+      body: JSON.stringify({
+        action: 'inline_assist',
+        organizationId: ORG_A,
+        mode: 'checkin_draft',
+        payload: { mood: 'green', completedTaskIds: [TASK_A1, TASK_B1], minutesLogged: 90 }
+      })
+    }).then(r => r.json());
+    assert.equal(memberCheckin.ok, true);
+    assert.match(memberCheckin.data.summary, /hợp đồng Q4/i);
+    assert.ok(memberCheckin.data.tomorrowPlan.length > 0);
   } finally {
     await new Promise(resolve => inlineServer.close(resolve));
   }
