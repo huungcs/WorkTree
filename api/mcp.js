@@ -138,20 +138,33 @@ const gState = globalThis.__worktreeMcpState || (globalThis.__worktreeMcpState =
 });
 
 function loadConfig(envOverrides = null) {
-  let supabaseUrl = (envOverrides?.SUPABASE_URL || process.env.SUPABASE_URL || 'https://taupjuaficdzdgbmxmbe.supabase.co').trim();
+  let supabaseUrl = (
+    envOverrides?.SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    'https://taupjuaficdzdgbmxmbe.supabase.co'
+  ).trim();
   let supabaseKey = (
     envOverrides?.SUPABASE_SERVICE_ROLE_KEY ||
     envOverrides?.SUPABASE_SECRET_KEY ||
+    envOverrides?.SUPABASE_SERVICE_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
     ''
   ).trim();
   let pepper = (envOverrides?.MCP_KEY_PEPPER || process.env.MCP_KEY_PEPPER || '').trim();
 
-  if (!supabaseKey) {
-    try {
-      const envPath = path.join(process.cwd(), '.env');
-      if (fs.existsSync(envPath)) {
+  const allowEnvFile = !(envOverrides && Object.prototype.hasOwnProperty.call(envOverrides, 'SUPABASE_SERVICE_ROLE_KEY'));
+  if (!supabaseKey && allowEnvFile) {
+    const candidateFiles = [
+      path.join(process.cwd(), '.env.local'),
+      path.join(process.cwd(), '.env'),
+      path.resolve(__dirname, '..', '.env.local'),
+      path.resolve(__dirname, '..', '.env')
+    ];
+    for (const envPath of candidateFiles) {
+      try {
+        if (!fs.existsSync(envPath)) continue;
         const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
         const parsed = {};
         for (const line of lines) {
@@ -159,14 +172,18 @@ function loadConfig(envOverrides = null) {
           if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
           const idx = trimmed.indexOf('=');
           const k = trimmed.slice(0, idx).trim();
-          const v = trimmed.slice(idx + 1).trim();
+          let v = trimmed.slice(idx + 1).trim();
+          if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+            v = v.slice(1, -1);
+          }
           parsed[k] = v;
         }
-        supabaseKey = parsed.SUPABASE_SERVICE_ROLE_KEY || parsed.SUPABASE_SECRET_KEY || supabaseKey;
+        supabaseKey = parsed.SUPABASE_SERVICE_ROLE_KEY || parsed.SUPABASE_SECRET_KEY || parsed.SUPABASE_SERVICE_KEY || supabaseKey;
         supabaseUrl = parsed.SUPABASE_URL || supabaseUrl;
         pepper = parsed.MCP_KEY_PEPPER || pepper;
-      }
-    } catch (_) {}
+        if (supabaseKey) break;
+      } catch (_) {}
+    }
   }
 
   return {
@@ -3276,7 +3293,15 @@ async function handlePublicMcpProtocol(req, res, rawKey, deps) {
   const { supabase, pepper } = deps;
   const ip = getClientIp(req);
   const notFoundRate = checkNotFoundLimit(ip);
-  const decodedKey = decodeURIComponent(String(rawKey || '').trim());
+  let decodedKey = '';
+  try {
+    decodedKey = decodeURIComponent(String(rawKey || '').trim());
+  } catch {
+    return sendNotFound(res);
+  }
+  if (!decodedKey) {
+    return sendNotFound(res);
+  }
 
   if (!notFoundRate.ok) {
     // Allow valid keys through even if another client behind same NAT guessed wrong keys
@@ -3415,7 +3440,10 @@ async function handleManagementApi(req, res, deps) {
   }
   const user = authData.user;
 
-  const query = req.query || {};
+  const urlSearch = typeof req.url === 'string' && req.url.includes('?')
+    ? Object.fromEntries(new URL(req.url, 'http://localhost').searchParams.entries())
+    : {};
+  const query = { ...urlSearch, ...(req.query || {}) };
   let body = {};
   if (req.method === 'POST') {
     const raw = await readRawBody(req);
@@ -3640,7 +3668,7 @@ async function handleManagementApi(req, res, deps) {
       throw insErr;
     }
 
-    await supabase.from('security_audit_logs').insert({
+    const { error: auditErr } = await supabase.from('security_audit_logs').insert({
       organization_id: organizationId,
       actor_user_id: user.id,
       action: 'MCP_SERVER_CREATED',
@@ -3658,6 +3686,9 @@ async function handleManagementApi(req, res, deps) {
         ...(storedInTable ? {} : { key_hash: keyHash, key_encrypted: keyEncrypted })
       }
     });
+    if (auditErr && !storedInTable) {
+      throw auditErr;
+    }
 
     invalidateMcpCache({ mcpId });
 
@@ -3861,11 +3892,18 @@ function createMcpHandler(overrides = {}) {
     const pepper = overrides.pepper || cfg.pepper;
 
     if (!supabase || !pepper) {
-      return res.status(503).json({ ok: false, error: 'Missing backend service configuration' });
+      return res.status(503).json({
+        ok: false,
+        code: 'missing_backend_config',
+        error: 'Máy chủ chưa cấu hình biến môi trường SUPABASE_SERVICE_ROLE_KEY (hoặc SUPABASE_SECRET_KEY) trong Vercel Project Settings → Environment Variables.'
+      });
     }
 
     try {
-      const query = req.query || {};
+      const urlSearch = typeof req.url === 'string' && req.url.includes('?')
+        ? Object.fromEntries(new URL(req.url, 'http://localhost').searchParams.entries())
+        : {};
+      const query = { ...urlSearch, ...(req.query || {}) };
       let rawKey = typeof query.key === 'string' ? query.key : '';
       if (!rawKey && typeof req.url === 'string') {
         const cleanPath = req.url.split('?')[0];

@@ -1017,6 +1017,40 @@ test('MCP prompts, batch checklist, task dependencies & activity logs API enforc
   await callManagement('POST', { action: 'delete', organizationId: ORG_A, mcpId: memberCreated.data.server.id }, 'token-member-a');
 });
 
+test('MCP endpoint handles malformed key cleanly (404) and returns clear Vietnamese 503 when service key is missing', async () => {
+  const malformedRes = await callMcpRpc(`${origin}/api/mcp?key=%ZZ`, { jsonrpc: '2.0', id: 201, method: 'tools/list' });
+  assert.equal(malformedRes.status, 404);
+
+  const unconfiguredHandler = createMcpHandler({
+    env: {
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: '',
+      SUPABASE_SECRET_KEY: '',
+      MCP_KEY_PEPPER: ''
+    },
+    supabase: null
+  });
+  let hit = null;
+  await unconfiguredHandler(
+    { method: 'GET', url: '/api/mcp?action=list', headers: {} },
+    {
+      statusCode: 200,
+      headers: {},
+      setHeader(k, v) { this.headers[k] = v; },
+      getHeader(k) { return this.headers[k]; },
+      removeHeader(k) { delete this.headers[k]; },
+      status(code) { this.statusCode = code; return this; },
+      json(body) { hit = { status: this.statusCode, body }; return this; },
+      send(body) { hit = { status: this.statusCode, body }; return this; },
+      end() { return this; }
+    }
+  );
+  assert.ok(hit, 'Expected 503 response');
+  assert.equal(hit.status, 503);
+  assert.equal(hit.body.code, 'missing_backend_config');
+  assert.match(hit.body.error, /SUPABASE_SERVICE_ROLE_KEY/);
+});
+
 test('MCP UI feature module adheres to AGENTS.md architecture and zero-secret rules', () => {
   const mcpDir = path.join(__dirname, '..', 'src', 'features', 'mcp');
   const files = [

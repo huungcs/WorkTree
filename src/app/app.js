@@ -471,6 +471,7 @@ export function closeAllModalsAndPopovers() {
     const aiDlg = document.getElementById('aiAssistantDialog');
     if (aiDlg) {
       try { aiDlg.remove(); } catch (e) {}
+      document.getElementById('aiAssistantBtn')?.setAttribute('aria-expanded', 'false');
     }
     clearAiSessionHistory();
     if (typeof window.closeSystemHub === 'function') {

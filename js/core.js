@@ -2456,19 +2456,19 @@ function renderDrawer(){
    if(!depTask)return `<p class="muted">Công việc #${d.depends_on_task_id}</p>`;
    const isDone=depTask.status==='Hoàn thành';
    return `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-     <button class="dependency-item ${isDone?'resolved':'blocked'}" style="flex:1" data-action="open-task" data-id="${depTask.id}">
+    <div class="dependency-row">
+     <button type="button" class="dependency-item ${isDone?'resolved':'blocked'}" data-action="open-task" data-id="${depTask.id}">
       ${icon(isDone?'check-circle':'link')}
       <span>${esc(depTask.title)}</span>
      </button>
-     <button class="icon-btn" data-action="delete-dependency" data-task-id="${t.id}" data-dep-id="${depTask.id}" title="Hủy phụ thuộc">${icon('x')}</button>
+     <button type="button" class="icon-btn dependency-remove" data-action="delete-dependency" data-task-id="${t.id}" data-dep-id="${depTask.id}" title="Hủy liên kết phụ thuộc" aria-label="${esc('Hủy liên kết phụ thuộc: '+depTask.title)}">${icon('x')}</button>
     </div>`;
   }).join('');
  }else if(!isCloud&&t.dependencies.length){
   dependenciesHTML=t.dependencies.map(id=>{
    const d=byTask.get(id);
    if(!canReadTask(d))return `<p class="muted">${T.hiddenDependency}</p>`;
-   return `<button class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button>`;
+   return `<div class="dependency-row"><button type="button" class="dependency-item ${d.status==='Hoàn thành'?'resolved':'blocked'}" data-action="open-task" data-id="${id}">${icon(d.status==='Hoàn thành'?'check-circle':'link')}<span>${esc(d.title)}</span></button></div>`;
   }).join('');
  }else{
   dependenciesHTML='<p class="muted" style="font-size:11px;margin:0 0 10px">Chưa có liên kết phụ thuộc.</p>';

@@ -65,6 +65,19 @@ function esc(value) {
   }[c]));
 }
 
+function formatMcpUiError(errOrMessage, fallback = 'Không thể kết nối máy chủ MCP. Vui lòng thử lại.') {
+  const errObj = errOrMessage && typeof errOrMessage === 'object' ? errOrMessage : null;
+  const msg = String(errObj ? errObj.message : (errOrMessage || '')).trim();
+  if (
+    errObj?.code === 'missing_backend_config' ||
+    errObj?.status === 503 ||
+    /Missing backend service configuration/i.test(msg)
+  ) {
+    return 'Máy chủ hiện tại chưa cấu hình khóa backend Supabase. Trên Vercel, vào Project Settings → Environment Variables để thêm biến kết nối server rồi Redeploy.';
+  }
+  return msg || fallback;
+}
+
 function formatDateTime(iso) {
   if (!iso) return 'Chưa sử dụng';
   try {
@@ -553,14 +566,14 @@ export async function openMcpDialog({
       if (srvResult.status === 'fulfilled') {
         servers = srvResult.value;
       } else {
-        loadError = srvResult.reason?.message || 'Không thể tải danh sách kết nối MCP.';
+        loadError = formatMcpUiError(srvResult.reason, 'Không thể tải danh sách kết nối MCP.');
       }
       if (logResult.status === 'fulfilled') {
         logs = logResult.value.logs || [];
         logsMigrationRequired = Boolean(logResult.value.migrationRequired);
       }
     } catch (err) {
-      loadError = err.message || 'Không thể tải danh sách kết nối MCP.';
+      loadError = formatMcpUiError(err, 'Không thể tải danh sách kết nối MCP.');
     } finally {
       loading = false;
       logsLoading = false;
@@ -624,7 +637,7 @@ export async function openMcpDialog({
           notify('Đã tạo link MCP thành công!');
         }
       } catch (err) {
-        formError = err.message || 'Không thể tạo kết nối MCP.';
+        formError = formatMcpUiError(err, 'Không thể tạo kết nối MCP.');
       } finally {
         creating = false;
         render();

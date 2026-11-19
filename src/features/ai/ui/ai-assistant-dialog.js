@@ -104,10 +104,20 @@ function injectAiStyles() {
   const style = document.createElement('style');
   style.id = 'worktreeAiStyles';
   style.textContent = `
-    #aiAssistantDialog.ai-dialog{width:min(780px,calc(100vw - 24px));height:min(760px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);overflow:hidden;font-family:var(--font-sans)}
+    #aiAssistantDialog.ai-dialog{
+      position:fixed;inset:12px 12px 12px auto;margin:0;z-index:70;
+      width:min(464px,calc(100vw - 24px));max-width:none;height:auto;max-height:none;
+      border:1px solid var(--line-strong);border-radius:var(--radius);
+      box-shadow:var(--shadow-lg);font-family:var(--font-sans);
+      animation:ai-panel-in .18s ease-out;
+    }
+    #aiAssistantDialog::backdrop{background:transparent;backdrop-filter:none}
+    @keyframes ai-panel-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+    @media(prefers-reduced-motion:reduce){#aiAssistantDialog.ai-dialog{animation:none}}
+    #aiAssistantBtn[aria-expanded=true]{background:var(--primary-soft);color:var(--primary-text)}
     #aiAssistantDialog.ai-dialog[open]{display:flex;flex-direction:column}
     #aiAssistantDialog.ai-dialog>form.ai-composer{height:auto;max-height:none;width:100%;overflow:visible;flex:0 0 auto}
-    #aiAssistantDialog .dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
+    #aiAssistantDialog .dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 16px 12px;border-bottom:1px solid var(--line);flex-shrink:0}
     .ai-heading{display:flex;align-items:flex-start;gap:12px;min-width:0}
     .ai-heading-mark{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:8px;background:var(--primary-soft);color:var(--primary-text)}
     .ai-heading-body{min-width:0;overflow-wrap:anywhere}
@@ -117,16 +127,17 @@ function injectAiStyles() {
     .ai-pill.ok{background:var(--green-soft);color:var(--green)}
     .ai-pill.warn{background:var(--amber-soft);color:var(--amber)}
     .ai-pill .icon{width:13px;height:13px}
-    .ai-head-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+    .ai-head-actions{display:flex;align-items:center;gap:2px;flex-shrink:0}
+    .ai-head-actions .icon-btn{min-width:36px;min-height:36px}
     #aiAssistantDialog .btn .icon{width:14px;height:14px;flex-shrink:0}
-    .ai-chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px 22px;border-bottom:1px solid var(--line);background:var(--surface-2);flex-shrink:0}
-    .ai-chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 11px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font-size:var(--text-label);font-weight:var(--weight-medium);white-space:nowrap;cursor:pointer;transition:border-color .15s,background .15s}
+    .ai-chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);flex-shrink:0}
+    .ai-chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:6px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font-size:var(--text-label);font-weight:var(--weight-medium);text-align:start;overflow-wrap:anywhere;cursor:pointer;transition:border-color .15s,background .15s}
     .ai-chip:hover:not(:disabled){border-color:var(--primary);background:var(--primary-soft);color:var(--primary-text)}
     .ai-chip:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
     .ai-chip:disabled{opacity:.55;cursor:not-allowed}
     .ai-chip .icon{width:14px;height:14px;color:var(--primary-text)}
-    .ai-messages{flex:1 1 auto;min-height:0;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px;background:var(--bg)}
-    .ai-empty-card{border:1px dashed var(--line-strong);border-radius:12px;background:var(--surface);padding:18px;font-size:var(--text-control);color:var(--muted);line-height:1.6}
+    .ai-messages{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:14px 16px;display:flex;flex-direction:column;gap:14px;background:var(--bg)}
+    .ai-empty-card{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:14px;font-size:var(--text-control);color:var(--muted);line-height:1.6}
     .ai-empty-card strong{color:var(--text)}
     .ai-msg{display:flex;flex-direction:column;gap:6px;max-width:88%}
     .ai-msg.user{align-self:flex-end;align-items:flex-end}
@@ -169,21 +180,32 @@ function injectAiStyles() {
     .ai-action-status{font-size:11.5px;font-weight:600}
     .ai-action-status.done{color:var(--green)}
     .ai-action-status.err{color:var(--red)}
-    .ai-composer{padding:12px 22px 16px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
-    .ai-composer-row{display:flex;align-items:flex-end;gap:10px}
-    .ai-composer-row .btn.primary{min-height:42px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0}
-    .ai-composer textarea{flex:1;min-width:0;min-height:42px;max-height:130px;resize:vertical;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-2);color:var(--text);font-family:inherit;font-size:var(--text-control);line-height:1.45;box-sizing:border-box}
-    .ai-composer textarea:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
-    .ai-composer-note{font-size:var(--text-sm);color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+    .ai-composer{padding:10px 16px 12px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+    .ai-composer-row{
+      display:flex;align-items:flex-end;gap:6px;padding:4px;
+      border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-2);
+    }
+    .ai-composer-row:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
+    .ai-composer-row .btn.primary{width:36px;min-height:36px;padding:0;flex:0 0 auto}
+    .ai-composer textarea{
+      flex:1;min-width:0;min-height:44px;max-height:130px;padding:5px 6px;resize:none;
+      field-sizing:content;border:0;background:transparent;color:var(--text);
+      font:inherit;font-size:var(--text-control);line-height:var(--leading-copy);
+    }
+    .ai-composer textarea:focus{outline:none}
+    @media(forced-colors:active){
+      .ai-composer-row:focus-within{outline:1px solid Highlight;outline-offset:1px}
+    }
     .ai-error-box{padding:10px 12px;border-radius:10px;background:var(--red-soft);color:var(--red);border:1px solid var(--line);font-size:var(--text-label)}
     @media(max-width:900px){
-      #aiAssistantDialog.ai-dialog{width:100vw;max-width:100vw;height:var(--m-vh,100dvh);max-height:var(--m-vh,100dvh);border-radius:0;border:0;left:0;transform:none}
+      #aiAssistantDialog.ai-dialog{inset:var(--m-vtop,0px) 0 auto;width:100%;height:var(--m-vh,100dvh);border-radius:0;border:0;box-shadow:none}
       #aiAssistantDialog .dialog-head{padding:calc(12px + env(safe-area-inset-top,0px)) 12px 12px}
       .ai-heading{gap:8px}.ai-heading-mark{display:none}
       .ai-composer textarea{font-size:var(--text-entry)}
-      .ai-composer-row .btn.primary{min-height:44px;padding:0 12px}
+      .ai-composer-row .btn.primary{width:44px;min-height:44px}
       .ai-inline-link{min-height:44px}
-      .ai-chips{padding:10px 16px;flex-wrap:nowrap;overflow-x:auto}
+      .ai-head-actions .icon-btn{min-width:44px;min-height:44px}
+      body.m-keyboard .ai-chips{display:none}
       .ai-messages{padding:14px 16px}
       .ai-composer{padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px))}
       #aiAssistantDialog .btn,.ai-chip,.ai-quick-link-chip{min-height:44px}
@@ -349,13 +371,54 @@ export async function openAiAssistantDialog({
   const sessionKey = String(organizationId || '__local__');
 
   const existing = document.getElementById('aiAssistantDialog');
-  if (existing) existing.remove();
+  if (existing?.open && existing.dataset.sessionKey === sessionKey && !initialPrompt && !initialPreset) {
+    existing.querySelector('#aiAssistantTitle')?.focus({ preventScroll: true });
+    return;
+  }
+  if (existing?.open) existing.close();
+  existing?.remove();
+
+  const opener = document.activeElement;
+  const trigger = document.getElementById('aiAssistantBtn');
+  const mobile = window.matchMedia('(max-width: 900px)');
+  const panelListeners = new AbortController();
 
   const dialog = document.createElement('dialog');
   dialog.id = 'aiAssistantDialog';
   dialog.className = 'dialog ai-dialog';
   dialog.setAttribute('aria-labelledby', 'aiAssistantTitle');
-  dialog.setAttribute('aria-modal', 'true');
+  dialog.dataset.sessionKey = sessionKey;
+
+  const showPanel = () => {
+    if (mobile.matches) {
+      dialog.setAttribute('aria-modal', 'true');
+      dialog.showModal();
+    } else {
+      dialog.removeAttribute('aria-modal');
+      dialog.show();
+    }
+  };
+
+  const closePanel = ({ restoreFocus = true } = {}) => {
+    const hadFocus = dialog.contains(document.activeElement);
+    dialog.close();
+    if (restoreFocus && hadFocus && opener?.isConnected) opener.focus({ preventScroll: true });
+  };
+
+  dialog.addEventListener('close', () => {
+    // Changing presentation at the breakpoint closes and immediately reopens the same dialog.
+    if (dialog.open) return;
+    panelListeners.abort();
+    dialog.remove();
+    if (!document.getElementById('aiAssistantDialog')) trigger?.setAttribute('aria-expanded', 'false');
+  });
+  mobile.addEventListener('change', () => {
+    if (!dialog.open) return;
+    const focused = dialog.contains(document.activeElement) ? document.activeElement : null;
+    dialog.close();
+    showPanel();
+    (focused || dialog.querySelector('#aiAssistantTitle'))?.focus({ preventScroll: true });
+  }, { signal: panelListeners.signal });
 
   const notify = (msg, kind = 'info') => {
     if (typeof onToast === 'function') onToast(msg, kind);
@@ -369,6 +432,7 @@ export async function openAiAssistantDialog({
   let draftText = '';
   let history = [...(sessionHistoryByOrg.get(sessionKey) || [])];
   const syncSessionHistory = () => {
+    if (!dialog.isConnected || !dialog.open) return;
     if (history.length === 0) {
       sessionHistoryByOrg.delete(sessionKey);
       return;
@@ -501,13 +565,16 @@ export async function openAiAssistantDialog({
   };
 
   const render = () => {
+    if (!dialog.isConnected) return;
     const canType = Boolean((organizationId || hasLocalEngine) && !sending);
     const canSubmit = Boolean((organizationId || hasLocalEngine) && !sending);
     const prevInput = dialog.querySelector('#aiPromptInput');
     if (prevInput) {
       draftText = prevInput.value;
     }
-    const wasFocused = Boolean(prevInput && document.activeElement === prevInput);
+    const previousFocus = document.activeElement;
+    const focusId = dialog.contains(previousFocus) ? previousFocus.id : null;
+    const wasFocused = Boolean(prevInput && previousFocus === prevInput);
     const selStart = wasFocused ? prevInput.selectionStart : null;
     const selEnd = wasFocused ? prevInput.selectionEnd : null;
 
@@ -516,7 +583,7 @@ export async function openAiAssistantDialog({
         <div class="ai-heading">
           <span class="ai-heading-mark" aria-hidden="true">${LINE_ICONS.sparkles}</span>
           <div class="ai-heading-body">
-            <h2 id="aiAssistantTitle">Trợ lý AI</h2>
+            <h2 id="aiAssistantTitle" tabindex="-1">Trợ lý AI</h2>
             <p class="ai-workspace">${esc(organizationName)} · ${esc(ROLE_LABELS[role] || role)}</p>
             <div class="ai-head-meta" id="aiStatusBadgeSlot">${getStatusBadgeHtml()}</div>
           </div>
@@ -542,25 +609,23 @@ export async function openAiAssistantDialog({
       <form class="ai-composer" id="aiComposerForm">
         <div class="ai-composer-row">
           <textarea id="aiPromptInput" aria-label="Nội dung gửi Trợ lý AI" rows="2" placeholder="${(organizationId || hasLocalEngine) ? 'Hỏi về tiến độ, việc quá hạn, tải nhân sự hoặc nhờ chia checklist...' : 'Đăng nhập tài khoản Cloud để trò chuyện với dữ liệu công việc...'}" ${!canType ? 'disabled' : ''}>${esc(draftText)}</textarea>
-          <button type="submit" class="btn primary" id="aiSendBtn" ${!canSubmit ? 'disabled' : ''}>
-            ${LINE_ICONS.send}<span>${sending ? 'Đang gửi' : 'Gửi'}</span>
+          <button type="submit" class="btn primary" id="aiSendBtn" aria-label="${sending ? 'Đang gửi' : 'Gửi tin nhắn'}" title="Gửi tin nhắn" ${!canSubmit ? 'disabled' : ''}>
+            ${LINE_ICONS.send}
           </button>
-        </div>
-        <div class="ai-composer-note">
-          <span>Enter để gửi · Shift+Enter xuống dòng</span>
-          <span>Mọi thao tác sửa/tạo việc đều yêu cầu bạn bấm xác nhận.</span>
         </div>
       </form>
     `;
 
     bindEvents();
-    if (wasFocused) {
-      const nextInput = dialog.querySelector('#aiPromptInput');
-      if (nextInput && !nextInput.disabled) {
-        nextInput.focus();
-        if (selStart != null && selEnd != null) {
-          try { nextInput.setSelectionRange(selStart, selEnd); } catch (_) {}
+    if (focusId) {
+      const target = document.getElementById(focusId);
+      if (target && dialog.contains(target) && !target.disabled) {
+        target.focus({ preventScroll: true });
+        if (wasFocused && selStart != null && selEnd != null) {
+          target.setSelectionRange(selStart, selEnd);
         }
+      } else {
+        dialog.querySelector('#aiAssistantTitle')?.focus({ preventScroll: true });
       }
     }
     const scroller = dialog.querySelector('#aiMessagesScroll');
@@ -572,6 +637,8 @@ export async function openAiAssistantDialog({
     if ((!cleanText && !promptPreset) || sending || (!organizationId && !hasLocalEngine)) return;
 
     draftText = '';
+    const input = dialog.querySelector('#aiPromptInput');
+    if (input) input.value = '';
     history.push({
       id: `u_${Date.now()}`,
       role: 'user',
@@ -634,15 +701,11 @@ export async function openAiAssistantDialog({
     } finally {
       sending = false;
       render();
-      dialog.querySelector('#aiPromptInput')?.focus();
     }
   };
 
   const bindEvents = () => {
-    dialog.querySelector('#aiCloseBtn')?.addEventListener('click', () => {
-      dialog.close();
-      dialog.remove();
-    });
+    dialog.querySelector('#aiCloseBtn')?.addEventListener('click', () => closePanel());
 
     dialog.querySelector('#aiRetryStatusBtn')?.addEventListener('click', () => {
       void checkStatus();
@@ -663,8 +726,7 @@ export async function openAiAssistantDialog({
           || btn.textContent?.trim()
           || '';
         syncSessionHistory();
-        dialog.close();
-        dialog.remove();
+        closePanel({ restoreFocus: false });
         if (typeof onNavigate === 'function') {
           void onNavigate(href, label);
         }
@@ -737,16 +799,15 @@ export async function openAiAssistantDialog({
     });
   };
 
-  dialog.addEventListener('cancel', (e) => {
-    e.preventDefault();
-    dialog.close();
-    dialog.remove();
+  dialog.addEventListener('cancel', event => {
+    event.preventDefault();
+    closePanel();
   });
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) {
-      dialog.close();
-      dialog.remove();
-    }
+  dialog.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    closePanel();
   });
 
   const checkStatus = async () => {
@@ -769,20 +830,18 @@ export async function openAiAssistantDialog({
     } finally {
       statusLoading = false;
       render();
-      if (!dialog.querySelector('#aiPromptInput')?.matches(':focus')) {
-        dialog.querySelector('#aiPromptInput')?.focus();
-      }
     }
   };
 
   document.body.appendChild(dialog);
   render();
-  dialog.showModal();
-  dialog.querySelector('#aiPromptInput')?.focus();
+  showPanel();
+  trigger?.setAttribute('aria-expanded', 'true');
+  dialog.querySelector('#aiAssistantTitle')?.focus({ preventScroll: true });
 
   await checkStatus();
 
-  if (initialPrompt || initialPreset) {
+  if (dialog.open && dialog.isConnected && (initialPrompt || initialPreset)) {
     void submitPrompt({ text: initialPrompt || '', promptPreset: initialPreset || null });
   }
 }

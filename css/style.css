@@ -669,7 +669,33 @@ html:has(#drawer[open]){overflow:hidden}
 .inline-form select{cursor:pointer}
 .inline-form input:focus,.inline-form select:focus{border-color:var(--primary);outline:none}
 .inline-form .btn{font-size:10px;min-height:33px;padding:7px 10px}
-.dependency-item{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;width:100%;background:var(--surface-2);text-align:left;font-size:11px;margin-bottom:7px}
+.dependency-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 7px;
+  padding-inline-end: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.dependency-item {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: transparent;
+  text-align: start;
+  font-size: var(--text-label);
+}
+.dependency-item span { min-width: 0; overflow-wrap: anywhere }
+.dependency-item:hover,
+.dependency-remove:hover { background: var(--surface-3) }
+.dependency-row :focus-visible { outline-offset: -2px }
 .dependency-item svg{width:14px;height:14px}
 .dependency-item.blocked{color:var(--amber)}.dependency-item.resolved{color:var(--green)}
 .comment{display:flex;gap:9px;margin:0 0 16px}
@@ -1246,7 +1272,7 @@ dialog.mobile-only:not([open]){display:none!important}
  .drawer-section{margin-top:24px}.drawer-section h3{margin-bottom:12px}.drawer-note{font-size:12px}.drawer-section>p.muted{font-size:12px!important}
  .checklist-row{padding:3px 0;gap:6px;min-height:52px}.checklist-row .checklist-toggle{min-height:44px;padding:8px 2px}.checklist-row .checklist-toggle input{width:20px;height:20px}.checklist-content{min-height:44px;display:flex;align-items:center;font-size:14px;line-height:1.5;padding:8px 7px;margin:0}.checklist-edit-input{height:44px;font-size:16px}.checklist-row .icon-btn{opacity:1;min-width:44px;min-height:44px}
  .inline-form{gap:8px;flex-wrap:wrap}.inline-form>input{min-width:0;flex:1}#logForm #logNote{flex:1;min-width:140px}#logForm>.btn{width:100%}.drawer .checkbox-label{font-size:12px!important}
- .comment-compose textarea{min-height:108px;font-size:16px}.comment-compose>div{gap:8px;flex-wrap:wrap}.comment-compose small{font-size:10px}.comment-text,.comment-body{font-size:13px}.comment-meta{font-size:11px}.comment-meta .icon-btn{width:44px;height:44px}.dependency-item{font-size:13px;min-height:48px}
+ .comment-compose textarea{min-height:108px;font-size:16px}.comment-compose>div{gap:8px;flex-wrap:wrap}.comment-compose small{font-size:10px}.comment-text,.comment-body{font-size:13px}.comment-meta{font-size:11px}.comment-meta .icon-btn{width:44px;height:44px}.dependency-item{font-size:var(--text-control);min-height:48px}.dependency-remove{width:44px;height:44px}
  .drawer-footer{padding:12px 16px calc(12px + var(--m-safe));gap:8px}.drawer-footer .btn{font-size:13px;min-height:48px;flex:1}.timer-info{font-size:12px;min-width:0}.timer-info .icon{display:none}.log-row{font-size:12px;flex-wrap:wrap;gap:5px}
  .command-dialog .command-input{padding:calc(14px + env(safe-area-inset-top,0px)) 14px 12px;gap:8px;flex-shrink:0}.command-input input{font-size:16px;min-width:0;min-height:48px}.command-input .key-button{width:44px;min-height:44px;font-size:12px}.command-results{max-height:none;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:7px 10px 20px}.command-option{min-height:60px;font-size:14px}.command-option small{font-size:11px}.command-dialog>footer{display:none}
  .confirm-dialog{inset:auto 0 0;width:100%;max-height:calc(var(--m-vh) - 12px);height:auto;padding:23px 20px 0;border-radius:22px 22px 0 0;overflow:auto}.confirm-dialog h2{font-size:21px}.confirm-dialog>p{font-size:14px}.confirm-dialog .dialog-foot{padding:16px 0 calc(16px + var(--m-safe));display:grid;grid-template-columns:1fr 1fr}
