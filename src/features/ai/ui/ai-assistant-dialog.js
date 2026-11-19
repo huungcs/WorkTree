@@ -123,7 +123,7 @@ function injectAiStyles() {
     .ai-heading-body{min-width:0;overflow-wrap:anywhere}
     .ai-workspace{margin:3px 0 0;color:var(--muted);font-size:var(--text-label)}
     .ai-head-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
-    .ai-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:var(--text-sm);font-weight:600;border:1px solid var(--line);background:var(--surface-2);color:var(--muted)}
+    .ai-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:var(--radius-badge,5px);font-size:var(--text-sm);font-weight:600;border:1px solid var(--line);background:var(--surface-2);color:var(--muted)}
     .ai-pill.ok{background:var(--green-soft);color:var(--green)}
     .ai-pill.warn{background:var(--amber-soft);color:var(--amber)}
     .ai-pill .icon{width:13px;height:13px}
@@ -168,7 +168,7 @@ function injectAiStyles() {
     .ai-quick-link-label{font-weight:600;color:var(--text)}
     .ai-quick-link-meta{font-size:var(--text-sm);color:var(--muted)}
     .ai-tools-row{display:flex;flex-wrap:wrap;gap:5px;font-size:var(--text-sm);color:var(--muted)}
-    .ai-tool-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
+    .ai-tool-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:var(--radius-badge,5px);background:var(--surface-2);border:1px solid var(--line)}
     .ai-actions-stack{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:4px}
     .ai-action-card{border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);padding:11px 13px;display:flex;flex-direction:column;gap:8px}
     .ai-action-card.destructive{border-color:var(--red)}
@@ -185,16 +185,11 @@ function injectAiStyles() {
       display:flex;align-items:flex-end;gap:6px;padding:4px;
       border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-2);
     }
-    .ai-composer-row:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
     .ai-composer-row .btn.primary{width:36px;min-height:36px;padding:0;flex:0 0 auto}
     .ai-composer textarea{
       flex:1;min-width:0;min-height:44px;max-height:130px;padding:5px 6px;resize:none;
       field-sizing:content;border:0;background:transparent;color:var(--text);
       font:inherit;font-size:var(--text-control);line-height:var(--leading-copy);
-    }
-    .ai-composer textarea:focus{outline:none}
-    @media(forced-colors:active){
-      .ai-composer-row:focus-within{outline:1px solid Highlight;outline-offset:1px}
     }
     .ai-error-box{padding:10px 12px;border-radius:10px;background:var(--red-soft);color:var(--red);border:1px solid var(--line);font-size:var(--text-label)}
     @media(max-width:900px){

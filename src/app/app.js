@@ -1547,6 +1547,7 @@ async function openWorkspaceRecurringHub(opts = {}) {
     employees: appState.employees || [],
     nodes: appState.nodes || [],
     tasks: appState.tasks || [],
+    scopes: appState.activeMembership?.scopes || [],
     isDemo: !orgId,
     onTasksGenerated: async () => {
       if (orgId && orgId === appState.activeOrganizationId) {

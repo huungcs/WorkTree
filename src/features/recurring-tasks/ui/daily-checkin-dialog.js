@@ -14,6 +14,15 @@ import {
 } from '../services/recurring-tasks-service.js';
 import { injectRecurringStyles } from './recurring-tasks-hub.js';
 
+const CHECKIN_TASK_STATUS = {
+  'Chưa làm': 'todo',
+  'Đang làm': 'doing',
+  'Đang thực hiện': 'doing',
+  'Chờ duyệt': 'review',
+  'Hoàn thành': 'done',
+  in_progress: 'doing'
+};
+
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;',
@@ -100,14 +109,18 @@ export async function openDailyCheckinDialog({
 
   const today = getLocalDateString();
   const canViewTeam = !isDemo && ['owner', 'admin', 'manager'].includes(role);
-  const focusTasks = selectTodayFocusTasks({ tasks, employeeId, role, today });
-  const taskMap = new Map((tasks || []).map(t => [String(t.id), t]));
+  const checkinTasks = (tasks || []).map(task => ({
+    ...task,
+    status: CHECKIN_TASK_STATUS[task.status] || task.status
+  }));
+  const focusTasks = selectTodayFocusTasks({ tasks: checkinTasks, employeeId, role, today });
+  const taskMap = new Map(checkinTasks.map(t => [String(t.id), t]));
   const empMap = new Map((employees || []).map(e => [String(e.id), e]));
   const service = RecurringTasksService;
 
   const dialog = document.createElement('dialog');
   dialog.id = 'wtDailyCheckinDialog';
-  dialog.className = 'wt-chk-dialog';
+  dialog.className = 'dialog wt-chk-dialog';
   dialog.setAttribute('aria-labelledby', 'wtChkTitle');
 
   const state = {
@@ -129,7 +142,7 @@ export async function openDailyCheckinDialog({
     dialog.remove();
   }
 
-  async function loadInitial() {
+  async function loadInitial({ teamOnly = false } = {}) {
     if (isDemo || !organizationId) {
       state.loading = false;
       render();
@@ -139,7 +152,7 @@ export async function openDailyCheckinDialog({
     render();
     try {
       const [mine, team] = await Promise.all([
-        userId ? service.getTodayCheckin(organizationId, userId, today) : Promise.resolve(null),
+        userId && !teamOnly ? service.getTodayCheckin(organizationId, userId, today) : Promise.resolve(null),
         canViewTeam ? service.listTeamCheckins(organizationId, today) : Promise.resolve([])
       ]);
       if (mine) {
@@ -190,40 +203,49 @@ export async function openDailyCheckinDialog({
     return Object.values(state.minutesByTask).reduce((sum, v) => sum + (Number(v) || 0), 0);
   }
 
+  function renderProgress() {
+    const progress = dialog.querySelector('[data-chk-progress]');
+    if (progress) {
+      const { completed } = computeSelectedTasks();
+      const minutes = computeMinutesTotal();
+      progress.textContent = `${completed.length}/${focusTasks.length} việc đã chọn${minutes ? ` · ${minutes} phút` : ''}`;
+    }
+  }
+
   function renderMineTab() {
     if (state.loading) {
       return `<p class="view-note" style="margin:0">Đang tải danh sách công việc và check-in hôm nay...</p>`;
     }
 
-    const totalNewMinutes = computeMinutesTotal();
     const submittedNote = state.existingCheckin
-      ? `<div class="wt-rec-pill is-green" style="align-self:flex-start">${ICONS.checkCircle}<span>Đã gửi báo cáo hôm nay lúc ${esc(formatTimeHm(state.existingCheckin.submitted_at))} · Chỉnh sửa &amp; bấm lưu nếu muốn cập nhật</span></div>`
+      ? `<div class="wt-chk-submitted wt-rec-pill is-green">${ICONS.checkCircle}<span>Đã gửi lúc ${esc(formatTimeHm(state.existingCheckin.submitted_at))}</span></div>`
       : '';
 
     return `
-      <form id="wtChkForm" style="display:flex;flex-direction:column;gap:16px">
+      <form id="wtChkForm" class="wt-chk-form">
         ${submittedNote}
 
-        <div class="field">
-          <span>Trạng thái tiến độ hôm nay</span>
-          <div class="wt-chk-moods" role="radiogroup" aria-label="Trạng thái công việc hôm nay">
+        <section class="wt-chk-section" aria-labelledby="wtChkMoodTitle">
+          <h3 id="wtChkMoodTitle">Tiến độ hôm nay</h3>
+          <div class="wt-chk-moods" role="group" aria-labelledby="wtChkMoodTitle">
             ${CHECKIN_MOODS.map(m => {
               const active = state.mood === m.value;
               return `
-                <button type="button" class="wt-chk-mood-btn ${active ? 'is-active' : ''}" data-chk-mood="${m.value}" data-mood="${m.value}" role="radio" aria-checked="${active}">
+                <button type="button" class="wt-chk-mood-btn" data-chk-mood="${m.value}" aria-pressed="${active}">
                   <strong>${m.value === 'green' ? ICONS.checkCircle : ICONS.alertCircle}<span>${esc(m.label)}</span></strong>
                   <small>${esc(m.hint)}</small>
                 </button>
               `;
             }).join('')}
           </div>
-        </div>
+        </section>
 
-        <div class="field">
+        <section class="wt-chk-section" aria-labelledby="wtChkTasksTitle">
           <div class="wt-rec-section-head">
-            <span>Việc của tôi hôm nay (${focusTasks.length}) — tick chọn việc đã xong &amp; nhập phút làm nếu cần</span>
-            ${totalNewMinutes > 0 ? `<span class="wt-rec-pill is-primary">${ICONS.clock} +${totalNewMinutes} phút sẽ ghi nhận</span>` : ''}
+            <h3 id="wtChkTasksTitle">Việc cần báo cáo</h3>
+            ${focusTasks.length ? '<span class="wt-chk-note" data-chk-progress aria-live="polite"></span>' : ''}
           </div>
+          ${focusTasks.length ? '<p class="wt-chk-note">Đánh dấu việc đã xong. Có thể nhập thêm số phút đã làm.</p>' : ''}
           ${focusTasks.length ? `
             <div class="wt-chk-task-list">
               ${focusTasks.map(t => {
@@ -236,33 +258,32 @@ export async function openDailyCheckinDialog({
                   <div class="wt-chk-task-row">
                     <label class="wt-chk-task-main">
                       <input type="checkbox" data-chk-task="${esc(id)}" ${checked ? 'checked' : ''}>
-                      <div style="min-width:0">
-                        <div class="wt-chk-task-title">${esc(t.title)}</div>
-                        <div class="wt-chk-task-meta">
+                      <span class="wt-chk-task-copy">
+                        <strong class="wt-chk-task-title">${esc(t.title)}</strong>
+                        <span class="wt-chk-task-meta">
                           ${isRec ? '<span class="wt-rec-pill is-primary">Định kỳ</span>' : ''}
-                          ${t.due ? `<span>Hạn ${esc(formatViDate(String(t.due).slice(0, 10)))}</span>` : ''}
-                          ${t.status === 'doing' ? '<span>Đang thực hiện</span>' : t.status === 'done' ? '<span>Đã xong</span>' : '<span>Cần làm</span>'}
-                        </div>
-                      </div>
+                          ${t.due || t.due_date ? `<span>Hạn ${esc(formatViDate(String(t.due || t.due_date).slice(0, 10)))}</span>` : ''}
+                        </span>
+                      </span>
                     </label>
                     <div class="wt-chk-mins-wrap">
-                      <input class="wt-chk-mins" type="number" min="0" max="1440" step="5" data-chk-mins="${esc(id)}" value="${esc(minsVal)}" placeholder="0" aria-label="Số phút làm cho ${esc(t.title)}">
-                      <span style="font-size:.75rem;color:var(--muted)">phút</span>
+                      <input class="wt-chk-mins" type="number" min="0" max="1440" inputmode="numeric" data-chk-mins="${esc(id)}" value="${esc(minsVal)}" placeholder="0" aria-label="Số phút làm cho ${esc(t.title)}">
+                      <span class="wt-chk-note">phút</span>
                     </div>
                   </div>
                 `;
               }).join('')}
             </div>
           ` : `<p class="view-note" style="margin:0">Hôm nay chưa có đầu việc riêng nào đang mở. Bạn vẫn có thể viết tóm tắt công việc đã xử lý bên dưới.</p>`}
-        </div>
+        </section>
 
-        <label class="field">
+        <div class="field">
           <div class="wt-rec-section-head">
-            <span>Tóm tắt kết quả hôm nay</span>
-            <button type="button" class="btn small" data-chk-action="autofill-summary">${ICONS.sparkles}<span>Tự điền từ việc đã tick</span></button>
+            <label for="wtChkSummary">Kết quả hôm nay</label>
+            <button type="button" class="btn small" data-chk-action="autofill-summary">${ICONS.sparkles}<span>Tự điền kết quả</span></button>
           </div>
           <textarea id="wtChkSummary" rows="2" maxlength="4000" placeholder="Ví dụ: Đã chốt 5 đơn hàng, xử lý xong 2 ticket khách doanh nghiệp...">${esc(state.summary)}</textarea>
-        </label>
+        </div>
 
         <div class="wt-rec-form-grid">
           <label class="field">
@@ -302,7 +323,7 @@ export async function openDailyCheckinDialog({
             ${totalMins > 0 ? `<span class="wt-rec-pill">${ICONS.clock} ${Math.round(totalMins / 60 * 10) / 10} giờ ghi nhận</span>` : ''}
           </div>
           <div class="wt-rec-actions">
-            <button type="button" class="btn small" data-chk-action="copy-team-digest">Sao chép tổng hợp</button>
+            <button type="button" class="btn small" data-chk-action="copy-team-digest" ${list.length ? '' : 'disabled'}>Sao chép tổng hợp</button>
             <button type="button" class="btn small" data-chk-action="refresh-team">Làm mới</button>
           </div>
         </div>
@@ -334,33 +355,37 @@ export async function openDailyCheckinDialog({
           `;
         }).join('') : `
           <div class="empty-state">
-            <h3>Chưa có ai gửi Check-in hôm nay</h3>
-            <p>Khi nhân sự bấm “Báo cáo hôm nay”, toàn bộ tiến độ, giờ làm và điểm vướng sẽ gom gọn về đây để bạn nắm trong 10 giây.</p>
+            <h3>Chưa có báo cáo hôm nay</h3>
+            <p>Báo cáo nhân sự sẽ xuất hiện ở đây sau khi được gửi.</p>
           </div>
         `}
       </div>
     `;
   }
 
-  function render() {
+  function render({ keepScroll = true } = {}) {
+    const scrollTop = keepScroll ? dialog.querySelector('.dialog-scroll')?.scrollTop || 0 : 0;
     dialog.innerHTML = `
       <div class="dialog-head">
-        <div>
-          <p class="overline" style="margin:0 0 4px">DAILY CHECK-IN · ${esc(organizationName)}</p>
-          <h2 id="wtChkTitle" style="margin:0">Báo cáo hôm nay (${esc(formatViDate(today))})</h2>
+        <div class="wt-chk-heading">
+          <span class="wt-chk-heading-icon" aria-hidden="true">${ICONS.checkCircle}</span>
+          <div>
+            <h2 id="wtChkTitle">Báo cáo hôm nay</h2>
+            <p class="wt-chk-note"><time datetime="${esc(today)}">${esc(formatViDate(today))}</time> · ${esc(organizationName)}</p>
+          </div>
         </div>
         <button type="button" class="icon-btn" data-chk-action="close" aria-label="Đóng hộp thoại">${ICONS.x}</button>
       </div>
 
       ${canViewTeam ? `
-        <div class="wt-chk-tabs" role="tablist">
-          <button type="button" class="wt-chk-tab" role="tab" aria-selected="${state.activeTab === 'mine'}" data-chk-tab="mine">Báo cáo của tôi</button>
-          <button type="button" class="wt-chk-tab" role="tab" aria-selected="${state.activeTab === 'team'}" data-chk-tab="team">Tổng hợp đội ngũ (${state.teamCheckins.length})</button>
+        <div class="wt-chk-tabs" role="group" aria-label="Chọn nội dung báo cáo">
+          <button type="button" class="wt-chk-tab" aria-pressed="${state.activeTab === 'mine'}" data-chk-tab="mine">Báo cáo của tôi</button>
+          <button type="button" class="wt-chk-tab" aria-pressed="${state.activeTab === 'team'}" data-chk-tab="team">Đội ngũ <span class="wt-rec-pill">${state.teamCheckins.length}</span></button>
         </div>
       ` : ''}
 
       <div class="dialog-scroll">
-        ${isDemo ? `<p class="view-note" style="margin:0">Chế độ Demo: Giao diện xem thử Báo cáo hôm nay (đăng nhập tài khoản Đám mây để lưu vào Supabase).</p>` : ''}
+        ${isDemo ? '<p class="wt-chk-note">Bản demo · Báo cáo xem thử</p>' : ''}
         ${state.activeTab === 'team' ? renderTeamTab() : renderMineTab()}
       </div>
 
@@ -368,36 +393,52 @@ export async function openDailyCheckinDialog({
         <button type="button" class="btn" data-chk-action="close">Đóng</button>
         ${state.activeTab === 'mine' ? `
           <button type="button" class="btn primary" data-chk-action="submit" ${state.submitting || state.loading ? 'disabled' : ''}>
-            ${ICONS.check}<span>${state.submitting ? 'Đang đồng bộ...' : 'Hoàn tất báo cáo hôm nay'}</span>
+            ${ICONS.check}<span>${state.submitting ? 'Đang lưu…' : isDemo ? 'Hoàn tất xem thử' : state.existingCheckin ? 'Cập nhật báo cáo' : 'Gửi báo cáo'}</span>
           </button>
         ` : ''}
       </div>
     `;
+    dialog.querySelector('.dialog-scroll').scrollTop = scrollTop;
+    renderProgress();
 
     dialog.querySelectorAll('[data-chk-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
+        if (state.submitting || state.activeTab === tab.dataset.chkTab) return;
         syncDraftFromDom();
         state.activeTab = tab.dataset.chkTab;
-        render();
+        render({ keepScroll: false });
+        dialog.querySelector('[data-chk-tab][aria-pressed="true"]')?.focus({ preventScroll: true });
       });
     });
 
     dialog.querySelectorAll('[data-chk-mood]').forEach(btn => {
       btn.addEventListener('click', () => {
-        syncDraftFromDom();
         state.mood = btn.dataset.chkMood;
-        render();
+        dialog.querySelectorAll('[data-chk-mood]').forEach(option => {
+          option.setAttribute('aria-pressed', String(option === btn));
+        });
       });
     });
 
     dialog.querySelectorAll('[data-chk-task]').forEach(cb => {
       cb.addEventListener('change', () => {
-        syncDraftFromDom();
         const id = cb.dataset.chkTask;
         if (cb.checked) state.completedIds.add(id);
         else state.completedIds.delete(id);
-        render();
+        renderProgress();
       });
+    });
+
+    dialog.querySelector('#wtChkForm')?.addEventListener('input', event => {
+      if (event.target.matches('[data-chk-mins]')) {
+        syncDraftFromDom();
+        renderProgress();
+      }
+    });
+
+    dialog.querySelector('#wtChkForm')?.addEventListener('submit', event => {
+      event.preventDefault();
+      dialog.querySelector('[data-chk-action="submit"]')?.click();
     });
 
     dialog.querySelectorAll('[data-chk-action]').forEach(btn => {
@@ -415,11 +456,13 @@ export async function openDailyCheckinDialog({
             inProgressTasks: inProgress,
             minutesLogged: computeMinutesTotal()
           }) || 'Đã rà soát danh sách công việc trong ngày.';
-          render();
+          const summary = dialog.querySelector('#wtChkSummary');
+          summary.value = state.summary;
+          summary.focus();
           return;
         }
         if (action === 'refresh-team') {
-          await loadInitial();
+          await loadInitial({ teamOnly: true });
           return;
         }
         if (action === 'copy-team-digest') {
@@ -432,7 +475,7 @@ export async function openDailyCheckinDialog({
           });
           const text = `TỔNG HỢP CHECK-IN ${formatViDate(today)} (${organizationName})\n` + (lines.join('\n') || 'Chưa có báo cáo.');
           try {
-            await navigator.clipboard?.writeText(text);
+            await navigator.clipboard.writeText(text);
             onToast('Đã sao chép bản tổng hợp check-in.');
           } catch (_) {
             onToast('Không thể sao chép tự động.', 'error');
@@ -440,6 +483,7 @@ export async function openDailyCheckinDialog({
           return;
         }
         if (action === 'submit') {
+          if (state.submitting || !dialog.querySelector('#wtChkForm')?.reportValidity()) return;
           syncDraftFromDom();
           if (isDemo) {
             onToast('Đã xem thử Check-in Demo.');

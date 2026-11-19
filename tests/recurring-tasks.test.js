@@ -251,6 +251,18 @@ test('SQL migration and recurring feature comply with AGENTS.md security & desig
     assert.equal(/\balert\s*\(/i.test(content), false, `Found alert() in ${file}`);
   }
 
+  const styleCss = readFileSync(join(ROOT, 'css/style.css'), 'utf8');
+  for (const token of ['--radius-xs', '--radius-sm', '--radius-md', '--radius-lg', '--radius-panel', '--radius-dialog', '--radius-pill']) {
+    assert.match(styleCss, new RegExp(`${token}\\s*:`), `Missing canonical token ${token} in css/style.css`);
+  }
+
+  const hubUi = readFileSync(join(ROOT, 'src/features/recurring-tasks/ui/recurring-tasks-hub.js'), 'utf8');
+  assert.match(hubUi, /node-picker-box/);
+  assert.match(hubUi, /owner-picker-box/);
+  assert.equal(/<select[^>]+id="wtRecNodeId"/i.test(hubUi), false);
+  assert.equal(/<select[^>]+id="wtRecTargetEmployee"/i.test(hubUi), false);
+  assert.equal(/<datalist\b/i.test(hubUi), false);
+
   assert.deepEqual(parseChecklistInput(' A \n\n B '), ['A', 'B']);
   assert.deepEqual(parseTagsInput('one, two, ONE'), ['one', 'two']);
 });

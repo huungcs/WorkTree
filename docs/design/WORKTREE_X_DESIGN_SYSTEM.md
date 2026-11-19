@@ -239,7 +239,8 @@ Pattern:
 - panel/card: `14px`;
 - dialog: khoảng `17px`;
 - mobile controls quan trọng có thể `10–13px`;
-- pill/badge dùng radius riêng phù hợp.
+- nhãn trạng thái, phân loại và thông tin ngắn dùng `--radius-badge` (5px).
+- chip có thao tác dùng `--radius-md` (8px). Hình viên thuốc dùng cho các thành phần có hình dạng riêng như công tắc và thanh tiến độ.
 
 Không tạo ngẫu nhiên 18 kiểu radius.
 
@@ -247,6 +248,7 @@ Khuyến nghị token hóa:
 
 ```css
 --radius-xs: 5px;
+--radius-badge: var(--radius-xs);
 --radius-sm: 7px;
 --radius-md: 8px;
 --radius-lg: 10px;
@@ -472,6 +474,12 @@ Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đ
 
 Quản trị & Cài đặt có tab Thông báo & Nhắc việc cho các tùy chọn cá nhân và lịch nhắc. Lối tắt trong trung tâm thông báo mở trực tiếp tab này.
 
+### Việc định kỳ
+
+Tab Việc định kỳ nhóm biểu mẫu thành Phân công, Lịch lặp và Nội dung công việc; bộ chọn đơn vị và nhân sự dùng chung Tree Node Picker (`.node-picker-box`) và Employee Avatar Picker (`.owner-picker-box`), đồng bộ đầy đủ token bo tròn `--radius-*` trong `css/style.css`. Mỗi quy tắc hiển thị đối tượng nhận, chu kỳ và trạng thái. Lịch sử tạo việc mở theo yêu cầu. Bản demo dùng quy tắc minh họa có sẵn ở chế độ chỉ xem.
+
+Hộp thoại Báo cáo hôm nay hiển thị trạng thái tiến độ, danh sách việc và kết quả theo thứ tự cập nhật. Số việc đã chọn và số phút cập nhật ngay khi nhập. Nút gửi nằm ở chân hộp thoại, phần biểu mẫu cuộn riêng trên điện thoại.
+
 ### Chia sẻ công việc
 
 Hộp thoại dùng tiêu đề cố định và hiển thị tên công việc bên dưới. Phần quyền người nhận và danh sách liên kết cuộn chung. Chân hộp thoại giữ nút tạo liên kết trong tầm chạm. Trên điện thoại, thời hạn và mã PIN xếp dọc. Liên kết đã thu hồi chỉ hiển thị thông tin trạng thái.
@@ -616,6 +624,8 @@ Tên nghiệp vụ tiếng Việt có thể thay đổi nhưng semantic token kh
 # 16. Accessibility & Motion
 
 Baseline hiện tại có `focus-visible` rõ và hỗ trợ `prefers-reduced-motion`.
+
+Ô tìm kiếm, nhập liệu và bộ chọn lấy viền màu chính và quầng tím nhạt 3px từ `src/design-system/field-focus.css`. Ô có biểu tượng hoặc nút bên trong hiển thị viền trên khung ngoài. Chế độ tương phản cao dùng viền hệ thống.
 
 Giữ:
 ```css

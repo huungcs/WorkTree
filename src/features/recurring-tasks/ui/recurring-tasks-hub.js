@@ -25,6 +25,32 @@ const PRIORITY_OPTIONS = [
   { value: 'critical', label: 'Khẩn cấp' }
 ];
 
+const NODE_TYPE_LABELS = {
+  company: 'Công ty',
+  department: 'Phòng ban',
+  project: 'Dự án',
+  team: 'Nhóm',
+  folder: 'Thư mục'
+};
+
+const NODE_TYPE_ICONS = {
+  company: ICONS.building,
+  department: ICONS.building,
+  project: ICONS.kanban,
+  team: ICONS.users,
+  folder: ICONS.folder
+};
+
+const UNFOLD_ICON = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg>';
+
+const DEMO_RULES = [
+  { id: 'demo-sales', title: 'Gọi lại khách quan tâm', assignment_mode: 'job_title', target_job_title: 'Nhân viên kinh doanh', cadence: 'weekdays', estimate_minutes: 30, checklist_items: ['Xem danh sách khách', 'Ghi kết quả cuộc gọi'], is_active: true },
+  { id: 'demo-stock', title: 'Kiểm tra tồn kho đầu ca', assignment_mode: 'job_title', target_job_title: 'Nhân viên kho', cadence: 'daily', estimate_minutes: 20, checklist_items: ['Đối chiếu số liệu'], is_active: true },
+  { id: 'demo-weekly', title: 'Tổng hợp công việc trong tuần', assignment_mode: 'org_role', target_org_role: 'manager', cadence: 'weekly', days_of_week: [5], estimate_minutes: 25, is_active: false }
+];
+
+const activeHubRender = new WeakMap();
+
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;',
@@ -35,82 +61,154 @@ function esc(value) {
   }[c]));
 }
 
+function foldText(str) {
+  return String(str ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
+function getInitials(name) {
+  const parts = String(name || 'N').trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return String(name || 'N').trim().slice(0, 2).toUpperCase();
+}
+
+function avatarColorIndex(idOrName) {
+  let hash = 0;
+  const s = String(idOrName || '');
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash) + s.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 6;
+}
+
 export function injectRecurringStyles() {
   if (typeof document === 'undefined') return;
-  if (document.getElementById('worktreeRecurringStyles')) return;
-  const style = document.createElement('style');
-  style.id = 'worktreeRecurringStyles';
-  style.textContent = `
+  const existing = document.getElementById('worktreeRecurringStyles');
+  const css = `
     .wt-rec-hub{display:flex;flex-direction:column;gap:18px;font-family:var(--font-sans);color:var(--text);min-width:0}
-    .wt-rec-banner{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:var(--radius);background:var(--primary-soft);border:1px solid var(--line);flex-wrap:wrap}
+    .wt-rec-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 0 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
     .wt-rec-banner-main{display:flex;align-items:flex-start;gap:14px;min-width:0;flex:1 1 320px}
-    .wt-rec-banner-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:var(--surface);color:var(--primary-text);border:1px solid var(--line);flex-shrink:0}
+    .wt-rec-banner-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:var(--radius-lg,10px);background:var(--primary-soft);color:var(--primary-text);flex-shrink:0}
     .wt-rec-banner-icon .icon{width:20px;height:20px}
-    .wt-rec-banner h3{margin:0 0 4px;font-size:1.05rem;font-weight:700;color:var(--text)}
-    .wt-rec-banner p{margin:0;font-size:.875rem;line-height:1.5;color:var(--muted)}
+    .wt-rec-banner h3{margin:0 0 4px;font-size:var(--text-dialog-title);font-weight:var(--weight-strong);color:var(--text)}
+    .wt-rec-banner p,.wt-rec-note{margin:0;font-size:var(--text-control);line-height:var(--leading-copy);color:var(--muted)}
     .wt-rec-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-    .wt-rec-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+    .wt-rec-card{border:1px solid var(--line);border-radius:var(--radius,14px);background:var(--surface);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
     .wt-rec-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-    .wt-rec-full{grid-column:1 / -1}
+    .wt-rec-form-grid>.field:not(.wt-rec-full){grid-column:auto;min-width:0}
+    .wt-rec-full{grid-column:1 / -1;min-width:0}
+    .wt-rec-hub .field input:not([type="checkbox"]):not([type="radio"]),.wt-rec-hub .field select,.wt-rec-hub .field textarea{border-radius:var(--radius-md,8px)}
+    .wt-rec-hub .node-picker-popover,.wt-rec-hub .owner-picker-popover{left:0;right:auto;width:min(520px,100%);border-radius:var(--radius-lg,10px)}
+    .wt-rec-form-heading{margin:2px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:var(--text-control);font-weight:var(--weight-strong)}
+    .wt-rec-form-actions{justify-content:flex-end;padding-top:12px;border-top:1px solid var(--line)}
+    .wt-rec-job-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+    .wt-rec-job-chip{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:3px 10px;border-radius:var(--radius-md,8px);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:var(--text-label);font-weight:var(--weight-medium);transition:background .15s,border-color .15s,color .15s}
+    .wt-rec-job-chip:hover{border-color:var(--primary);background:var(--surface-3)}
+    .wt-rec-job-chip.is-selected{background:var(--primary-soft);border-color:var(--primary);color:var(--primary-text);font-weight:var(--weight-semibold)}
     .wt-rec-days{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .wt-rec-day-chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:38px;padding:0 10px;border-radius:var(--radius-md);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:.8125rem;font-weight:600;cursor:pointer;user-select:none;transition:background .15s,border-color .15s,color .15s}
+    .wt-rec-day-chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:38px;padding:0 10px;border-radius:var(--radius-md,8px);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:.8125rem;font-weight:600;cursor:pointer;user-select:none;transition:background .15s,border-color .15s,color .15s}
     .wt-rec-day-chip input{position:absolute;opacity:0;pointer-events:none}
-    .wt-rec-day-chip.is-selected{background:var(--primary-soft);border-color:var(--primary);color:var(--primary-text)}
+    .wt-rec-day-chip:has(input:checked){background:var(--primary-soft);border-color:var(--primary);color:var(--primary-text)}
+    .wt-rec-day-chip:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
     .wt-rec-list{display:flex;flex-direction:column;gap:10px}
-    .wt-rec-item{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface);padding:14px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;min-width:0}
-    .wt-rec-item.is-paused{opacity:.72;background:var(--surface-2)}
+    .wt-rec-item{border:1px solid var(--line);border-radius:var(--radius-lg,10px);background:var(--surface);padding:14px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;min-width:0}
+    .wt-rec-item.is-paused{background:var(--surface-2)}
     .wt-rec-item-body{min-width:0;flex:1 1 300px;display:flex;flex-direction:column;gap:6px}
     .wt-rec-item-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .wt-rec-item-title{margin:0;font-size:.95rem;font-weight:650;color:var(--text)}
+    .wt-rec-item-title{margin:0;font-size:var(--text-md);font-weight:var(--weight-strong);color:var(--text);overflow-wrap:anywhere}
     .wt-rec-item-desc{margin:0;font-size:.8125rem;color:var(--muted);line-height:1.45;word-break:break-word}
     .wt-rec-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .wt-rec-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:var(--radius-pill);font-size:.75rem;font-weight:600;border:1px solid var(--line);background:var(--surface-2);color:var(--text)}
+    .wt-rec-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--radius-badge,5px);font-size:var(--text-label);font-weight:var(--weight-semibold);background:var(--surface-3);color:var(--muted);max-width:100%;overflow-wrap:anywhere}
     .wt-rec-pill.is-primary{background:var(--primary-soft);color:var(--primary-text);border-color:transparent}
     .wt-rec-pill.is-green{background:var(--green-soft);color:var(--green);border-color:transparent}
     .wt-rec-pill.is-amber{background:var(--amber-soft);color:var(--amber);border-color:transparent}
     .wt-rec-pill.is-red{background:var(--red-soft);color:var(--red);border-color:transparent}
-    .wt-rec-pill .icon{width:13px;height:13px}
+    .wt-rec-pill .icon{width:13px;height:13px;flex:none}
     .wt-rec-item-ops{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     .wt-rec-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-    .wt-rec-section-head h4{margin:0;font-size:.9375rem;font-weight:700;color:var(--text)}
+    .wt-rec-section-head h4{margin:0;font-size:var(--text-md);font-weight:var(--weight-strong);color:var(--text)}
+    .wt-rec-history summary{display:flex;justify-content:space-between;gap:8px;align-items:center;cursor:pointer;font-weight:var(--weight-semibold);min-height:36px}
+    .wt-rec-history summary::-webkit-details-marker{display:none}
+    .wt-rec-history[open] summary>.icon{transform:rotate(180deg)}
+    .wt-rec-history .wt-rec-runs{margin-top:12px;max-height:360px;overflow:auto}
     .wt-rec-runs{display:flex;flex-direction:column;gap:6px}
-    .wt-rec-run-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--surface-2);border:1px solid var(--line);font-size:.8125rem;flex-wrap:wrap}
+    .wt-rec-run-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:var(--radius-md,8px);background:var(--surface-2);border:1px solid var(--line);font-size:.8125rem;flex-wrap:wrap}
 
-    .wt-chk-dialog{width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--line);border-radius:var(--radius-dialog);background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg);overflow:hidden;font-family:var(--font-sans)}
+    #wtDailyCheckinDialog{width:720px;max-height:calc(100dvh - 48px);border-radius:var(--radius-dialog,17px)}
     .wt-chk-dialog[open]{display:flex;flex-direction:column}
-    .wt-chk-dialog .dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px 14px;border-bottom:1px solid var(--line);flex-shrink:0}
-    .wt-chk-dialog .dialog-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}
-    .wt-chk-dialog .dialog-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 22px;padding-bottom:max(14px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--surface-2);flex-shrink:0;flex-wrap:wrap}
-    .wt-chk-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding:0 22px;background:var(--surface-2);flex-shrink:0;overflow-x:auto}
-    .wt-chk-tab{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:8px 14px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-family:var(--font-sans);font-size:.875rem;font-weight:600;cursor:pointer;white-space:nowrap}
-    .wt-chk-tab[aria-selected="true"]{color:var(--primary-text);border-bottom-color:var(--primary)}
+    .wt-chk-dialog .dialog-head{align-items:center;padding-block:16px}
+    .wt-chk-heading{display:flex;align-items:center;gap:12px;min-width:0;overflow-wrap:anywhere}
+    .wt-chk-heading-icon{display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:var(--radius-lg,10px);background:var(--primary-soft);color:var(--primary-text)}
+    .wt-chk-note{margin:0;color:var(--muted);font-size:var(--text-label);line-height:var(--leading-copy)}
+    .wt-chk-heading .wt-chk-note{margin-top:3px}
+    #wtDailyCheckinDialog .dialog-scroll{flex:1 1 auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;scroll-padding:16px;display:grid;align-content:start;gap:16px}
+    .wt-chk-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);padding:8px 24px;background:var(--surface-2);flex:none;overflow-x:auto}
+    .wt-chk-tab{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 10px;border:0;border-radius:var(--radius-md,8px);background:transparent;color:var(--muted);font-size:var(--text-control);font-weight:var(--weight-semibold);cursor:pointer;white-space:nowrap}
+    .wt-chk-tab:is([aria-selected="true"],[aria-pressed="true"]){color:var(--primary-text);background:var(--primary-soft)}
+    #wtDailyCheckinDialog .wt-chk-form{display:grid;gap:16px;max-height:none;min-width:0}
+    .wt-chk-form .field{min-width:0;grid-column:auto}
+    .wt-chk-section{display:grid;gap:8px;min-width:0}
+    .wt-chk-section h3{margin:0;font-size:var(--text-control);font-weight:var(--weight-strong)}
+    .wt-chk-submitted{justify-self:start}
     .wt-chk-moods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-    .wt-chk-mood-btn{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:44px;padding:10px 12px;border-radius:var(--radius-lg);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-family:var(--font-sans);text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
-    .wt-chk-mood-btn strong{font-size:.875rem;display:flex;align-items:center;gap:6px}
-    .wt-chk-mood-btn small{font-size:.75rem;color:var(--muted);line-height:1.35}
-    .wt-chk-mood-btn.is-active[data-mood="green"]{background:var(--green-soft);border-color:var(--green);color:var(--green)}
-    .wt-chk-mood-btn.is-active[data-mood="amber"]{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
-    .wt-chk-mood-btn.is-active[data-mood="red"]{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-    .wt-chk-task-list{display:flex;flex-direction:column;gap:8px}
-    .wt-chk-task-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:var(--radius-md);border:1px solid var(--line);background:var(--surface-2);min-width:0}
-    .wt-chk-task-main{display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1 1 auto}
-    .wt-chk-task-main input[type="checkbox"]{width:20px;height:20px;margin:2px 0 0;accent-color:var(--primary);flex-shrink:0;cursor:pointer}
-    .wt-chk-task-title{font-size:.875rem;font-weight:600;color:var(--text);word-break:break-word}
-    .wt-chk-task-meta{font-size:.75rem;color:var(--muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-    .wt-chk-mins-wrap{display:flex;align-items:center;gap:4px;flex-shrink:0}
-    .wt-chk-mins{width:68px;min-height:36px;padding:4px 8px;border:1px solid var(--line-strong);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-family:var(--font-sans);font-size:.8125rem;text-align:right}
-    .wt-chk-team-card{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface-2);padding:14px;display:flex;flex-direction:column;gap:8px}
+    .wt-chk-mood-btn{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:44px;padding:10px 12px;border-radius:var(--radius-lg,10px);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+    .wt-chk-mood-btn strong{font-size:var(--text-control);display:flex;align-items:center;gap:6px}
+    .wt-chk-mood-btn small{font-size:var(--text-label);color:var(--muted);line-height:1.35}
+    .wt-chk-mood-btn:hover{border-color:var(--line-strong)}
+    .wt-chk-mood-btn:is(.is-active,[aria-pressed="true"]):is([data-mood="green"],[data-chk-mood="green"]){background:var(--green-soft);border-color:var(--green);color:var(--green)}
+    .wt-chk-mood-btn:is(.is-active,[aria-pressed="true"]):is([data-mood="amber"],[data-chk-mood="amber"]){background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
+    .wt-chk-mood-btn:is(.is-active,[aria-pressed="true"]):is([data-mood="red"],[data-chk-mood="red"]){background:var(--red-soft);border-color:var(--red);color:var(--red)}
+    .wt-chk-task-list{display:grid;gap:8px}
+    .wt-chk-task-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 10px;border-radius:var(--radius-lg,10px);border:1px solid var(--line);background:var(--surface);min-width:0}
+    .wt-chk-task-row:has([data-chk-task]:checked){background:var(--surface-2);border-color:var(--line-strong)}
+    .wt-chk-task-main{display:flex;align-items:center;gap:9px;min-width:0;min-height:44px;padding-block:6px;flex:1;cursor:pointer}
+    .wt-chk-task-copy{min-width:0;overflow-wrap:anywhere}
+    .wt-chk-task-main input[type="checkbox"]{width:20px;height:20px;margin:0;accent-color:var(--primary);flex:none;cursor:pointer}
+    .wt-chk-task-title{font-size:var(--text-control);font-weight:var(--weight-semibold)}
+    .wt-chk-task-meta{font-size:var(--text-label);color:var(--muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+    .wt-chk-mins-wrap{display:flex;align-items:center;gap:4px;flex:none}
+    .wt-chk-mins{width:64px;min-height:36px;padding:4px 8px;border:1px solid var(--line-strong);border-radius:var(--radius-md,8px);background:var(--surface);color:var(--text);font:inherit;text-align:right}
+    .wt-chk-team-card{border:1px solid var(--line);border-radius:var(--radius-lg,10px);background:var(--surface-2);padding:14px;display:flex;flex-direction:column;gap:8px;overflow-wrap:anywhere}
     .wt-chk-team-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 
     @media (max-width: 900px) {
       .wt-rec-form-grid{grid-template-columns:1fr}
-      .wt-chk-dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;border:none;margin:0}
+      .wt-rec-card,.wt-rec-item{padding:12px}
+      .wt-rec-banner-main{flex-basis:100%;gap:10px}
+      .wt-rec-banner>.wt-rec-actions,.wt-rec-item-ops{width:100%}
+      .wt-rec-banner>.wt-rec-actions>.btn{flex:1 1 auto}
+      .wt-rec-item-ops{padding-top:8px;border-top:1px solid var(--line)}
+      .wt-rec-item-ops .btn{flex:1 1 auto}
+      .wt-rec-day-chip,.wt-rec-history summary{min-height:44px}
+      .wt-rec-job-chip{min-height:36px}
+      .wt-rec-hub .node-picker-popover,.wt-rec-hub .owner-picker-popover{position:static;width:100%;margin-top:8px;box-shadow:none;background:var(--surface-2)}
+      #wtDailyCheckinDialog{width:100%;max-height:var(--m-vh,100dvh);border-radius:0}
+      #wtDailyCheckinDialog .dialog-head{padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px}
+      #wtDailyCheckinDialog .dialog-scroll{padding:14px 16px}
+      .wt-chk-tabs{padding:5px 16px}
+      .wt-chk-tab{min-height:44px}
       .wt-chk-moods{grid-template-columns:1fr}
-      .wt-chk-task-row{flex-wrap:wrap}
-      .wt-chk-mins-wrap{width:100%;justify-content:flex-end}
+      .wt-chk-mood-btn{gap:2px;padding:8px 10px}
+      .wt-chk-task-row{padding-inline:8px}
+      .wt-chk-mins{width:58px;min-height:44px;font-size:var(--text-entry)}
       .wt-rec-actions .btn,.wt-rec-item-ops .btn,.wt-chk-dialog .btn{min-height:44px}
     }
   `;
+  if (existing) {
+    existing.textContent = css;
+    return;
+  }
+  const style = document.createElement('style');
+  style.id = 'worktreeRecurringStyles';
+  style.textContent = css;
   document.head.appendChild(style);
 }
 
@@ -122,6 +220,7 @@ export async function renderRecurringTasksHub({
   employees = [],
   nodes = [],
   tasks = [],
+  scopes = [],
   isDemo = false,
   onTasksGenerated = async () => {},
   onOpenTask = () => {},
@@ -129,24 +228,93 @@ export async function renderRecurringTasksHub({
 } = {}) {
   if (!container) return;
   injectRecurringStyles();
+  const renderId = Symbol();
+  activeHubRender.set(container, renderId);
+  const isLatest = () => activeHubRender.get(container) === renderId && container.isConnected;
 
   const canManage = !isDemo && ['owner', 'admin', 'manager'].includes(role);
   const service = RecurringTasksService;
-  const distinctJobTitles = [...new Set(
-    (employees || [])
-      .map(e => String(e.job_title || '').trim())
-      .filter(Boolean)
-  )].sort((a, b) => a.localeCompare(b, 'vi'));
+
+  const jobTitleCounts = new Map();
+  for (const emp of employees || []) {
+    if ((emp.employment_status || 'active') !== 'active') continue;
+    const jt = String(emp.job_title || '').trim();
+    if (!jt) continue;
+    jobTitleCounts.set(jt, (jobTitleCounts.get(jt) || 0) + 1);
+  }
+  const distinctJobTitles = [...jobTitleCounts.keys()].sort((a, b) => a.localeCompare(b, 'vi'));
+
+  // Build normalized node tree maps
+  const activeNodes = (nodes || [])
+    .filter(n => !n.archived_at && n.type !== 'person')
+    .map(n => ({
+      ...n,
+      idStr: String(n.id),
+      parentStr: (n.parent ?? n.parent_id) ? String(n.parent ?? n.parent_id) : null
+    }));
+  const nodeById = new Map(activeNodes.map(n => [n.idStr, n]));
+  const childrenMap = new Map();
+  for (const n of activeNodes) {
+    const pKey = n.parentStr && nodeById.has(n.parentStr) ? n.parentStr : '__root__';
+    if (!childrenMap.has(pKey)) childrenMap.set(pKey, []);
+    childrenMap.get(pKey).push(n);
+  }
+
+  function getNodePathNames(idStr) {
+    const out = [];
+    const seen = new Set();
+    let cur = nodeById.get(String(idStr));
+    while (cur && !seen.has(cur.idStr)) {
+      seen.add(cur.idStr);
+      out.unshift(cur.name);
+      cur = cur.parentStr ? nodeById.get(cur.parentStr) : null;
+    }
+    return out;
+  }
+
+  function getNodeBreadcrumb(idStr) {
+    const parts = getNodePathNames(idStr);
+    parts.pop();
+    return parts.join(' / ');
+  }
+
+  const selectableNodeSet = new Set();
+  if (role === 'manager' && Array.isArray(scopes) && scopes.length > 0) {
+    const queue = scopes.map(String).filter(id => nodeById.has(id));
+    while (queue.length) {
+      const curId = queue.shift();
+      if (selectableNodeSet.has(curId)) continue;
+      selectableNodeSet.add(curId);
+      for (const child of childrenMap.get(curId) || []) {
+        queue.push(child.idStr);
+      }
+    }
+  } else {
+    for (const n of activeNodes) selectableNodeSet.add(n.idStr);
+  }
+
+  const activeEmployees = (employees || [])
+    .filter(e => (e.employment_status || 'active') === 'active')
+    .sort((a, b) => String(a.full_name || a.name || '').localeCompare(String(b.full_name || b.name || ''), 'vi'));
+  const empById = new Map(activeEmployees.map(e => [String(e.id), e]));
 
   const state = {
     loading: !isDemo && Boolean(organizationId),
     busy: false,
     error: '',
-    templates: [],
+    templates: isDemo ? DEMO_RULES : [],
     runs: [],
     editingId: null,
     showForm: false,
     pendingDeleteId: null,
+    historyOpen: false,
+    historyError: false,
+    nodePickerOpen: false,
+    nodePickerQuery: '',
+    nodePickerTypeFilter: 'all',
+    nodeCollapsed: new Set(),
+    empPickerOpen: false,
+    empPickerQuery: '',
     draft: createBlankDraft()
   };
 
@@ -178,7 +346,7 @@ export async function renderRecurringTasksHub({
       assignmentMode: distinctJobTitles.length ? 'job_title' : 'org_role',
       targetJobTitle: distinctJobTitles[0] || '',
       targetOrgRole: 'member',
-      targetEmployeeId: employees[0]?.id || '',
+      targetEmployeeId: activeEmployees[0]?.id || '',
       priority: 'medium',
       estimateMinutes: 30,
       dueOffsetDays: 0,
@@ -201,16 +369,17 @@ export async function renderRecurringTasksHub({
     state.error = '';
     render();
     try {
-      const [templates, runs] = await Promise.all([
+      const [templates, runs] = await Promise.allSettled([
         service.listTemplates(organizationId),
         service.listRecentRuns(organizationId, 30)
       ]);
-      state.templates = templates;
-      state.runs = runs;
-    } catch (err) {
-      state.error = err?.message || 'Không thể tải cấu hình việc định kỳ.';
+      if (templates.status === 'fulfilled') state.templates = templates.value;
+      else state.error = 'Không thể tải quy tắc việc định kỳ.';
+      if (runs.status === 'fulfilled') state.runs = runs.value;
+      state.historyError = runs.status === 'rejected';
     } finally {
       state.loading = false;
+      state.busy = false;
       render();
     }
   }
@@ -225,26 +394,256 @@ export async function renderRecurringTasksHub({
     return countMatchingEmployees(mockTpl, { employees });
   }
 
+  function buildNodeTreeHtml() {
+    const selVal = String(state.draft.nodeId || '');
+    const q = foldText(state.nodePickerQuery);
+    const typeFilter = state.nodePickerTypeFilter || 'all';
+    const selectableList = activeNodes.filter(n => selectableNodeSet.has(n.idStr));
+    const rows = [];
+
+    if (role !== 'manager' && typeFilter === 'all' && (!q || 'tu dong theo phong nhanh nhan su mac dinh'.includes(q))) {
+      const isSel = !selVal;
+      rows.push(`
+        <div class="node-picker-row ${isSel ? 'is-selected' : ''}" style="--depth:0">
+          <span class="node-picker-twisty-spacer" aria-hidden="true"></span>
+          <button type="button" class="node-picker-option" data-rec-select-node="">
+            <span class="node-type-icon small type-company">${ICONS.sparkles}</span>
+            <span class="node-picker-option-main">
+              <span class="node-picker-option-name">Tự động theo phòng/nhánh của nhân sự</span>
+              <span class="node-picker-option-crumb">Mỗi nhân sự nhận việc vào đơn vị gốc của mình</span>
+            </span>
+            ${isSel ? `<span class="node-picker-check">${ICONS.check}</span>` : ''}
+          </button>
+        </div>
+      `);
+    }
+
+    if (q || typeFilter !== 'all') {
+      const matches = selectableList.filter(n => {
+        if (typeFilter !== 'all' && n.type !== typeFilter) return false;
+        if (!q) return true;
+        return foldText(`${n.name} ${getNodePathNames(n.idStr).join(' ')} ${NODE_TYPE_LABELS[n.type] || ''}`).includes(q);
+      });
+      for (const n of matches) {
+        const isSel = selVal === n.idStr;
+        const crumb = getNodeBreadcrumb(n.idStr);
+        rows.push(`
+          <div class="node-picker-row ${isSel ? 'is-selected' : ''}" style="--depth:0">
+            <button type="button" class="node-picker-option" data-rec-select-node="${esc(n.idStr)}">
+              <span class="node-type-icon small type-${esc(n.type)}">${NODE_TYPE_ICONS[n.type] || ICONS.folder}</span>
+              <span class="node-picker-option-main">
+                <span class="node-picker-option-name">${esc(n.name)}</span>
+                ${crumb ? `<span class="node-picker-option-crumb">${esc(crumb)}</span>` : ''}
+              </span>
+              <span class="node-type-pill type-${esc(n.type)}">${esc(NODE_TYPE_LABELS[n.type] || n.type)}</span>
+              ${isSel ? `<span class="node-picker-check">${ICONS.check}</span>` : ''}
+            </button>
+          </div>
+        `);
+      }
+      if (!rows.length) {
+        return '<p class="muted" style="font-size:12px;padding:8px">Không tìm thấy đơn vị phù hợp.</p>';
+      }
+      return rows.join('');
+    }
+
+    const visibleMemo = new Map();
+    const isVisibleInTree = (node) => {
+      if (!node) return false;
+      if (visibleMemo.has(node.idStr)) return visibleMemo.get(node.idStr);
+      if (selectableNodeSet.has(node.idStr)) {
+        visibleMemo.set(node.idStr, true);
+        return true;
+      }
+      const vis = (childrenMap.get(node.idStr) || []).some(c => isVisibleInTree(c));
+      visibleMemo.set(node.idStr, vis);
+      return vis;
+    };
+
+    const visited = new Set();
+    const walk = (node, depth) => {
+      if (!node || visited.has(node.idStr) || !isVisibleInTree(node)) return;
+      visited.add(node.idStr);
+      const visKids = (childrenMap.get(node.idStr) || []).filter(c => isVisibleInTree(c));
+      const hasKids = visKids.length > 0;
+      const isCollapsed = hasKids && state.nodeCollapsed.has(node.idStr);
+      const canSelect = selectableNodeSet.has(node.idStr);
+      const isSel = canSelect && selVal === node.idStr;
+      const twisty = hasKids
+        ? `<button type="button" class="node-picker-twisty" data-rec-twisty="${esc(node.idStr)}" aria-label="${isCollapsed ? 'Mở rộng nhánh' : 'Thu gọn nhánh'}" aria-expanded="${!isCollapsed}">${isCollapsed ? ICONS.chevronRight : ICONS.chevronDown}</button>`
+        : '<span class="node-picker-twisty-spacer" aria-hidden="true"></span>';
+
+      rows.push(`
+        <div class="node-picker-row ${isSel ? 'is-selected' : ''} ${canSelect ? '' : 'is-ancestor-only'}" style="--depth:${Math.min(6, depth)}">
+          ${twisty}
+          <button type="button" class="node-picker-option" ${canSelect ? `data-rec-select-node="${esc(node.idStr)}"` : 'disabled aria-disabled="true"'} title="${esc(getNodePathNames(node.idStr).join(' / '))}">
+            <span class="node-type-icon small type-${esc(node.type)}">${NODE_TYPE_ICONS[node.type] || ICONS.folder}</span>
+            <span class="node-picker-option-main">
+              <span class="node-picker-option-name">${esc(node.name)}</span>
+            </span>
+            <span class="node-type-pill type-${esc(node.type)}">${esc(NODE_TYPE_LABELS[node.type] || node.type)}</span>
+            ${isSel ? `<span class="node-picker-check">${ICONS.check}</span>` : ''}
+          </button>
+        </div>
+      `);
+
+      if (hasKids && !isCollapsed) {
+        for (const kid of visKids) walk(kid, depth + 1);
+      }
+    };
+
+    for (const root of childrenMap.get('__root__') || []) {
+      walk(root, 0);
+    }
+    for (const n of activeNodes) {
+      if (!visited.has(n.idStr)) walk(n, 0);
+    }
+
+    return rows.length ? rows.join('') : '<p class="muted" style="font-size:12px;padding:8px">Không có đơn vị khả dụng.</p>';
+  }
+
+  function renderNodePickerBox() {
+    const selVal = String(state.draft.nodeId || '');
+    const selNode = selVal ? nodeById.get(selVal) : null;
+    const isOpen = state.nodePickerOpen;
+    const iconHtml = selNode
+      ? `<span class="node-type-icon type-${esc(selNode.type)}">${NODE_TYPE_ICONS[selNode.type] || ICONS.folder}</span>`
+      : `<span class="node-type-icon type-company">${role === 'manager' ? ICONS.building : ICONS.sparkles}</span>`;
+    const mainHtml = selNode
+      ? `<span class="node-picker-trigger-main"><span class="node-picker-trigger-top"><strong id="wtRecNodePickerValue">${esc(selNode.name)}</strong><span class="node-type-pill type-${esc(selNode.type)}">${esc(NODE_TYPE_LABELS[selNode.type] || selNode.type)}</span></span><span class="node-picker-path">${esc(getNodeBreadcrumb(selNode.idStr) || 'Đơn vị gốc toàn công ty')}</span></span>`
+      : `<span class="node-picker-trigger-main"><span class="node-picker-trigger-top"><strong id="wtRecNodePickerValue">${role === 'manager' ? '-- Chọn nhánh thuộc quyền --' : 'Tự động theo phòng/nhánh của nhân sự'}</strong></span><span class="node-picker-path">${role === 'manager' ? 'Bắt buộc chọn đơn vị trong phạm vi quản lý' : 'Mặc định gán vào nhánh gốc của từng người'}</span></span>`;
+
+    let popHtml = '';
+    if (isOpen) {
+      const selectableList = activeNodes.filter(n => selectableNodeSet.has(n.idStr));
+      const counts = { all: selectableList.length, department: 0, project: 0, team: 0, folder: 0 };
+      for (const n of selectableList) {
+        if (Object.hasOwn(counts, n.type)) counts[n.type] += 1;
+      }
+      const tabs = [
+        { key: 'all', label: 'Tất cả' },
+        { key: 'department', label: 'Phòng ban' },
+        { key: 'project', label: 'Dự án' },
+        { key: 'team', label: 'Nhóm' },
+        { key: 'folder', label: 'Thư mục' }
+      ].filter(t => t.key === 'all' || counts[t.key] > 0);
+
+      popHtml = `
+        <div class="node-picker-popover" id="wtRecNodePickerPopover">
+          <div class="node-picker-search-wrap">
+            <div class="node-picker-search-box">
+              ${ICONS.search}
+              <input type="search" class="node-picker-search" id="wtRecNodePickerSearch" value="${esc(state.nodePickerQuery)}" placeholder="Tìm phòng ban, dự án, nhóm..." aria-label="Tìm phòng ban, dự án hoặc nhóm" autocomplete="off">
+            </div>
+            <button type="button" class="icon-btn small" data-rec-node-toggle-all="true" title="Thu gọn hoặc mở rộng toàn bộ cây" aria-label="Thu gọn hoặc mở rộng cây">${UNFOLD_ICON}</button>
+          </div>
+          <div class="node-picker-type-tabs" role="group" aria-label="Lọc theo loại đơn vị">
+            ${tabs.map(tab => `<button type="button" class="node-type-tab ${state.nodePickerTypeFilter === tab.key ? 'active' : ''}" aria-pressed="${state.nodePickerTypeFilter === tab.key}" data-rec-node-type="${tab.key}">${esc(tab.label)} <small>${counts[tab.key]}</small></button>`).join('')}
+          </div>
+          <div class="node-picker-tree" id="wtRecNodePickerTree">${buildNodeTreeHtml()}</div>
+        </div>
+      `;
+    }
+
+    return `
+      <input type="hidden" id="wtRecNodeId" value="${esc(selVal)}">
+      <div class="node-picker-box ${isOpen ? 'is-open' : ''}" id="wtRecNodePickerBox">
+        <button type="button" class="node-picker-trigger" id="wtRecNodePickerTrigger" data-rec-toggle-node-picker="true" aria-expanded="${isOpen}" ${isOpen ? 'aria-controls="wtRecNodePickerPopover"' : ''}>
+          ${iconHtml}${mainHtml}<span class="node-picker-caret" aria-hidden="true">${ICONS.chevronDown}</span>
+        </button>
+        ${popHtml}
+      </div>
+    `;
+  }
+
+  function buildEmployeeListHtml() {
+    const selVal = String(state.draft.targetEmployeeId || '');
+    const q = foldText(state.empPickerQuery);
+    const matched = activeEmployees.filter(e => {
+      if (!q) return true;
+      const homeName = e.home_node_id ? (nodeById.get(String(e.home_node_id))?.name || '') : '';
+      return foldText(`${e.full_name || e.name || ''} ${e.job_title || ''} ${e.email || ''} ${homeName}`).includes(q);
+    });
+    if (!matched.length) {
+      return '<p class="muted" style="font-size:12px;padding:8px">Không tìm thấy nhân sự phù hợp.</p>';
+    }
+    return matched.map(e => {
+      const idStr = String(e.id);
+      const name = e.full_name || e.name || 'Nhân sự';
+      const homeName = e.home_node_id ? (nodeById.get(String(e.home_node_id))?.name || '') : '';
+      const sub = [e.job_title, homeName].filter(Boolean).join(' · ') || 'Thành viên trong tổ chức';
+      const isSel = selVal === idStr;
+      return `
+        <button type="button" class="owner-picker-option ${isSel ? 'is-selected' : ''}" data-rec-select-emp="${esc(idStr)}">
+          <span class="avatar av-${avatarColorIndex(idStr)}">${esc(getInitials(name))}</span>
+          <span class="node-picker-option-main">
+            <span class="node-picker-option-name">${esc(name)}</span>
+            <span class="node-picker-option-crumb">${esc(sub)}</span>
+          </span>
+          ${isSel ? `<span class="node-picker-check">${ICONS.check}</span>` : ''}
+        </button>
+      `;
+    }).join('');
+  }
+
+  function renderEmployeePickerBox() {
+    const selVal = String(state.draft.targetEmployeeId || '');
+    const emp = selVal ? empById.get(selVal) : null;
+    const name = emp ? (emp.full_name || emp.name || 'Nhân sự') : 'Chọn nhân sự áp dụng';
+    const homeName = emp?.home_node_id ? (nodeById.get(String(emp.home_node_id))?.name || '') : '';
+    const sub = emp ? ([emp.job_title, homeName].filter(Boolean).join(' · ') || 'Thành viên trong tổ chức') : 'Bấm để tìm và chọn nhân sự';
+    const isOpen = state.empPickerOpen;
+    const avHtml = emp
+      ? `<span class="avatar av-${avatarColorIndex(selVal)}">${esc(getInitials(name))}</span>`
+      : `<span class="owner-unassigned-avatar">${ICONS.user}</span>`;
+
+    return `
+      <input type="hidden" id="wtRecTargetEmployee" value="${esc(selVal)}">
+      <div class="owner-picker-box ${isOpen ? 'is-open' : ''}" id="wtRecEmpPickerBox">
+        <button type="button" class="owner-picker-trigger" id="wtRecEmpPickerTrigger" data-rec-toggle-emp-picker="true" aria-expanded="${isOpen}" aria-haspopup="listbox">
+          ${avHtml}
+          <span class="owner-picker-trigger-main">
+            <span class="node-picker-trigger-top"><strong id="wtRecEmpPickerValue">${esc(name)}</strong></span>
+            <span class="node-picker-path">${esc(sub)}</span>
+          </span>
+          <span class="node-picker-caret" aria-hidden="true">${ICONS.chevronDown}</span>
+        </button>
+        ${isOpen ? `
+          <div class="owner-picker-popover" id="wtRecEmpPickerPopover">
+            <div class="node-picker-search-wrap">
+              <div class="node-picker-search-box">
+                ${ICONS.search}
+                <input type="search" class="node-picker-search" id="wtRecEmpPickerSearch" value="${esc(state.empPickerQuery)}" placeholder="Tìm nhân sự theo tên, chức danh..." autocomplete="off">
+              </div>
+            </div>
+            <div class="owner-picker-list" id="wtRecEmpPickerList">${buildEmployeeListHtml()}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
   function renderForm() {
     if (!state.showForm || !canManage) return '';
     const d = state.draft;
     const matchCount = draftMatchPreview();
     const isEditing = Boolean(state.editingId);
-    const activeNodes = (nodes || []).filter(n => !n.archived_at && n.type !== 'person');
+    const currentJtNorm = foldText(d.targetJobTitle);
 
     return `
       <form id="wtRecTemplateForm" class="wt-rec-card" aria-label="${isEditing ? 'Chỉnh sửa quy tắc việc định kỳ' : 'Tạo quy tắc việc định kỳ'}">
         <div class="wt-rec-section-head">
           <h4>${isEditing ? 'Chỉnh sửa quy tắc việc định kỳ' : 'Tạo quy tắc việc định kỳ mới'}</h4>
-          <span class="wt-rec-pill is-primary">${ICONS.users} ${matchCount !== null ? `Khớp ${matchCount} nhân sự` : 'Theo vai trò hệ thống'}</span>
+          <span class="wt-rec-pill is-primary" data-rec-match aria-live="polite">${matchCount !== null ? `Khớp ${matchCount} nhân sự` : 'Theo vai trò hệ thống'}</span>
         </div>
 
         <div class="wt-rec-form-grid">
           <label class="field wt-rec-full">
-            Tên đầu việc tạo tự động *
+            Tên công việc *
             <input id="wtRecTitle" type="text" required maxlength="240" value="${esc(d.title)}" placeholder="Ví dụ: Kiểm tra tồn kho & chốt doanh số ca">
           </label>
 
+          <h5 class="wt-rec-full wt-rec-form-heading">Phân công</h5>
           <label class="field">
             Phân công theo
             <select id="wtRecAssignmentMode">
@@ -253,13 +652,18 @@ export async function renderRecurringTasksHub({
           </label>
 
           ${d.assignmentMode === 'job_title' ? `
-            <label class="field">
-              Chức danh áp dụng *
-              <input id="wtRecTargetJobTitle" list="wtRecJobTitleList" type="text" required maxlength="120" value="${esc(d.targetJobTitle)}" placeholder="Ví dụ: Nhân viên Kinh doanh">
-              <datalist id="wtRecJobTitleList">
-                ${distinctJobTitles.map(jt => `<option value="${esc(jt)}">`).join('')}
-              </datalist>
-            </label>
+            <div class="field">
+              <label for="wtRecTargetJobTitle">Chức danh áp dụng *</label>
+              <input id="wtRecTargetJobTitle" type="text" required maxlength="120" value="${esc(d.targetJobTitle)}" placeholder="Ví dụ: Nhân viên Kinh doanh" autocomplete="off">
+              ${distinctJobTitles.length ? `
+                <div class="wt-rec-job-chips" role="group" aria-label="Gợi ý chức danh hiện có">
+                  ${distinctJobTitles.map(jt => {
+                    const sel = currentJtNorm && foldText(jt) === currentJtNorm;
+                    return `<button type="button" class="wt-rec-job-chip ${sel ? 'is-selected' : ''}" data-rec-job-chip="${esc(jt)}">${esc(jt)} (${jobTitleCounts.get(jt) || 0})</button>`;
+                  }).join('')}
+                </div>
+              ` : ''}
+            </div>
           ` : d.assignmentMode === 'org_role' ? `
             <label class="field">
               Vai trò hệ thống *
@@ -268,37 +672,36 @@ export async function renderRecurringTasksHub({
               </select>
             </label>
           ` : `
-            <label class="field">
-              Nhân sự áp dụng *
-              <select id="wtRecTargetEmployee">
-                <option value="">-- Chọn nhân sự --</option>
-                ${(employees || []).map(e => `<option value="${esc(e.id)}" ${String(d.targetEmployeeId) === String(e.id) ? 'selected' : ''}>${esc(e.full_name || e.name)}${e.job_title ? ` (${esc(e.job_title)})` : ''}</option>`).join('')}
-              </select>
-            </label>
+            <div class="field">
+              <span class="field-title" id="wtRecEmpLabel">Nhân sự áp dụng *</span>
+              ${renderEmployeePickerBox()}
+            </div>
           `}
 
+          <div class="field wt-rec-full">
+            <span class="field-title" id="wtRecNodeLabel">Đơn vị / Nhánh tạo việc ${role === 'manager' ? '<span class="required" aria-hidden="true">*</span>' : '(tùy chọn)'}</span>
+            ${renderNodePickerBox()}
+          </div>
+
+          <h5 class="wt-rec-full wt-rec-form-heading">Lịch lặp</h5>
           <label class="field">
             Chu kỳ lặp lại
             <select id="wtRecCadence">
               ${CADENCE_OPTIONS.map(o => `<option value="${o.value}" ${d.cadence === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
             </select>
           </label>
-
           <label class="field">
-            Đơn vị / Nhánh tạo việc ${role === 'manager' ? '*' : '(tùy chọn)'}
-            <select id="wtRecNodeId" ${role === 'manager' ? 'required' : ''}>
-              ${role === 'manager' ? '<option value="">-- Chọn nhánh thuộc quyền --</option>' : '<option value="">Tự động theo phòng/nhánh của nhân sự</option>'}
-              ${activeNodes.map(n => `<option value="${esc(n.id)}" ${String(d.nodeId) === String(n.id) ? 'selected' : ''}>${esc(n.name)}</option>`).join('')}
-            </select>
+            Hạn hoàn thành
+            <input id="wtRecDueOffset" type="number" min="0" max="30" value="${Number(d.dueOffsetDays) || 0}" aria-describedby="wtRecDueHint">
+            <small class="field-hint" id="wtRecDueHint">Số ngày sau khi tạo. Nhập 0 nếu hạn trong ngày.</small>
           </label>
-
           ${d.cadence === 'weekly' ? `
             <div class="field wt-rec-full">
               <span>Chọn các thứ trong tuần</span>
               <div class="wt-rec-days">
                 ${WEEKDAY_LABELS.map(w => {
                   const active = d.daysOfWeek.includes(w.day);
-                  return `<label class="wt-rec-day-chip ${active ? 'is-selected' : ''}"><input type="checkbox" data-rec-dow="${w.day}" ${active ? 'checked' : ''}>${w.short}</label>`;
+                  return `<label class="wt-rec-day-chip"><input type="checkbox" data-rec-dow="${w.day}" ${active ? 'checked' : ''}>${w.short}</label>`;
                 }).join('')}
               </div>
             </div>
@@ -311,6 +714,7 @@ export async function renderRecurringTasksHub({
             </label>
           ` : ''}
 
+          <h5 class="wt-rec-full wt-rec-form-heading">Nội dung công việc</h5>
           <label class="field">
             Mức độ ưu tiên
             <select id="wtRecPriority">
@@ -320,20 +724,10 @@ export async function renderRecurringTasksHub({
 
           <label class="field">
             Thời gian dự kiến (phút)
-            <input id="wtRecEstimateMinutes" type="number" min="0" max="60000" step="5" value="${Number(d.estimateMinutes) || 0}">
+            <input id="wtRecEstimateMinutes" type="number" min="0" max="60000" value="${Number(d.estimateMinutes) || 0}">
           </label>
 
-          <label class="field">
-            Hạn hoàn thành (sau số ngày)
-            <select id="wtRecDueOffset">
-              <option value="0" ${Number(d.dueOffsetDays) === 0 ? 'selected' : ''}>Trong ngày (hết hôm nay)</option>
-              <option value="1" ${Number(d.dueOffsetDays) === 1 ? 'selected' : ''}>Sau 1 ngày (hôm sau)</option>
-              <option value="2" ${Number(d.dueOffsetDays) === 2 ? 'selected' : ''}>Sau 2 ngày</option>
-              <option value="7" ${Number(d.dueOffsetDays) === 7 ? 'selected' : ''}>Sau 7 ngày</option>
-            </select>
-          </label>
-
-          <label class="field">
+          <label class="field wt-rec-full">
             Nhãn thẻ (cách nhau bằng dấu phẩy)
             <input id="wtRecTags" type="text" value="${esc(d.tags)}" placeholder="hang-ngay, van-hanh">
           </label>
@@ -344,15 +738,15 @@ export async function renderRecurringTasksHub({
           </label>
 
           <label class="field wt-rec-full">
-            Checklist chuẩn tự động chèn vào việc (mỗi dòng 1 bước)
+            Checklist (mỗi dòng một bước)
             <textarea id="wtRecChecklist" rows="3" placeholder="Kiểm tra tồn đầu ca&#10;Cập nhật CRM 100% khách phát sinh&#10;Bấm Báo cáo hôm nay trước 17:30">${esc(d.checklistText)}</textarea>
           </label>
         </div>
 
-        <div class="wt-rec-actions" style="justify-content:flex-end">
+        <div class="wt-rec-actions wt-rec-form-actions">
           <button type="button" class="btn" data-rec-action="cancel-form">Hủy</button>
           <button type="submit" class="btn primary" ${state.busy ? 'disabled' : ''}>
-            ${ICONS.check}<span>${state.busy ? 'Đang lưu...' : (isEditing ? 'Lưu thay đổi' : 'Lưu quy tắc & Áp dụng')}</span>
+            ${ICONS.check}<span>${state.busy ? 'Đang lưu…' : 'Lưu quy tắc'}</span>
           </button>
         </div>
       </form>
@@ -360,24 +754,17 @@ export async function renderRecurringTasksHub({
   }
 
   function renderTemplates() {
-    if (isDemo) {
-      return `
-        <div class="wt-rec-card">
-          <p class="view-note" style="margin:0">Bạn đang ở chế độ Demo cục bộ. Đăng nhập Không gian Đám mây để thiết lập Việc định kỳ theo Chức danh/Vai trò và đồng bộ tạo việc tự động qua Cron hằng ngày.</p>
-        </div>
-      `;
-    }
     if (state.loading) {
-      return `<div class="wt-rec-card"><p class="view-note" style="margin:0">Đang tải cấu hình việc định kỳ...</p></div>`;
+      return `<p class="wt-rec-note" role="status">Đang tải quy tắc việc định kỳ…</p>`;
     }
     if (state.error) {
-      return `<div class="wt-rec-card"><p class="view-note" style="margin:0;color:var(--red)">${esc(state.error)}</p></div>`;
+      return `<div class="wt-rec-card"><p class="wt-rec-note" role="alert">${esc(state.error)}</p><div><button type="button" class="btn" data-rec-action="reload">Thử lại</button></div></div>`;
     }
     if (!state.templates.length) {
       return `
         <div class="empty-state">
           <h3>Chưa có quy tắc việc định kỳ nào</h3>
-          <p>${canManage ? 'Bấm “+ Tạo quy tắc định kỳ” để tự động giao việc lặp lại mỗi sáng cho từng chức danh (Kinh doanh, Kế toán, Kho...) hoặc từng vai trò.' : 'Quản lý chưa thiết lập quy tắc việc định kỳ nào trong không gian này.'}</p>
+          <p>${canManage ? 'Tạo quy tắc để giao công việc theo lịch lặp cho nhân sự.' : 'Quản lý chưa thiết lập quy tắc trong không gian này.'}</p>
         </div>
       `;
     }
@@ -388,8 +775,9 @@ export async function renderRecurringTasksHub({
 
     return `
       <div class="wt-rec-list">
+        <div class="wt-rec-section-head"><h4>${isDemo ? 'Quy tắc minh họa' : 'Quy tắc đã thiết lập'}</h4><span class="wt-rec-note">${state.templates.filter(tpl => tpl.is_active).length} đang bật · ${state.templates.filter(tpl => !tpl.is_active).length} tạm dừng</span></div>
         ${state.templates.map(tpl => {
-          const matchCount = countMatchingEmployees(tpl, { employees });
+          const matchCount = isDemo ? null : countMatchingEmployees(tpl, { employees });
           const checklistLen = Array.isArray(tpl.checklist_items) ? tpl.checklist_items.length : 0;
           const confirmingDelete = state.pendingDeleteId === tpl.id;
           return `
@@ -429,14 +817,12 @@ export async function renderRecurringTasksHub({
         }).join('')}
       </div>
 
+      ${state.historyError ? '<p class="wt-rec-note">Chưa tải được lịch sử tạo việc. <button class="link-btn" type="button" data-rec-action="reload">Thử lại</button></p>' : ''}
       ${state.runs.length ? `
-        <div class="wt-rec-card">
-          <div class="wt-rec-section-head">
-            <h4>Lịch sử tự động sinh việc gần đây</h4>
-            <span class="wt-rec-pill">${state.runs.length} lượt gần nhất</span>
-          </div>
+        <details class="wt-rec-card wt-rec-history" ${state.historyOpen ? 'open' : ''}>
+          <summary>Lịch sử tạo việc (${state.runs.length}) ${ICONS.chevronDown}</summary>
           <div class="wt-rec-runs">
-            ${state.runs.slice(0, 12).map(run => {
+            ${state.runs.map(run => {
               const tpl = tplMap.get(String(run.template_id));
               const empName = run.employee_id ? (empNameMap.get(String(run.employee_id)) || 'Nhân sự') : 'Chưa gán';
               const liveTask = run.task_id ? taskMap.get(String(run.task_id)) : null;
@@ -451,7 +837,7 @@ export async function renderRecurringTasksHub({
               `;
             }).join('')}
           </div>
-        </div>
+        </details>
       ` : ''}
     `;
   }
@@ -466,7 +852,7 @@ export async function renderRecurringTasksHub({
     if (form.querySelector('#wtRecTargetOrgRole')) state.draft.targetOrgRole = val('#wtRecTargetOrgRole');
     if (form.querySelector('#wtRecTargetEmployee')) state.draft.targetEmployeeId = val('#wtRecTargetEmployee');
     state.draft.cadence = val('#wtRecCadence') ?? state.draft.cadence;
-    state.draft.nodeId = val('#wtRecNodeId') ?? state.draft.nodeId;
+    if (form.querySelector('#wtRecNodeId')) state.draft.nodeId = val('#wtRecNodeId');
     if (form.querySelector('#wtRecDayOfMonth')) state.draft.dayOfMonth = Number(val('#wtRecDayOfMonth')) || 1;
     state.draft.priority = val('#wtRecPriority') ?? state.draft.priority;
     state.draft.estimateMinutes = Number(val('#wtRecEstimateMinutes') ?? 30);
@@ -480,60 +866,245 @@ export async function renderRecurringTasksHub({
     }
   }
 
-  function render() {
+  function updateMatchBadge() {
+    const matchBadge = container.querySelector('[data-rec-match]');
+    if (!matchBadge) return;
+    const count = draftMatchPreview();
+    matchBadge.textContent = count === null ? 'Theo vai trò hệ thống' : `Khớp ${count} nhân sự`;
+  }
+
+  function bindNodePickerEvents(form) {
+    form.querySelector('[data-rec-toggle-node-picker]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      syncDraftFromDom();
+      state.empPickerOpen = false;
+      state.nodePickerOpen = !state.nodePickerOpen;
+      render(state.nodePickerOpen ? 'wtRecNodePickerSearch' : 'wtRecNodePickerTrigger');
+    });
+
+    const nodeSearchInput = form.querySelector('#wtRecNodePickerSearch');
+    nodeSearchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') e.preventDefault();
+    });
+    nodeSearchInput?.addEventListener('input', (e) => {
+      state.nodePickerQuery = e.target.value;
+      const treeEl = form.querySelector('#wtRecNodePickerTree');
+      if (treeEl) {
+        treeEl.innerHTML = buildNodeTreeHtml();
+        bindNodeTreeSelectionEvents(form);
+      }
+    });
+
+    form.querySelector('[data-rec-node-toggle-all]')?.addEventListener('click', () => {
+      const expandable = activeNodes
+        .filter(n => (childrenMap.get(n.idStr) || []).length > 0)
+        .map(n => n.idStr);
+      if (expandable.length && state.nodeCollapsed.size < expandable.length) {
+        state.nodeCollapsed = new Set(expandable);
+      } else {
+        state.nodeCollapsed = new Set();
+      }
+      const treeEl = form.querySelector('#wtRecNodePickerTree');
+      if (treeEl) {
+        treeEl.innerHTML = buildNodeTreeHtml();
+        bindNodeTreeSelectionEvents(form);
+      }
+    });
+
+    form.querySelectorAll('[data-rec-node-type]').forEach(tabBtn => {
+      tabBtn.addEventListener('click', () => {
+        syncDraftFromDom();
+        state.nodePickerTypeFilter = tabBtn.dataset.recNodeType || 'all';
+        render('wtRecNodePickerSearch');
+      });
+    });
+
+    bindNodeTreeSelectionEvents(form);
+  }
+
+  function bindNodeTreeSelectionEvents(form) {
+    form.querySelectorAll('[data-rec-twisty]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nid = btn.dataset.recTwisty;
+        if (state.nodeCollapsed.has(nid)) state.nodeCollapsed.delete(nid);
+        else state.nodeCollapsed.add(nid);
+        const treeEl = form.querySelector('#wtRecNodePickerTree');
+        if (treeEl) {
+          treeEl.innerHTML = buildNodeTreeHtml();
+          bindNodeTreeSelectionEvents(form);
+        }
+      });
+    });
+
+    form.querySelectorAll('[data-rec-select-node]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        syncDraftFromDom();
+        state.draft.nodeId = btn.dataset.recSelectNode || '';
+        state.nodePickerOpen = false;
+        render('wtRecNodePickerTrigger');
+      });
+    });
+  }
+
+  function bindEmployeePickerEvents(form) {
+    form.querySelector('[data-rec-toggle-emp-picker]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      syncDraftFromDom();
+      state.nodePickerOpen = false;
+      state.empPickerOpen = !state.empPickerOpen;
+      render(state.empPickerOpen ? 'wtRecEmpPickerSearch' : 'wtRecEmpPickerTrigger');
+    });
+
+    const empSearchInput = form.querySelector('#wtRecEmpPickerSearch');
+    empSearchInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') e.preventDefault();
+    });
+    empSearchInput?.addEventListener('input', (e) => {
+      state.empPickerQuery = e.target.value;
+      const listEl = form.querySelector('#wtRecEmpPickerList');
+      if (listEl) {
+        listEl.innerHTML = buildEmployeeListHtml();
+        bindEmployeeRowEvents(form);
+      }
+    });
+
+    bindEmployeeRowEvents(form);
+  }
+
+  function bindEmployeeRowEvents(form) {
+    form.querySelectorAll('[data-rec-select-emp]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        syncDraftFromDom();
+        state.draft.targetEmployeeId = btn.dataset.recSelectEmp || '';
+        state.empPickerOpen = false;
+        render('wtRecEmpPickerTrigger');
+      });
+    });
+  }
+
+  function onOutsideClick(e) {
+    if (!isLatest()) {
+      document.removeEventListener('click', onOutsideClick);
+      return;
+    }
+    if (!state.nodePickerOpen && !state.empPickerOpen) return;
+    if (e.target.closest?.('#wtRecNodePickerBox') || e.target.closest?.('#wtRecEmpPickerBox')) return;
+    state.nodePickerOpen = false;
+    state.empPickerOpen = false;
+    syncDraftFromDom();
+    render();
+  }
+
+  function onEscapeKey(e) {
+    if (!isLatest()) {
+      document.removeEventListener('keydown', onEscapeKey);
+      return;
+    }
+    if (e.key !== 'Escape' || (!state.nodePickerOpen && !state.empPickerOpen)) return;
+    const targetId = state.nodePickerOpen ? 'wtRecNodePickerTrigger' : 'wtRecEmpPickerTrigger';
+    state.nodePickerOpen = false;
+    state.empPickerOpen = false;
+    syncDraftFromDom();
+    render(targetId);
+  }
+
+  document.addEventListener('click', onOutsideClick);
+  document.addEventListener('keydown', onEscapeKey);
+
+  function render(focusId = '') {
+    if (!isLatest()) return;
     container.innerHTML = `
-      <section class="wt-rec-hub" aria-label="Thiết lập Việc định kỳ theo vai trò">
+      <section class="wt-rec-hub" aria-label="Việc định kỳ">
         <div class="wt-rec-banner">
           <div class="wt-rec-banner-main">
             <span class="wt-rec-banner-icon" aria-hidden="true">${ICONS.calendar}</span>
             <div>
-              <h3>Việc định kỳ theo Vai trò &amp; Chức danh</h3>
-              <p>Hệ thống tự động sinh công việc hằng ngày (00:05 giờ Việt Nam) cho từng nhân sự khớp Chức danh, Vai trò hoặc cá nhân được chỉ định — mỗi công việc có sẵn checklist và nhãn <code>recurring</code>.</p>
+              <h3>Việc định kỳ</h3>
+              <p>Giao việc theo lịch cho chức danh, vai trò hoặc từng nhân sự.</p>
             </div>
           </div>
           ${canManage ? `
             <div class="wt-rec-actions">
               <button type="button" class="btn" data-rec-action="run-now" ${state.busy ? 'disabled' : ''}>
-                ${ICONS.clock}<span>Chạy tạo việc hôm nay</span>
+                ${ICONS.clock}<span>Tạo việc hôm nay</span>
               </button>
               <button type="button" class="btn primary" data-rec-action="new-form" ${state.busy ? 'disabled' : ''}>
-                ${ICONS.plus}<span>Tạo quy tắc định kỳ</span>
+                ${ICONS.plus}<span>Tạo quy tắc</span>
               </button>
             </div>
           ` : ''}
         </div>
 
+        ${isDemo ? '<p class="wt-rec-note">Dữ liệu minh họa. Có thể thiết lập quy tắc trong không gian làm việc đám mây.</p>' : ''}
         ${renderForm()}
         ${renderTemplates()}
       </section>
     `;
+    if (focusId) container.querySelector('#' + focusId)?.focus({ preventScroll: true });
+    const history = container.querySelector('.wt-rec-history');
+    history?.addEventListener('toggle', () => { state.historyOpen = history.open; });
 
     const form = container.querySelector('#wtRecTemplateForm');
     if (form) {
-      form.querySelector('#wtRecAssignmentMode')?.addEventListener('change', () => {
+      form.querySelectorAll('#wtRecAssignmentMode,#wtRecCadence').forEach(el => el.addEventListener('change', () => {
         syncDraftFromDom();
-        render();
-      });
-      form.querySelector('#wtRecCadence')?.addEventListener('change', () => {
-        syncDraftFromDom();
-        render();
-      });
-      form.querySelectorAll('#wtRecTargetJobTitle,#wtRecTargetOrgRole,#wtRecTargetEmployee').forEach(el => {
+        state.nodePickerOpen = false;
+        state.empPickerOpen = false;
+        render(el.id);
+      }));
+
+      form.querySelectorAll('#wtRecTargetOrgRole').forEach(el => {
         el.addEventListener('change', () => {
           syncDraftFromDom();
-          render();
+          updateMatchBadge();
         });
       });
-      form.querySelectorAll('[data-rec-dow]').forEach(el => {
-        el.addEventListener('change', () => {
+
+      const jobInput = form.querySelector('#wtRecTargetJobTitle');
+      if (jobInput) {
+        jobInput.addEventListener('input', () => {
           syncDraftFromDom();
-          render();
+          updateMatchBadge();
+          const norm = foldText(state.draft.targetJobTitle);
+          form.querySelectorAll('[data-rec-job-chip]').forEach(chip => {
+            chip.classList.toggle('is-selected', Boolean(norm && foldText(chip.dataset.recJobChip) === norm));
+          });
         });
-      });
+        form.querySelectorAll('[data-rec-job-chip]').forEach(chip => {
+          chip.addEventListener('click', () => {
+            jobInput.value = chip.dataset.recJobChip || '';
+            state.draft.targetJobTitle = jobInput.value;
+            updateMatchBadge();
+            form.querySelectorAll('[data-rec-job-chip]').forEach(c => {
+              c.classList.toggle('is-selected', c === chip);
+            });
+            jobInput.focus();
+          });
+        });
+      }
+
+      bindNodePickerEvents(form);
+      bindEmployeePickerEvents(form);
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (state.busy) return;
         syncDraftFromDom();
+
+        if (role === 'manager' && !state.draft.nodeId) {
+          onToast('Quản lý cần chọn đơn vị / nhánh thuộc phạm vi quản lý.', 'error');
+          state.nodePickerOpen = true;
+          render('wtRecNodePickerTrigger');
+          return;
+        }
+        if (state.draft.assignmentMode === 'employee' && !state.draft.targetEmployeeId) {
+          onToast('Vui lòng chọn nhân sự áp dụng quy tắc.', 'error');
+          state.empPickerOpen = true;
+          render('wtRecEmpPickerTrigger');
+          return;
+        }
+
         state.busy = true;
         render();
         try {
@@ -550,7 +1121,6 @@ export async function renderRecurringTasksHub({
             await service.createTemplate(payload, userId);
             onToast('Đã tạo quy tắc việc định kỳ mới.');
           }
-          // Generate immediately for today if due today so creator sees instant effect
           try {
             const genRes = await service.generateForOrganization(organizationId, getLocalDateString());
             if (genRes?.created > 0) {
@@ -560,6 +1130,8 @@ export async function renderRecurringTasksHub({
           } catch (_) {}
           state.showForm = false;
           state.editingId = null;
+          state.nodePickerOpen = false;
+          state.empPickerOpen = false;
           state.draft = createBlankDraft();
           await loadAll();
         } catch (err) {
@@ -574,10 +1146,17 @@ export async function renderRecurringTasksHub({
       btn.addEventListener('click', async () => {
         const action = btn.dataset.recAction;
         const id = btn.dataset.recId;
+        if (form) syncDraftFromDom();
+        if (action === 'reload') {
+          await loadAll();
+          return;
+        }
         if (action === 'new-form') {
           state.editingId = null;
           state.draft = createBlankDraft();
           state.showForm = true;
+          state.nodePickerOpen = false;
+          state.empPickerOpen = false;
           render();
           container.querySelector('#wtRecTitle')?.focus();
           return;
@@ -585,6 +1164,8 @@ export async function renderRecurringTasksHub({
         if (action === 'cancel-form') {
           state.showForm = false;
           state.editingId = null;
+          state.nodePickerOpen = false;
+          state.empPickerOpen = false;
           render();
           return;
         }
@@ -594,6 +1175,8 @@ export async function renderRecurringTasksHub({
           state.editingId = tpl.id;
           state.draft = createBlankDraft(tpl);
           state.showForm = true;
+          state.nodePickerOpen = false;
+          state.empPickerOpen = false;
           render();
           container.querySelector('#wtRecTitle')?.focus();
           return;

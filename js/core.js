@@ -270,7 +270,7 @@ function rebuild(){
  if(!byNode.has(state.currentUser)||(byNode.get(state.currentUser)?.type!=='person' && !window.__worktree_is_cloud_workspace))state.currentUser=people()[0]?.id??null;
  if(state.filters.owner&&state.filters.owner!=='unassigned'&&!byNode.has(state.filters.owner)&&!window.employeesById?.has(state.filters.owner)&&(!window.__worktree_is_cloud_workspace||(state.filters.owner!==String(currentAccount()?.id)&&state.filters.owner!==String(currentAccount()?.personId))))state.filters.owner='';
  state.selectedTasks=new Set([...state.selectedTasks].filter(id=>byTask.has(id)));
- if(state.timer&&!byTask.has(state.timer.taskId))state.timer=null;
+ if(state.timer){const tid=typeof resolveTaskId==='function'?(resolveTaskId(state.timer.taskId)??state.timer.taskId):state.timer.taskId;if(byTask.has(tid)){state.timer.taskId=tid;}else if(data.tasks.length>0){state.timer=null;}}
 }
 function rootNode(){return data?.nodes?.find(n=>n.parent===null) || null;}
 function childrenOf(id){return byParent.get(id)||[];}
@@ -3109,14 +3109,14 @@ function elapsedLabel(){
 }
 
 function renderTimer(){
- const t=state.timer?byTask.get(state.timer.taskId):null;$('timerDock').hidden=!t;
- if(t)$('timerDock').innerHTML=`<button class="timer-open" data-action="open-task" data-id="${t.id}"><span class="timer-live"></span><span><strong data-timer-value>${elapsedLabel()}</strong><small>${esc(t.title)}</small></span></button><button class="icon-btn" data-action="timer-stop" title="Dừng và ghi thời gian" aria-label="Dừng và ghi thời gian">${icon('stop')}</button>`;
+ const tid=state.timer?(typeof resolveTaskId==='function'?resolveTaskId(state.timer.taskId):state.timer.taskId):null;const t=tid!=null?byTask.get(tid):null;$('timerDock').hidden=!t;if(!t&&typeof resetTimerDockState==='function')resetTimerDockState();
+ if(t)renderTimerDockBody(t);
 }
 
 async function stopTimer(){
  if(!state.timer)return true;
- const timer={...state.timer},t=byTask.get(timer.taskId);
- if(!t){state.timer=null;savePrefs();renderTimer();return true;}
+ const _rawTimer=state.timer,_tid=typeof resolveTaskId==='function'?(resolveTaskId(_rawTimer.taskId)??_rawTimer.taskId):_rawTimer.taskId,timer={..._rawTimer,taskId:_tid},t=byTask.get(_tid);
+ const resolvedStopId=typeof resolveTaskId==='function'?(resolveTaskId(timer.taskId)??timer.taskId):timer.taskId;const resolvedStopTask=t||byTask.get(resolvedStopId);if(!resolvedStopTask){state.timer=null;if(data?.tasks?.length&&typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();savePrefs();renderTimer();return true;}timer.taskId=resolvedStopTask.id;
 
  const hours=Math.max(0,Math.round(((timer.pausedAt||Date.now())-timer.startedAt)/3600000*1e6)/1e6);
  const minutes=Math.max(1,Math.round(((timer.pausedAt||Date.now())-timer.startedAt)/60000));
@@ -3144,7 +3144,7 @@ async function stopTimer(){
     }));
     refreshDrawer();
    }
-   toast(`Đã dừng và ghi ${num(hours)} giờ thực hiện lên đám mây.`,'success',true);
+   if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();toast(`Đã dừng và ghi ${num(hours)} giờ thực hiện lên đám mây.`,'success',true);
    return true;
   }catch(err){
    toast(err.message||'Không thể lưu thời gian bấm giờ.','error');
@@ -3155,7 +3155,7 @@ async function stopTimer(){
  const ok=commit('Đã dừng và ghi '+num(hours)+' giờ',d=>{
   const task=d.tasks.find(x=>x.id===timer.taskId);task.actual=Math.round((task.actual+hours)*1e6)/1e6;task.logs.push({id:uid(),hours,note:'Bộ đếm thời gian',at:new Date().toISOString(),author:person().name});touch(task);
  },{taskId:timer.taskId});
- if(ok){state.timer=null;savePrefs();renderTimer();if($('drawer').open)refreshDrawer();}
+ if(ok){state.timer=null;if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();savePrefs();renderTimer();if($('drawer').open)refreshDrawer();}
  return ok;
 }
 
@@ -3165,7 +3165,7 @@ async function toggleTimer(id){
  if(state.timer?.taskId===id){await stopTimer();return;}
  if(t.status==='Hoàn thành'){toast('Mở lại công việc trước khi bấm giờ.','error');return;}
  if(state.timer){if(!await ask('Chuyển bộ đếm công việc?','Dừng và ghi thời gian của công việc đang chạy trước khi bắt đầu công việc này.','Dừng & chuyển'))return;if(!await stopTimer())return;}
- state.timer={taskId:id,startedAt:Date.now()};savePrefs();renderTimer();if($('drawer').open)refreshDrawer();toast('Đã bắt đầu bấm giờ. Thời gian sẽ được ghi khi bạn bấm Dừng.');
+ state.timer={taskId:id,startedAt:Date.now()};if(typeof persistActiveTimer==='function')persistActiveTimer(state.timer);savePrefs();renderTimer();if($('drawer').open)refreshDrawer();toast('Đã bắt đầu bấm giờ. Thời gian sẽ được ghi khi bạn bấm Dừng.');
 }
 async function duplicateTask(id){
  if(window.__worktree_is_cloud_workspace){
@@ -3222,7 +3222,7 @@ async function deleteTasks(ids){
    }
   }
   if(successCount>0){
-   data.tasks=data.tasks.filter(t=>!archivedIds.has(t.id));
+   data.tasks=data.tasks.filter(t=>!archivedIds.has(t.id));if(state.timer&&archivedIds.has(state.timer.taskId)){state.timer=null;if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();}
    state.selectedTasks.clear();
    if($('drawer').open&&archivedIds.has(drawerId))closeDialog('drawer',true);
    rebuild();
@@ -3245,7 +3245,7 @@ async function deleteTasks(ids){
   d.tasks=d.tasks.filter(t=>!set.has(t.id));
   d.tasks.forEach(t=>{if(t.dependencies.some(id=>set.has(id))){t.dependencies=t.dependencies.filter(id=>!set.has(id));if(t.dependency)t.dependency=(t.dependency.slice(0,870)+' · Một công việc phụ thuộc đã bị xóa.');touch(t);}});
  },{title:existing.length===1?byTask.get(existing[0])?.title:''})){
-  state.selectedTasks.clear();if(state.timer&&set.has(state.timer.taskId))state.timer=null;savePrefs();renderAll(true);
+  state.selectedTasks.clear();if(state.timer&&set.has(state.timer.taskId)){state.timer=null;if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();}savePrefs();renderAll(true);
  }
 }
 function getAllowedChildTypes(parentType) {
@@ -3573,7 +3573,7 @@ async function resetDemo(){
  if(!await ask('Khôi phục dữ liệu mẫu V6?','Thay thế dữ liệu đang mở bằng 21 đơn vị và 10 công việc mẫu tháng 9/2026. Công việc hiện tại được giữ trong lịch sử hoàn tác của phiên và bản dự phòng nếu lưu cục bộ khả dụng.','Khôi phục mẫu',true))return;
  const original=typeof demoAccount!=='undefined'&&demoAccount?createDemoDataset():validateData(SEED).data;
  if(commit('Đã khôi phục dữ liệu mẫu',d=>{d.nodes=original.nodes;d.tasks=original.tasks;d.activities=[];})){
-  state.selected=rootNode().id;state.expanded=[1,10,11,12,13];state.filters=blankFilters();state.timer=null;state.savedViews=[];state.selectedTasks.clear();state.view='overview';state.page=1;
+  state.selected=rootNode().id;state.expanded=[1,10,11,12,13];state.filters=blankFilters();state.timer=null;if(typeof clearActiveTimerPersistence==='function')clearActiveTimerPersistence();state.savedViews=[];state.selectedTasks.clear();state.view='overview';state.page=1;
   savePrefs();closeDialog('settingsDialog',true);if(typeof window.closeSystemHub==='function')window.closeSystemHub();closeDialog('drawer',true);renderAll(true);
  }
 }
@@ -4941,7 +4941,9 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'download-attachment':await downloadTaskAttachment(el.dataset.id,el.dataset.attachId,el.dataset.path,el.dataset.name);break;
    case 'delete-attachment':await deleteTaskAttachment(el.dataset.id,el.dataset.attachId,el.dataset.path,el.dataset.name);break;
    case 'timer-toggle':await toggleTimer(id);break;
-   case 'timer-stop':await stopTimer();break;
+   case 'timer-dock-toggle':if(typeof toggleTimerDockExpanded==='function')toggleTimerDockExpanded();break;
+   case 'timer-dock-collapse':if(typeof collapseTimerDock==='function')collapseTimerDock(true);break;
+   case 'timer-stop':if(typeof collapseTimerDock==='function')collapseTimerDock(false);await stopTimer();break;
    case 'bulk-delete':await deleteTasks([...state.selectedTasks]);break;
    case 'clear-selection':state.selectedTasks.clear();renderView();break;
    case 'page-prev':state.page=Math.max(1,state.page-1);renderView();break;
@@ -5567,15 +5569,292 @@ document.addEventListener('visibilitychange', () => {
   if (typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
  }
 });
+function elapsedCompactLabel(){
+ if(!state.timer)return '00:00';
+ const s=Math.max(0,Math.floor(((state.timer.pausedAt||Date.now())-state.timer.startedAt)/1000));
+ const h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;
+ return h>0?`${h}h${String(m).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+function syncTimerDisplays(){
+ if(!state.timer)return;
+ const full=elapsedLabel(),compact=elapsedCompactLabel();
+ $$('[data-timer-value]').forEach(el=>el.textContent=full);
+ $$('[data-timer-compact]').forEach(el=>el.textContent=compact);
+}
+const TIMER_ACTIVE_KEY_PREFIX='worktree_x_v8_timer:';
+function activeTimerStorageScope(){
+ if(typeof demoAccount!=='undefined'&&demoAccount)return 'demo';
+ if(typeof isDemoRoute==='function'&&isDemoRoute()&&!window.__worktree_supabase_user)return 'demo';
+ if(window.__worktree_supabase_user?.id){
+  const orgId=window.appState?.activeOrganizationId||window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||window.__worktree_supabase_user?.organization?.id||'';
+  return orgId?`cloud:${window.__worktree_supabase_user.id}:${orgId}`:null;
+ }
+ const acc=typeof currentAccount==='function'?currentAccount():null;
+ if(acc?.id)return `local:${acc.id}`;
+ return null;
+}
+function activeTimerStorageKey(scope=activeTimerStorageScope()){
+ return scope?TIMER_ACTIVE_KEY_PREFIX+scope:null;
+}
+function persistActiveTimer(timer=state.timer){
+ const key=activeTimerStorageKey();
+ if(!key||!timer)return;
+ try{
+  localStorage.setItem(key,JSON.stringify({
+   taskId:timer.taskId,
+   startedAt:timer.startedAt
+  }));
+ }catch(_){}
+}
+function clearActiveTimerPersistence(scope=activeTimerStorageScope()){
+ const key=activeTimerStorageKey(scope);
+ if(!key)return;
+ try{localStorage.removeItem(key);}catch(_){}
+}
+function readPersistedTimerRecord(){
+ const key=activeTimerStorageKey();
+ if(!key)return null;
+ try{
+  const raw=JSON.parse(localStorage.getItem(key)||'null');
+  if(raw&&isEntityId(raw.taskId)&&Number.isFinite(raw.startedAt)&&raw.startedAt>0&&raw.startedAt<Date.now()+60000){
+   return {taskId:parseEntityId(raw.taskId),startedAt:raw.startedAt};
+  }
+ }catch(_){}
+ const acc=typeof currentAccount==='function'?currentAccount():null;
+ if(acc?.id&&!(typeof demoAccount!=='undefined'&&demoAccount)){
+  try{
+   const legacy=JSON.parse(localStorage.getItem(KEYS.prefs+'_'+acc.id)||'null');
+   const lt=legacy?.timer;
+   if(lt&&isEntityId(lt.taskId)&&Number.isFinite(lt.startedAt)&&lt.startedAt>0&&lt.startedAt<Date.now()+60000){
+    return {taskId:parseEntityId(lt.taskId),startedAt:lt.startedAt};
+   }
+  }catch(_){}
+ }
+ return null;
+}
+function restoreActiveTimerFromStorage(){
+ const rec=readPersistedTimerRecord();
+ if(!rec||!data||!Array.isArray(data.tasks)||data.tasks.length===0)return false;
+ const resolvedId=typeof resolveTaskId==='function'?(resolveTaskId(rec.taskId)??rec.taskId):rec.taskId;
+ const task=byTask.get(resolvedId);
+ if(!task)return false;
+ if(typeof canUpdateTask==='function'&&!canUpdateTask(task))return false;
+ state.timer={taskId:resolvedId,startedAt:rec.startedAt};
+ persistActiveTimer(state.timer);
+ return true;
+}
+if(typeof window!=='undefined'){
+ window.addEventListener('storage',e=>{
+  const curKey=activeTimerStorageKey();
+  if(!curKey||e.key!==curKey)return;
+  if(!e.newValue){
+   state.timer=null;
+  }else{
+   restoreActiveTimerFromStorage();
+  }
+  if(typeof renderTimer==='function')renderTimer();
+  if($('drawer')?.open&&typeof refreshDrawer==='function')refreshDrawer();
+ });
+ window.addEventListener('focus',()=>syncTimerDisplays());
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncTimerDisplays();});
+}
+const TIMER_DOCK_POS_KEY='worktree_timer_dock_pos_v1';
+let timerDockExpanded=false,timerDockDrag=null,timerDockSuppressClickUntil=0,timerDockSnapTimer=0,timerDockWired=false;
+function isMobileTimerDock(){return typeof window!=='undefined'&&window.matchMedia('(max-width:900px)').matches;}
+function readTimerDockPos(){
+ try{
+  const raw=JSON.parse(localStorage.getItem(TIMER_DOCK_POS_KEY)||'null');
+  if(raw&&(raw.side==='left'||raw.side==='right')&&Number.isFinite(raw.yRatio)){
+   return {side:raw.side,yRatio:clamp(raw.yRatio,0,1)};
+  }
+ }catch(_){}
+ return {side:'right',yRatio:1};
+}
+function saveTimerDockPos(side,yRatio){
+ try{localStorage.setItem(TIMER_DOCK_POS_KEY,JSON.stringify({side:side==='left'?'left':'right',yRatio:Number(clamp(yRatio,0,1).toFixed(4))}));}catch(_){}
+}
+function timerDockBounds(){
+ const size=54,margin=10;
+ const vw=document.documentElement.clientWidth||window.innerWidth||390;
+ const vh=window.visualViewport?.height||window.innerHeight||844;
+ const vTop=window.visualViewport?.offsetTop||0;
+ const topEl=document.querySelector('.topbar');
+ const topRect=topEl?topEl.getBoundingClientRect():null;
+ const topSafe=(topRect&&topRect.bottom>0&&topRect.bottom<vh*0.35)?Math.ceil(topRect.bottom)+8:vTop+72;
+ const navEl=$('mobileNav');
+ const navStyle=navEl?getComputedStyle(navEl):null;
+ const navRect=navEl&&navStyle?.display!=='none'?navEl.getBoundingClientRect():null;
+ const navSafe=(navRect&&navRect.top>vh*0.5)?Math.floor(navRect.top)-size-10:vTop+vh-size-84;
+ const minX=margin,maxX=Math.max(margin,vw-size-margin);
+ const minY=Math.max(vTop+10,topSafe),maxY=Math.max(minY,navSafe);
+ return {size,margin,vw,vh,vTop,minX,maxX,minY,maxY};
+}
+function applyTimerDockPosition(opts={}){
+ const dock=$('timerDock');
+ if(!dock)return;
+ if(dock.hidden||!isMobileTimerDock()){
+  dock.style.left='';
+  dock.style.top='';
+  dock.removeAttribute('data-dragging');
+  dock.classList.remove('is-snapping');
+  if(!isMobileTimerDock())timerDockExpanded=false;
+  dock.setAttribute('data-expanded',String(timerDockExpanded&&!dock.hidden&&isMobileTimerDock()));
+  dock.dataset.edge='right';
+  dock.dataset.valign='bottom';
+  return;
+ }
+ const b=timerDockBounds();
+ let left,top,side;
+ if(typeof opts.left==='number'&&typeof opts.top==='number'){
+  left=clamp(opts.left,b.minX,b.maxX);
+  top=clamp(opts.top,b.minY,b.maxY);
+  side=(left+b.size/2)<=(b.vw/2)?'left':'right';
+ }else{
+  const saved=readTimerDockPos();
+  side=saved.side;
+  left=side==='left'?b.minX:b.maxX;
+  top=Math.round(b.minY+(b.maxY-b.minY)*saved.yRatio);
+ }
+ dock.style.left=`${Math.round(left)}px`;
+ dock.style.top=`${Math.round(top)}px`;
+ dock.dataset.edge=side;
+ dock.dataset.valign=(top+b.size/2)>(b.minY+(b.maxY-b.minY+b.size)*0.5)?'bottom':'top';
+ dock.setAttribute('data-expanded',String(timerDockExpanded));
+ const orb=dock.querySelector('.timer-orb');
+ if(orb)orb.setAttribute('aria-expanded',String(timerDockExpanded));
+}
+function resetTimerDockState(){
+ timerDockExpanded=false;
+ timerDockDrag=null;
+ clearTimeout(timerDockSnapTimer);
+ const dock=$('timerDock');
+ if(dock){
+  dock.removeAttribute('data-dragging');
+  dock.classList.remove('is-snapping');
+  dock.innerHTML='';
+ }
+ applyTimerDockPosition();
+}
+function toggleTimerDockExpanded(){
+ if(Date.now()<timerDockSuppressClickUntil||!isMobileTimerDock())return;
+ timerDockExpanded=!timerDockExpanded;
+ applyTimerDockPosition();
+}
+function collapseTimerDock(restoreFocus=false){
+ if(!timerDockExpanded)return;
+ timerDockExpanded=false;
+ applyTimerDockPosition();
+ if(restoreFocus)$('timerDock')?.querySelector('.timer-orb')?.focus({preventScroll:true});
+}
+function renderTimerDockBody(t){
+ const dock=$('timerDock');
+ if(!dock||!t)return;
+ initFloatingTimerDock();
+ if(timerDockDrag?.moved){syncTimerDisplays();return;}
+ const shortTitle=esc(t.title);
+ dock.innerHTML=`<button type="button" class="timer-orb" data-action="timer-dock-toggle" aria-expanded="${timerDockExpanded&&isMobileTimerDock()}" aria-label="Bộ đếm ${elapsedLabel()} — ${shortTitle}. Chạm để mở hoặc kéo để di chuyển"><span class="timer-live" aria-hidden="true"></span><span class="timer-orb-icon" aria-hidden="true">${icon('clock')}</span><span class="timer-orb-time" data-timer-compact>${elapsedCompactLabel()}</span></button><div class="timer-panel" role="group" aria-label="Bộ đếm thời gian"><div class="timer-panel-head"><span class="timer-live" aria-hidden="true"></span><span class="timer-panel-kicker">Đang bấm giờ</span><button type="button" class="icon-btn timer-panel-close" data-action="timer-dock-collapse" title="Thu gọn" aria-label="Thu gọn">${icon('x')}</button></div><button type="button" class="timer-open" data-action="open-task" data-id="${t.id}"><span class="timer-live" aria-hidden="true"></span><span><strong data-timer-value>${elapsedLabel()}</strong><small>${shortTitle}</small></span></button><div class="timer-panel-actions"><button type="button" class="btn small timer-card-open" data-action="open-task" data-id="${t.id}">Mở việc</button><button type="button" class="btn small danger timer-card-stop" data-action="timer-stop" title="Dừng và ghi thời gian" aria-label="Dừng và ghi thời gian">${icon('stop')}<span>Dừng &amp; lưu</span></button></div><button type="button" class="icon-btn timer-desktop-stop" data-action="timer-stop" title="Dừng và ghi thời gian" aria-label="Dừng và ghi thời gian">${icon('stop')}</button></div>`;
+ applyTimerDockPosition();
+}
+function initFloatingTimerDock(){
+ if(timerDockWired)return;
+ const dock=$('timerDock');
+ if(!dock)return;
+ timerDockWired=true;
+ const endDrag=(commitSnap)=>{
+  const drag=timerDockDrag;
+  timerDockDrag=null;
+  if(!drag||!drag.moved)return;
+  timerDockSuppressClickUntil=Date.now()+280;
+  dock.removeAttribute('data-dragging');
+  const b=timerDockBounds();
+  const rect=dock.getBoundingClientRect();
+  const finalLeft=clamp(rect.left,b.minX,b.maxX);
+  const finalTop=clamp(rect.top,b.minY,b.maxY);
+  const side=commitSnap&&((finalLeft+b.size/2)<=(b.vw/2))?'left':(commitSnap?'right':readTimerDockPos().side);
+  const span=b.maxY-b.minY;
+  const yRatio=span>0?clamp((finalTop-b.minY)/span,0,1):1;
+  saveTimerDockPos(side,yRatio);
+  const snapX=side==='left'?b.minX:b.maxX;
+  clearTimeout(timerDockSnapTimer);
+  if(Math.abs(finalLeft-snapX)>1&&!window.matchMedia('(prefers-reduced-motion:reduce)').matches){
+   dock.classList.add('is-snapping');
+   timerDockSnapTimer=setTimeout(()=>dock.classList.remove('is-snapping'),280);
+  }else{
+   dock.classList.remove('is-snapping');
+  }
+  applyTimerDockPosition();
+ };
+ dock.addEventListener('pointerdown',e=>{
+  if(!isMobileTimerDock()||dock.hidden)return;
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  const orb=e.target.closest('.timer-orb');
+  if(!orb)return;
+  const rect=dock.getBoundingClientRect();
+  timerDockDrag={
+   pointerId:e.pointerId,
+   orb,
+   startX:e.clientX,
+   startY:e.clientY,
+   origLeft:rect.left,
+   origTop:rect.top,
+   moved:false,
+   captured:false
+  };
+ });
+ document.addEventListener('pointermove',e=>{
+  if(!timerDockDrag||e.pointerId!==timerDockDrag.pointerId)return;
+  const dx=e.clientX-timerDockDrag.startX,dy=e.clientY-timerDockDrag.startY;
+  if(!timerDockDrag.moved){
+   if(Math.hypot(dx,dy)<=6)return;
+   timerDockDrag.moved=true;
+   timerDockExpanded=false;
+   dock.classList.remove('is-snapping');
+   dock.setAttribute('data-dragging','true');
+   dock.setAttribute('data-expanded','false');
+   timerDockDrag.orb?.setAttribute('aria-expanded','false');
+   if(!timerDockDrag.captured&&timerDockDrag.orb?.setPointerCapture){
+    try{timerDockDrag.orb.setPointerCapture(timerDockDrag.pointerId);timerDockDrag.captured=true;}catch(_){}
+   }
+  }
+  if(e.cancelable)e.preventDefault();
+  applyTimerDockPosition({left:timerDockDrag.origLeft+dx,top:timerDockDrag.origTop+dy});
+ },{passive:false});
+ document.addEventListener('pointerup',e=>{
+  if(!timerDockDrag||e.pointerId!==timerDockDrag.pointerId)return;
+  endDrag(true);
+ });
+ document.addEventListener('pointercancel',e=>{
+  if(!timerDockDrag||e.pointerId!==timerDockDrag.pointerId)return;
+  endDrag(false);
+ });
+ document.addEventListener('click',e=>{
+  if(!timerDockExpanded)return;
+  if(!e.target.closest('#timerDock')){
+   collapseTimerDock(false);
+  }else if(e.target.closest('#timerDock [data-action="open-task"]')){
+   queueMicrotask(()=>collapseTimerDock(false));
+  }
+ },true);
+ document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&timerDockExpanded){
+   e.preventDefault();
+   collapseTimerDock(true);
+  }
+ });
+ window.addEventListener('resize',()=>applyTimerDockPosition(),{passive:true});
+ window.visualViewport?.addEventListener('resize',()=>applyTimerDockPosition(),{passive:true});
+ window.matchMedia('(max-width:900px)').addEventListener?.('change',()=>applyTimerDockPosition());
+}
 function boot(){
- loadData();loadPrefs();rebuild();hydrateIcons();
+ initFloatingTimerDock();
+ loadData();loadPrefs();rebuild();restoreActiveTimerFromStorage();hydrateIcons();
  if(typeof $('toastRegion').showPopover==='function')$('toastRegion').setAttribute('popover','manual');
  $('viewTabs').innerHTML=Object.entries(VIEWS).map(([key,[label,ico]])=>`<button class="view-tab" role="tab" id="tab-${key}" aria-selected="${key===state.view}" aria-controls="viewContent" tabindex="${key===state.view?0:-1}" data-action="view" data-view="${key}">${icon(ico)}${label}${key==='list'?'<span class="tab-count">0</span>':''}</button>`).join('');
  applyTheme();applySidebar();syncFilters(true);renderAll(true);
  if(!lastRaw&&!storageProtected)persistData();else renderStorage();
  if(migrationMessage)setTimeout(()=>toast(migrationMessage),300);
  let tick=0;setInterval(()=>{
-  if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());
+  if(state.timer)syncTimerDisplays();
   if(++tick%15===0){
    checkDate();
    if(typeof window.checkIncomingNotifications === 'function') window.checkIncomingNotifications();
@@ -5626,7 +5905,7 @@ window.clearTenantUI=function(orgName){
   state.timer=null;
   if($('savedViews')) $('savedViews').innerHTML='<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
   if($('pinSection')) $('pinSection').innerHTML='';
-  if(typeof savePrefs==='function'&&!window.__worktree_is_cloud_workspace)savePrefs();
+  if(typeof savePrefs==='function'&&!window.__worktree_is_cloud_workspace&&!window.__worktree_supabase_user)savePrefs();
   if(typeof renderTimer==='function')renderTimer();
   window.__taskDetailData={taskId:null,checklist:[],dependencies:[],comments:[],logs:[],loading:{},errors:{}};
   window.__taskDetailLoadGen=(window.__taskDetailLoadGen||0)+1;
@@ -5783,7 +6062,9 @@ window.setCloudWorkspaceData=function({nodes,employees,tasks,pins,starredTaskIds
  state.view='overview';
 
  rebuild();
+ if(typeof restoreActiveTimerFromStorage==='function')restoreActiveTimerFromStorage();
  applyUrlStateToWorkspace({isInitialLoad:true});
+ if(typeof renderTimer==='function')renderTimer();
 
  if(typeof renderPins==='function') renderPins();
  if(typeof decoratePinButtons==='function') decoratePinButtons();
@@ -5806,6 +6087,9 @@ window.updateCloudTasksQuietly = function(mappedTasks) {
  data.tasks = taskList;
  rebuild();
  renderAll(false);
+ if (!state.timer && typeof restoreActiveTimerFromStorage === 'function' && restoreActiveTimerFromStorage()) {
+  if (typeof renderTimer === 'function') renderTimer();
+ }
  if (drawerId && byTask.has(drawerId) && $('drawer')?.open) {
   renderDrawer();
  }

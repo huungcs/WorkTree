@@ -284,7 +284,7 @@ export function initPlatformAdminShell() {
       .platform-admin-portal button,.platform-admin-portal input,.platform-admin-portal select,.platform-admin-portal textarea{font:inherit;color:inherit}
       .platform-admin-portal button{cursor:pointer}
       .platform-admin-portal button:disabled,.platform-admin-portal input:disabled,.platform-admin-portal select:disabled,.platform-admin-portal textarea:disabled{cursor:not-allowed;opacity:.58}
-      .platform-admin-portal :is(button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+      .platform-admin-portal :is(button,input[type="checkbox"],input[type="radio"],[tabindex]:not(input,select,textarea)):focus-visible{outline:3px solid var(--focus);outline-offset:2px}
       .platform-admin-portal svg{display:block}
       .platform-admin-portal .icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 
@@ -338,7 +338,7 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .top-crumb strong{font-weight:600;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
       .platform-admin-portal .crumb-divider{color:var(--line-strong);margin:0 3px}
       .platform-admin-portal .top-search{display:flex;align-items:center;gap:9px;width:260px;height:38px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:11.5px;padding:0 10px;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}
-      .platform-admin-portal .top-search:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft);background:var(--surface)}
+      .platform-admin-portal .top-search:has(>input:focus){background:var(--surface)}
       .platform-admin-portal .top-search .search-icon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;color:var(--muted);flex-shrink:0}
       .platform-admin-portal .top-search .search-icon svg{width:15px;height:15px}
       .platform-admin-portal .top-search input{border:0;outline:0;background:transparent;width:100%;min-width:0;color:var(--text);font-size:var(--text-control);font-family:inherit;padding:0}
@@ -413,7 +413,7 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .tenant-logo,.platform-admin-portal .user-avatar{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:10px;color:white;font-weight:850}
       
       .platform-admin-portal .c1{background:#59b96c}.platform-admin-portal .c2{background:#2474c6}.platform-admin-portal .c3{background:#0b8b95}.platform-admin-portal .c4{background:#3e6fe9}.platform-admin-portal .c5{background:#e6444f}.platform-admin-portal .c6{background:#7a62e9}.platform-admin-portal .c7{background:#78859c}.platform-admin-portal .c8{background:#2188c9}
-      .platform-admin-portal .pill{display:inline-flex;border-radius:6px;padding:3px 7px;font-size:10.5px;font-weight:700;white-space:nowrap}
+      .platform-admin-portal .pill{display:inline-flex;border-radius:var(--radius-badge,5px);padding:3px 7px;font-size:10.5px;font-weight:700;white-space:nowrap}
       .platform-admin-portal .pill.business{background:var(--blue-soft);color:var(--blue)}
       .platform-admin-portal .pill.pro{background:var(--primary-soft);color:var(--primary)}
       .platform-admin-portal .pill.enterprise{background:var(--green-soft);color:var(--green)}
@@ -450,7 +450,7 @@ export function initPlatformAdminShell() {
       .platform-admin-portal .health-icon{width:29px;height:29px;border-radius:9px;background:var(--green-soft);color:var(--green);display:grid;place-items:center}
       .platform-admin-portal .health-name{flex:1;font-size:12.5px;}
       .platform-admin-portal .status-ok{color:var(--green);font-size:11.5px;font-weight:700}
-      .platform-admin-portal .status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;background:var(--green-soft);color:var(--green);padding:5px 8px;font-size:11px;font-weight:800}
+      .platform-admin-portal .status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:var(--radius-badge,5px);background:var(--green-soft);color:var(--green);padding:5px 8px;font-size:11px;font-weight:800}
       .platform-admin-portal .status-badge:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 
       .platform-admin-portal .activity-list{display:grid;gap:2px}

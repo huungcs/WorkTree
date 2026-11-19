@@ -1,0 +1,50 @@
+:root {
+  --field-focus-border: var(--primary);
+  --field-focus-ring: 0 0 0 3px var(--primary-soft);
+  --field-focus-outline: 1px solid transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(input, select, textarea, .inline-search, .tree-search, .access-search,
+    .chat-search, .chat-composer, .ai-composer-row, .mcp-url-box, .person-fieldset-body) {
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --field-focus-border: Highlight;
+    --field-focus-ring: none;
+    --field-focus-outline: 1px solid Highlight;
+  }
+}
+
+/* Draw the ring on the visible frame when an input is visually embedded. */
+:is(input, select, textarea):focus:not(.sr-only):not([type="hidden"]):not(:where(
+  [type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"],
+  [type="submit"], [type="reset"], [type="color"],
+  .inline-search > input, .tree-search > input, .access-search > input,
+  .command-input > input, .chat-search > input, .chat-composer > textarea,
+  .ai-composer-row > textarea, .mcp-url-box > input,
+  .platform-admin-portal :is(.top-search, .input-wrap) > input,
+  .person-fieldset-body > select
+)),
+:is(.inline-search, .tree-search, .access-search, .command-input, .chat-search, .mcp-url-box,
+  .platform-admin-portal .top-search, .platform-admin-portal .input-wrap):has(> input:focus),
+:is(.chat-composer, .ai-composer-row):has(> textarea:focus),
+.person-fieldset-body:has(> select:not(.sr-only):focus),
+:is(.node-picker-trigger, .owner-picker-trigger, .drawer-owner-trigger):focus {
+  --field-border-color: var(--field-focus-border);
+  border-color: var(--field-focus-border);
+  box-shadow: var(--field-focus-ring);
+  outline: var(--field-focus-outline);
+  outline-offset: 1px;
+}
+
+:is(.inline-search, .tree-search, .access-search, .command-input, .chat-search, .mcp-url-box,
+  .platform-admin-portal .top-search, .platform-admin-portal .input-wrap) > input:focus,
+:is(.chat-composer, .ai-composer-row) > textarea:focus,
+.person-fieldset-body > select:focus {
+  outline: none;
+  box-shadow: none;
+}

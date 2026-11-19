@@ -153,12 +153,10 @@ function injectMcpStyles() {
     .mcp-form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .mcp-field{min-width:0;display:flex;flex-direction:column;gap:6px;font-size:var(--text-label);font-weight:var(--weight-medium);color:var(--text)}
     .mcp-field input,.mcp-field select{width:100%;box-sizing:border-box;min-height:44px;padding:8px 11px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--text);font-size:var(--text-control);font-family:inherit}
-    .mcp-field :is(input,select):focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
     .mcp-banner-content{min-width:0;flex:1}
     .mcp-banner-content h3{margin:0 0 3px;font-size:var(--text-control)}
     .mcp-banner-content p{margin:0;color:var(--muted);overflow-wrap:anywhere}
     .mcp-banner>.btn{align-self:center}
-    .mcp-url-box:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
     .mcp-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .mcp-mode-option{position:relative;display:flex;flex-direction:column;gap:4px;padding:11px 12px 11px 38px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
     .mcp-mode-option input{position:absolute;inset-inline-start:12px;top:13px;width:16px;height:16px;margin:0;accent-color:var(--primary)}
@@ -169,14 +167,14 @@ function injectMcpStyles() {
     .mcp-mode-option strong{font-size:var(--text-control);color:var(--text)}
     .mcp-mode-option small{font-size:11px;color:var(--muted);line-height:1.45}
     .mcp-form-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-    .mcp-role-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:var(--weight-medium);background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+    .mcp-role-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-badge,5px);font-size:11px;font-weight:var(--weight-medium);background:var(--surface);border:1px solid var(--line);color:var(--muted)}
     .mcp-role-pill .icon{width:13px;height:13px;color:var(--primary-text)}
     .mcp-list{display:flex;flex-direction:column;gap:12px}
     .mcp-item{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
     .mcp-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap}
     .mcp-item-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .mcp-item-title strong{font-size:var(--text-control);font-weight:var(--weight-strong);color:var(--text)}
-    .mcp-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:600}
+    .mcp-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--radius-badge,5px);font-size:10.5px;font-weight:600}
     .mcp-badge.active{background:var(--green-soft);color:var(--green)}
     .mcp-badge.disabled{background:var(--amber-soft);color:var(--amber)}
     .mcp-badge.mode{background:var(--primary-soft);color:var(--primary-text)}

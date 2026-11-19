@@ -76,6 +76,7 @@ function selectDemoRole(role,{preserveUrl=false}={}){
  resetPersonalState();
  Object.assign(state,previous,{currentUser:demoAccount.personId,savedViews:[]});
  if(role==='member')state.view='list';
+ if(typeof restoreActiveTimerFromStorage==='function')restoreActiveTimerFromStorage();
  applyTheme();applySidebar();renderAll(true);renderStorage();
  if(!preserveUrl)syncUrlWithState({replace:true});
  $('liveStatus').textContent='Đang xem demo với vai trò '+T[role];
@@ -328,14 +329,18 @@ function loadPrefs(){
   if(window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views)){
    state.savedViews = window.__worktree_saved_views;
   }
-  const saved=JSON.parse(localStorage.getItem(KEYS.prefs)||'null');if(state.timer&&saved?.timer?.pausedAt)state.timer.pausedAt=saved.timer.pausedAt;
  }finally{KEYS.prefs=key;}
  state.currentUser=a.personId;
  const r=typeof rootNode==='function'?rootNode():null;
  if(r&&!visibleNodeIds().has(state.selected))state.selected=r.id;
- if(state.timer&&!canUpdateTask(byTask.get(state.timer.taskId)))state.timer=null;
+ if(typeof restoreActiveTimerFromStorage==='function')restoreActiveTimerFromStorage();
+ if(state.timer){
+  const resolvedTid=typeof resolveTaskId==='function'?(resolveTaskId(state.timer.taskId)??state.timer.taskId):state.timer.taskId;
+  if(!canUpdateTask(byTask.get(resolvedTid)))state.timer=null;
+  else state.timer.taskId=resolvedTid;
+ }
 }
-function savePrefs(){if(demoAccount)return;const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}
+function savePrefs(){if(typeof persistActiveTimer==='function'&&state.timer)persistActiveTimer(state.timer);if(demoAccount)return;const a=currentAccount();if(!a)return;try{localStorage.setItem(KEYS.prefs+'_'+a.id,JSON.stringify(prefsObject()));}catch(e){}}
 async function enterWorkspace(a,first=false,restore=false){
  resetPersonalState();if(!restore)session={id:a.id,version:a.version,startedAt:Date.now(),lastActive:Date.now()};saveSession();loadPrefs();
  if(window.__worktree_is_cloud_workspace && Array.isArray(window.__worktree_saved_views)){
@@ -358,7 +363,7 @@ async function enterWorkspace(a,first=false,restore=false){
  if(!$('drawer')?.open&&!isSystemHubOpen())$('mainContent').focus({preventScroll:true});
 }
 function lockWorkspace(message=T.sessionExpired){
- if(session&&state.timer){state.timer.pausedAt=Date.now();savePrefs();}
+ if(session&&state.timer&&typeof persistActiveTimer==='function')persistActiveTimer(state.timer);
  session=null;pendingUser=null;saveSession();dirtyTask=false;dirtyNode=false;drawerId=null;editingTask=null;editingNode=null;
  if(confirmResolver){confirmResolver(false);confirmResolver=null;}
  $$('dialog[open]').forEach(d=>{try{d.close();}catch(e){}});
@@ -2426,7 +2431,7 @@ function bootV8(){
   $('authScreen').hidden=false;$('app').hidden=true;$('app').inert=true;
   if(typeof window.renderSupabaseAuth==='function') window.renderSupabaseAuth();
  }
- let tick=0;setInterval(()=>{if(session||demoAccount||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer)$$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}if(++tick%30===0&&currentAccount())checkDate();},1000);
+ let tick=0;setInterval(()=>{if(session||demoAccount||window.__worktree_supabase_user){if(!requireLogin())return;if(state.timer){if(typeof syncTimerDisplays==='function')syncTimerDisplays();else $$('[data-timer-value]').forEach(el=>el.textContent=elapsedLabel());}}if(++tick%30===0&&currentAccount())checkDate();},1000);
  window.openAddEmployeeDialog = openAddEmployeeDialog;
  window.openEditEmployeeDialog = openEditEmployeeDialog;
  window.openInviteExistingEmployeeDialog = openInviteExistingEmployeeDialog;
