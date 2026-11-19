@@ -1437,7 +1437,7 @@ export const CommentRepository = {
     return data || [];
   },
 
-  async addComment({ organizationId, taskId, body }) {
+  async addComment({ organizationId, taskId, body, isInternal = false }) {
     if (!organizationId || !taskId) {
       throw new Error('Thiếu organizationId hoặc taskId.');
     }
@@ -1454,14 +1454,19 @@ export const CommentRepository = {
     const userId = userRes?.user?.id;
     if (!userId) throw new Error('Yêu cầu đăng nhập để bình luận.');
 
+    const insertRow = {
+      organization_id: organizationId,
+      task_id: taskId,
+      author_user_id: userId,
+      body: trimmed
+    };
+    if (isInternal === true) {
+      insertRow.is_internal = true;
+    }
+
     const { data, error } = await sb
       .from('task_comments')
-      .insert({
-        organization_id: organizationId,
-        task_id: taskId,
-        author_user_id: userId,
-        body: trimmed
-      })
+      .insert(insertRow)
       .select()
       .single();
     if (error) throw error;

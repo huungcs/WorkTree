@@ -333,6 +333,18 @@ function createServer({ publicDir = PUBLIC_DIR, mcpHandler = null, aiHandler = n
     return;
   }
 
+  if (reqPath === '/api/share' || reqPath.startsWith('/api/share/')) {
+    const shareHandler = require('./api/share.js');
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    req.query = Object.fromEntries(urlObj.searchParams.entries());
+    shareHandler(req, res);
+    return;
+  }
+
+  if (reqPath.startsWith('/s/') && reqPath.length > 3) {
+    reqPath = '/share.html';
+  }
+
   if (reqPath === '/api/platform-admin' || reqPath.startsWith('/api/platform-admin')) {
     const platformAdminHandler = require('./api/platform-admin.js');
     let bodyStr = '';

@@ -8,6 +8,14 @@
     {
       "source": "/mcp/:key/",
       "destination": "/api/mcp?key=:key"
+    },
+    {
+      "source": "/s/:token",
+      "destination": "/share.html"
+    },
+    {
+      "source": "/s/:token/",
+      "destination": "/share.html"
     }
   ],
   "functions": {
@@ -49,6 +57,32 @@
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/s/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/share.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
         }
       ]
     }

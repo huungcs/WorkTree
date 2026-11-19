@@ -50,7 +50,7 @@ export const CommentService = {
     return await CommentRepository.getComments(taskId, orgId);
   },
 
-  async addComment({ taskId, body, organizationId = null }) {
+  async addComment({ taskId, body, organizationId = null, isInternal = false }) {
     if (!taskId) throw new Error('Thiếu taskId.');
     const orgId = organizationId || appState.activeOrganizationId;
     if (!orgId) throw new Error('Thiếu activeOrganizationId.');
@@ -69,7 +69,8 @@ export const CommentService = {
       const result = await CommentRepository.addComment({
         organizationId: orgId,
         taskId,
-        body: trimmed
+        body: trimmed,
+        isInternal: Boolean(isInternal)
       });
 
       // Asynchronously notify assigned employee via Zalo Bot if linked

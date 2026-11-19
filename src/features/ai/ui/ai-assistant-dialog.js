@@ -211,6 +211,10 @@ function injectAiStyles() {
       #aiAssistantDialog .btn,.ai-chip,.ai-quick-link-chip{min-height:44px}
       .ai-msg{max-width:95%}
     }
+    @media(max-width:900px) and (max-height:500px){
+      .ai-chips{display:flex;overflow-x:auto;scrollbar-width:thin;padding-block:8px}
+      .ai-chip{flex:0 0 auto;white-space:nowrap}
+    }
   `;
   document.head.appendChild(style);
 }

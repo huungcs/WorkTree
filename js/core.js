@@ -2186,6 +2186,19 @@ function resolveCommentAuthor(userId){
  return 'Thành viên';
 }
 
+function mapCloudCommentRow(c){
+ const isGuest=!c?.author_user_id&&Boolean(c?.guest_author_name);
+ return {
+  id:c.id,
+  text:c.body,
+  author:isGuest?`Khách · ${c.guest_author_name}`:resolveCommentAuthor(c.author_user_id),
+  authorId:c.author_user_id||(isGuest?`guest:${c.guest_author_name}`:null),
+  isGuest,
+  isInternal:Boolean(c.is_internal),
+  at:c.created_at
+ };
+}
+
 function getFileIcon(nameOrMime){
  const str=(nameOrMime||'').toLowerCase();
  if(str.includes('image')||str.match(/\.(jpg|jpeg|png|gif|webp|svg)$/)) return 'image';
@@ -2282,13 +2295,7 @@ function openDrawer(id){
    }
 
    if(comRes.status==='fulfilled'){
-    detail.comments=(comRes.value||[]).map(c=>({
-     id:c.id,
-     text:c.body,
-     author:resolveCommentAuthor(c.author_user_id),
-     authorId:c.author_user_id,
-     at:c.created_at
-    }));
+    detail.comments=(comRes.value||[]).map(mapCloudCommentRow);
    }else{
     detail.errors.comments=comRes.reason?.message||'Không thể tải bình luận.';
    }
@@ -2495,6 +2502,8 @@ function renderDrawer(){
     <div class="comment-body">
      <div class="comment-meta">
       <strong>${esc(c.author||'Thành viên')}</strong>
+      ${c.isGuest?'<span class="tag">Khách ngoài</span>':''}
+      ${c.isInternal?'<span class="tag">Nội bộ</span>':''}
       <time>${esc(timeAgo(c.at))}</time>
       <button class="icon-btn" data-action="delete-comment" data-id="${t.id}" data-comment="${c.id}" title="Xóa bình luận" aria-label="Xóa bình luận">${icon('x')}</button>
      </div>
@@ -2583,7 +2592,7 @@ function renderDrawer(){
   <section class="drawer-section"><h3>Checklist <small>${checks}/${checkTotal} đã xong</small></h3>${checklistHTML}<form id="checklistForm" class="inline-form"><input id="newChecklist" aria-label="Mục checklist mới" required maxlength="400" placeholder="Thêm một bước nhỏ..."><button class="btn" type="submit">${icon('plus')}Thêm</button></form><label class="checkbox-label" style="margin-top:12px;font-size:10px;color:var(--muted)"><input type="checkbox" id="drawerAutoProgress" ${t.autoProgress?'checked':''}>Tự tính tiến độ theo checklist</label></section>
   <section class="drawer-section"><h3>Phụ thuộc</h3>${dependenciesHTML}${t.dependency&&t.dependency!=='Không có'?`<p class="view-note">Ghi chú: ${esc(t.dependency)}</p>`:''}${dependencyFormHTML}</section>
   <section class="drawer-section"><h3>Ghi thời gian <small>Thời gian bấm giờ được ghi khi dừng</small></h3><form id="logForm" class="inline-form"><input id="logHours" type="number" min="0.01" max="24" step="0.01" required placeholder="Giờ" aria-label="Số giờ vừa thực hiện" style="max-width:95px"><input id="logNote" maxlength="500" placeholder="Ghi chú công việc..." aria-label="Ghi chú thời gian"><button type="submit" class="btn">Ghi giờ</button></form>${logsHTML}</section>
-  <section class="drawer-section"><h3>Bình luận <small>${currentComments.length} bình luận ${isCloud?'trên đám mây':'cục bộ'}</small></h3>${commentsHTML}<form id="commentForm" class="comment-compose"><textarea id="commentText" required maxlength="5000" placeholder="Ghi lại trao đổi, quyết định hoặc lưu ý..." aria-label="Nội dung bình luận"></textarea><div><small>${isCloud?'Lưu đám mây':'Chỉ lưu cục bộ'} · Ctrl/Cmd + Enter để gửi</small><button class="btn primary small" type="submit">${icon('message')}Gửi bình luận</button></div></form></section>
+  <section class="drawer-section"><h3>Bình luận <small>${currentComments.length} bình luận ${isCloud?'trên đám mây':'cục bộ'}</small></h3>${commentsHTML}<form id="commentForm" class="comment-compose"><textarea id="commentText" required maxlength="5000" placeholder="Ghi lại trao đổi, quyết định hoặc lưu ý..." aria-label="Nội dung bình luận"></textarea><div style="flex-wrap:wrap;gap:8px;"><small>${isCloud?'Lưu đám mây':'Chỉ lưu cục bộ'} · Ctrl/Cmd + Enter để gửi</small>${isCloud?'<label class="checkbox-label" style="font-size:11px;color:var(--muted)"><input type="checkbox" id="commentInternalOnly">Chỉ nội bộ (ẩn với link chia sẻ)</label>':''}<button class="btn primary small" type="submit">${icon('message')}Gửi bình luận</button></div></form></section>
   <section class="drawer-section">
    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
     <h3 style="margin:0;display:inline-flex;align-items:baseline;gap:8px">Tệp đính kèm <small>${currentAttachments.length} tệp ${isCloud?'trên đám mây':''}</small></h3>
@@ -2827,17 +2836,13 @@ async function addComment(event){
   const btn=event.target.querySelector('button[type="submit"]');
   if(btn)btn.disabled=true;
   try{
-   await window.CommentService.addComment({taskId:id,body:value});
+   const isInternal=Boolean($('commentInternalOnly')?.checked);
+   await window.CommentService.addComment({taskId:id,body:value,isInternal});
    textarea.value='';
+   if($('commentInternalOnly'))$('commentInternalOnly').checked=false;
    drawerDrafts.delete(id);
    const comments=await window.CommentService.getComments(id);
-   window.__taskDetailData.comments=comments.map(c=>({
-    id:c.id,
-    text:c.body,
-    author:resolveCommentAuthor(c.author_user_id),
-    authorId:c.author_user_id,
-    at:c.created_at
-   }));
+   window.__taskDetailData.comments=comments.map(mapCloudCommentRow);
    const t=byTask.get(id);
    if(t) t.comments=window.__taskDetailData.comments;
    refreshDrawer();
@@ -2862,13 +2867,7 @@ async function deleteComment(id,commentId){
   try{
    await window.CommentService.deleteComment(commentId);
    const comments=await window.CommentService.getComments(id);
-   window.__taskDetailData.comments=comments.map(c=>({
-    id:c.id,
-    text:c.body,
-    author:resolveCommentAuthor(c.author_user_id),
-    authorId:c.author_user_id,
-    at:c.created_at
-   }));
+   window.__taskDetailData.comments=comments.map(mapCloudCommentRow);
    const t=byTask.get(id);
    if(t) t.comments=window.__taskDetailData.comments;
    refreshDrawer();
@@ -2977,13 +2976,7 @@ async function retryLoadChild(id,childType){
    if(t) t.dependencies=(deps||[]).map(d=>d.depends_on_task_id);
   }else if(childType==='comments'&&window.CommentService){
    const coms=await window.CommentService.getComments(id,orgId);
-   window.__taskDetailData.comments=coms.map(c=>({
-    id:c.id,
-    text:c.body,
-    author:resolveCommentAuthor(c.author_user_id),
-    authorId:c.author_user_id,
-    at:c.created_at
-   }));
+   window.__taskDetailData.comments=coms.map(mapCloudCommentRow);
    const t=byTask.get(id);
    if(t) t.comments=window.__taskDetailData.comments;
   }else if(childType==='logs'&&window.TimeEntryService){
@@ -5664,13 +5657,7 @@ window.refreshDrawerChildQuietly = async function(childType) {
   } else if (childType === 'comments' && window.CommentService) {
    const items = await window.CommentService.getComments(currentTaskId, currentOrgId);
    if (thisGen !== window.__taskDetailLoadGen || drawerId !== currentTaskId) return;
-   window.__taskDetailData.comments = (items || []).map(c => ({
-    id: c.id,
-    text: c.body,
-    author: resolveCommentAuthor(c.author_user_id),
-    authorId: c.author_user_id,
-    at: c.created_at
-   }));
+   window.__taskDetailData.comments = (items || []).map(mapCloudCommentRow);
    renderDrawer();
   } else if (childType === 'time_entries' && window.TimeEntryService) {
    const items = await window.TimeEntryService.getTimeEntries(currentTaskId, currentOrgId);

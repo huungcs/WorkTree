@@ -8,6 +8,8 @@ let ownedServer = null;
 const checks = [
   { path: '/', status: 200, type: 'text/html', contains: 'src/app/app.js' },
   { path: '/index.html', status: 200, type: 'text/html', contains: 'WorkTree X' },
+  { path: '/share.html', status: 200, type: 'text/html', contains: 'WorkTree X' },
+  { path: '/s/wtsh_smoke_probe', status: 200, type: 'text/html', contains: 'WorkTree X' },
   { path: '/css/style.css', status: 200, type: 'text/css', contains: '--primary:' },
   { path: '/js/core.js', status: 200, type: 'text/javascript' },
   { path: '/js/access.js', status: 200, type: 'text/javascript' },

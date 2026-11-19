@@ -105,6 +105,18 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     const button = $('[data-chat-action="choose-avatar"]');
     button.hidden = adapter?.isPreview !== true;
     button.innerHTML = avatar(context?.displayName, 'purple', false, '', null, localAvatarUrl || profileAvatarUrl);
+    const previewLabel = $('.chat-preview-label');
+    if (previewLabel) {
+      const isPrev = !adapter || adapter.isPreview === true;
+      previewLabel.textContent = isPrev ? 'Bản xem trước' : 'Lưu trữ đám mây';
+      previewLabel.title = isPrev ? 'Tin nhắn và nhóm chỉ lưu trong phiên này' : 'Tin nhắn được đồng bộ bảo mật qua Supabase';
+    }
+    const detailsSr = $('#chatPreviewDetails');
+    if (detailsSr) {
+      detailsSr.textContent = (!adapter || adapter.isPreview === true)
+        ? 'Dữ liệu minh họa. Tin nhắn và nhóm chỉ lưu trong phiên này.'
+        : 'Tin nhắn nội bộ được đồng bộ theo doanh nghiệp qua Supabase.';
+    }
   }
 
   function clearOwnAvatar() {
@@ -521,10 +533,11 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
     if (!adapter) return;
     dialogMode = mode; modalTrigger = trigger || document.activeElement; selectedPeople = new Set(); dialogPeople = [];
     const rename = mode === 'rename-group'; const title = rename ? 'Chỉnh sửa nhóm' : mode === 'new-message' ? 'Bắt đầu cuộc trò chuyện' : mode === 'add-members' ? 'Thêm thành viên' : 'Tạo nhóm mới';
-    dialog.innerHTML = `<form data-chat-dialog-form><div class="dialog-head"><div><p class="overline">WORKTREE X / TIN NHẮN</p><h2 id="chatDialogTitle">${title}</h2></div>${iconButton('close-dialog', 'Đóng hộp thoại', 'x')}</div><div class="dialog-scroll chat-dialog-body"><p class="chat-dialog-description">${rename ? 'Một tên gọi dễ nhớ để cả nhóm luôn tìm thấy nhau.' : mode === 'add-members' ? 'Thành viên mới sẽ xem được lịch sử trò chuyện trong bản minh họa.' : mode === 'new-message' ? 'Chọn một đồng nghiệp để gửi lời chào.' : 'Tập hợp những người cùng làm việc, để ý tưởng luôn được kết nối.'}</p>
+    const isPrev = adapter.isPreview === true;
+    dialog.innerHTML = `<form data-chat-dialog-form><div class="dialog-head"><div><p class="overline">WORKTREE X / TIN NHẮN</p><h2 id="chatDialogTitle">${title}</h2></div>${iconButton('close-dialog', 'Đóng hộp thoại', 'x')}</div><div class="dialog-scroll chat-dialog-body"><p class="chat-dialog-description">${rename ? 'Một tên gọi dễ nhớ để cả nhóm luôn tìm thấy nhau.' : mode === 'add-members' ? (isPrev ? 'Thành viên mới sẽ xem được lịch sử trò chuyện trong bản minh họa.' : 'Thành viên mới trong doanh nghiệp sẽ xem được lịch sử trò chuyện của nhóm.') : mode === 'new-message' ? 'Chọn một đồng nghiệp để gửi lời chào.' : 'Tập hợp những người cùng làm việc, để ý tưởng luôn được kết nối.'}</p>
       ${mode === 'create-group' || rename ? `<label class="field">Tên nhóm <span aria-hidden="true">*</span><input name="name" required maxlength="100" placeholder="Ví dụ: Thiết kế sản phẩm" value="${escapeHtml(rename ? current.title : '')}"></label><label class="field chat-description-field">Mô tả <span class="chat-optional">(không bắt buộc)</span><textarea name="description" rows="2" maxlength="500" placeholder="Nhóm của bạn sẽ cùng làm điều gì?">${escapeHtml(rename ? current.description : '')}</textarea></label>` : ''}
-      ${!rename ? `<div class="chat-picker-title"><h3>${mode === 'new-message' ? 'Đồng nghiệp' : 'Thêm thành viên'}</h3><span>Danh bạ minh họa</span></div><label class="chat-search">${icon('search')}<input type="search" data-chat-people-search aria-label="Tìm thành viên" placeholder="Tìm theo tên..." autocomplete="off"></label><div class="chat-selected-people" data-chat-selected></div><div class="chat-person-list" data-chat-people>${skeleton()}</div>` : ''}
-      <p class="chat-dialog-error" role="alert" data-chat-dialog-error></p></div><div class="dialog-foot"><span class="chat-dialog-preview">Chỉ lưu trong phiên xem trước</span><button type="button" class="btn" data-chat-action="close-dialog">Hủy</button><button type="submit" class="btn primary" ${rename ? '' : 'disabled'}>${rename ? 'Lưu thay đổi' : mode === 'new-message' ? 'Bắt đầu trò chuyện' : 'Tạo nhóm'}</button></div></form>`;
+      ${!rename ? `<div class="chat-picker-title"><h3>${mode === 'new-message' ? 'Đồng nghiệp' : 'Thêm thành viên'}</h3><span>${isPrev ? 'Danh bạ minh họa' : 'Danh bạ doanh nghiệp'}</span></div><label class="chat-search">${icon('search')}<input type="search" data-chat-people-search aria-label="Tìm thành viên" placeholder="Tìm theo tên..." autocomplete="off"></label><div class="chat-selected-people" data-chat-selected></div><div class="chat-person-list" data-chat-people>${skeleton()}</div>` : ''}
+      <p class="chat-dialog-error" role="alert" data-chat-dialog-error></p></div><div class="dialog-foot"><span class="chat-dialog-preview">${isPrev ? 'Chỉ lưu trong phiên xem trước' : 'Đồng bộ theo doanh nghiệp'}</span><button type="button" class="btn" data-chat-action="close-dialog">Hủy</button><button type="submit" class="btn primary" ${rename ? '' : 'disabled'}>${rename ? 'Lưu thay đổi' : mode === 'new-message' ? 'Bắt đầu trò chuyện' : 'Tạo nhóm'}</button></div></form>`;
     if (!dialog.open) dialog.showModal();
     dialog.querySelector('input')?.focus();
     if (rename) return;
@@ -550,7 +563,11 @@ export function mountChatFeature({ host, getContext, subscribeContext = () => ()
       if (!valid(captured)) return;
       dialog.close(); await refreshList();
       if (result) await selectConversation(result.id, { focus: true }); else { await refreshSelected(); if (infoOpen) info.querySelector('h2')?.focus({ preventScroll: true }); }
-      notice(mode === 'create-group' ? 'Đã tạo nhóm trong phiên xem trước.' : mode === 'new-message' ? 'Cuộc trò chuyện đã sẵn sàng.' : 'Đã cập nhật nhóm trong phiên xem trước.');
+      notice(mode === 'create-group'
+        ? (adapter.isPreview ? 'Đã tạo nhóm trong phiên xem trước.' : 'Đã tạo nhóm trò chuyện mới.')
+        : mode === 'new-message'
+          ? 'Cuộc trò chuyện đã sẵn sàng.'
+          : (adapter.isPreview ? 'Đã cập nhật nhóm trong phiên xem trước.' : 'Đã lưu thông tin nhóm.'));
     } catch (error) {
       if (valid(captured) && dialog.open) { dialog.querySelector('[data-chat-dialog-error]').textContent = 'Chưa lưu được. Kiểm tra thông tin và thử lại.'; submit.disabled = false; submit.textContent = 'Thử lại'; }
     }

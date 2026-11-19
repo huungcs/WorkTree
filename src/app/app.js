@@ -27,7 +27,8 @@ import { initConsoleGuard } from '../lib/security/console-guard.js';
 import { PlatformAdminService, openPlatformAdminPortal, closePlatformAdminPortal } from '../features/platform-admin/index.js';
 import { McpClientService, openMcpDialog } from '../features/mcp/index.js';
 import { AiClientService, openAiAssistantDialog, clearAiSessionHistory } from '../features/ai/index.js';
-import { mountChatFeature, createMockChatAdapter } from '../features/chat/index.js';
+import { TaskShareService, initTaskShareUI } from '../features/task-share/index.js';
+import { mountChatFeature, createMockChatAdapter, createSupabaseChatAdapter } from '../features/chat/index.js';
 import { mountProfileAvatar, createProfileAvatarAdapter } from '../features/profile/index.js';
 
 // Activate Client Console Security Guard & Self-XSS Warning
@@ -987,7 +988,7 @@ export async function bootstrapApp() {
         };
       },
       subscribeContext: listener => appState.subscribe(listener),
-      createAdapter: createMockChatAdapter,
+      createAdapter: ctx => (isDemo ? createMockChatAdapter(ctx) : createSupabaseChatAdapter(ctx)),
       onCloseSidebar: () => callLegacyGlobal('closeSidebar'),
       taskBridge: {
         canCreate: () => callLegacyGlobal('canCreateTask') === true,
@@ -1053,6 +1054,15 @@ export async function bootstrapApp() {
 
   // 2. Thiết lập Desktop Sidebar Toggle (278px / 76px)
   setupSidebarToggle();
+
+  initTaskShareUI({
+    getContext: () => ({
+      organizationId: appState.activeOrganizationId,
+      role: appState.activeMembership?.role || callLegacyGlobal('currentAccount')?.role || 'member',
+      isCloud: Boolean(appState.activeOrganizationId)
+    }),
+    onToast: (msg, kind) => callLegacyGlobal('toast', [msg, kind])
+  });
 
   // 3. Khởi tạo WorkspaceDialog
   workspaceDialogInstance = new WorkspaceDialog({

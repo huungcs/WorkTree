@@ -92,7 +92,7 @@ Weight:
 
 Không giảm chữ mobile xuống quá nhỏ để cố nhét dữ liệu.
 
-Trong bảng chi tiết công việc, đặt nhãn phía trên ô người phụ trách và người liên quan. Dùng cùng thang chữ cho mô tả và checklist. Các trường trạng thái và ưu tiên có chung kích thước và viền focus. Mỗi liên kết phụ thuộc dùng một hàng, căn giữa biểu tượng, tên và nút gỡ. Trên mobile, xếp hai ô người theo chiều dọc và giữ nút thao tác dễ chạm.
+Trong bảng chi tiết công việc, đặt nhãn phía trên ô người phụ trách và người liên quan. Dùng cùng thang chữ cho mô tả và checklist. Các trường trạng thái và ưu tiên có chung kích thước và viền focus. Mỗi liên kết phụ thuộc dùng một hàng, căn giữa biểu tượng, tên và nút gỡ. Trên mobile, hai ô người nằm cùng hàng, danh sách đầy đủ mở theo chiều rộng của hàng và nút thao tác có vùng chạm tối thiểu 44px.
 
 ---
 
@@ -472,7 +472,7 @@ Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đ
 
 Trong bảng chi tiết công việc, Gợi ý checklist và Tóm tắt công việc dùng nút phụ gọn. Kết quả mở ngay bên dưới và chuyển focus vào tiêu đề để người dùng bàn phím đọc được nội dung.
 
-Trợ lý AI mở bên phải trên desktop và cho phép thao tác với phần còn lại của workspace. Trên điện thoại, Trợ lý AI chiếm toàn màn hình. Cả hai bố cục đều dùng nền trang rõ nét. Nút Gửi nằm trong cùng khung với ô nhập, ở góc dưới bên phải. Trợ lý AI và Bản tin điều hành dùng tiêu đề ngắn, với tên workspace hoặc phạm vi bên dưới. Form MCP dùng cỡ chữ và viền focus của hệ thống. Lựa chọn quyền có trạng thái focus trên toàn thẻ và ô nhập trên điện thoại dùng cỡ chữ nhập liệu chung.
+Trợ lý AI mở bên phải trên desktop và cho phép thao tác với phần còn lại của workspace. Trên điện thoại, Trợ lý AI chiếm toàn màn hình. Khi màn hình thấp, các gợi ý nằm trên một hàng cuộn ngang để dành chỗ đọc hội thoại. Cả hai bố cục đều dùng nền trang rõ nét. Nút Gửi nằm trong cùng khung với ô nhập, ở góc dưới bên phải. Trợ lý AI và Bản tin điều hành dùng tiêu đề ngắn, với tên workspace hoặc phạm vi bên dưới. Form MCP dùng cỡ chữ và viền focus của hệ thống. Lựa chọn quyền có trạng thái focus trên toàn thẻ và ô nhập trên điện thoại dùng cỡ chữ nhập liệu chung.
 
 ### Bản demo công khai
 
