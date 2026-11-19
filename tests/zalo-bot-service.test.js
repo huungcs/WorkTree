@@ -206,13 +206,20 @@ async function loadZaloBotService() {
 function createMockZaloSupabase(initialState) {
   const db = {
     organizations: [...(initialState.organizations || [])],
+    profiles: [...(initialState.profiles || [])],
     employees: [...(initialState.employees || [])],
     organization_members: [...(initialState.organization_members || [])],
     member_scopes: [...(initialState.member_scopes || [])],
     organization_nodes: [...(initialState.organization_nodes || [])],
     organization_node_closure: [...(initialState.organization_node_closure || [])],
     tasks: [...(initialState.tasks || [])],
-    activity_logs: [...(initialState.activity_logs || [])]
+    task_checklist_items: [...(initialState.task_checklist_items || [])],
+    task_dependencies: [...(initialState.task_dependencies || [])],
+    task_comments: [...(initialState.task_comments || [])],
+    task_time_entries: [...(initialState.task_time_entries || [])],
+    activity_logs: [...(initialState.activity_logs || [])],
+    platform_ai_settings: [...(initialState.platform_ai_settings || [])],
+    zalo_copilot_sessions: [...(initialState.zalo_copilot_sessions || [])]
   };
   let nextId = 1000;
 
@@ -220,26 +227,56 @@ function createMockZaloSupabase(initialState) {
     const filters = [];
     let mode = 'select';
     let payload = null;
+    let upsertOpts = null;
     let maxRows = null;
     let singleMode = null;
 
     const applyFilters = (rows) => rows.filter((row) => filters.every(([op, col, val]) => {
       if (op === 'eq') return row[col] === val;
+      if (op === 'neq') return row[col] !== val;
+      if (op === 'in') return Array.isArray(val) ? val.includes(row[col]) : true;
       if (op === 'is') return val === null ? (row[col] === null || row[col] === undefined) : row[col] === val;
       return true;
     }));
 
     const execute = async () => {
-      const rows = db[table] || [];
+      if (!db[table]) db[table] = [];
+      const rows = table === 'task_rollups' ? db.tasks : db[table];
       if (mode === 'insert') {
-        const record = { id: `${table}_${nextId++}`, ...payload };
-        rows.push(record);
-        return singleMode ? { data: record, error: null } : { data: [record], error: null };
+        const items = Array.isArray(payload) ? payload : [payload];
+        const inserted = items.map(item => {
+          const record = { id: item.id || `${table}_${nextId++}`, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...item };
+          db[table].push(record);
+          return record;
+        });
+        return singleMode ? { data: inserted[0] || null, error: null } : { data: inserted, error: null };
+      }
+      if (mode === 'upsert') {
+        const items = Array.isArray(payload) ? payload : [payload];
+        const conflictCol = upsertOpts?.onConflict || 'id';
+        const out = [];
+        for (const item of items) {
+          const idx = db[table].findIndex(r => r[conflictCol] === item[conflictCol]);
+          if (idx >= 0) {
+            db[table][idx] = { ...db[table][idx], ...item };
+            out.push(db[table][idx]);
+          } else {
+            const record = { ...item };
+            db[table].push(record);
+            out.push(record);
+          }
+        }
+        return singleMode ? { data: out[0] || null, error: null } : { data: out, error: null };
       }
       if (mode === 'update') {
-        const matched = applyFilters(rows);
+        const matched = applyFilters(db[table]);
         matched.forEach((row) => Object.assign(row, payload));
         return singleMode ? { data: matched[0] || null, error: null } : { data: matched, error: null };
+      }
+      if (mode === 'delete') {
+        const matched = applyFilters(db[table]);
+        db[table] = db[table].filter(r => !matched.includes(r));
+        return { data: matched, error: null };
       }
       let result = applyFilters(rows);
       if (typeof maxRows === 'number') result = result.slice(0, maxRows);
@@ -255,6 +292,8 @@ function createMockZaloSupabase(initialState) {
     const builder = {
       select() { return builder; },
       eq(col, val) { filters.push(['eq', col, val]); return builder; },
+      neq(col, val) { filters.push(['neq', col, val]); return builder; },
+      in(col, vals) { filters.push(['in', col, vals]); return builder; },
       is(col, val) { filters.push(['is', col, val]); return builder; },
       order() { return builder; },
       limit(n) { maxRows = n; return builder; },
@@ -262,6 +301,8 @@ function createMockZaloSupabase(initialState) {
       maybeSingle() { singleMode = 'maybeSingle'; return builder; },
       update(values) { mode = 'update'; payload = values; return builder; },
       insert(values) { mode = 'insert'; payload = values; return builder; },
+      upsert(values, opts) { mode = 'upsert'; payload = values; upsertOpts = opts || null; return builder; },
+      delete() { mode = 'delete'; return builder; },
       then(resolve, reject) { return execute().then(resolve, reject); }
     };
     return builder;
@@ -423,4 +464,271 @@ test('Zalo Copilot: unlinked user non-phone message still falls back to onboardi
   );
   assert.equal(res.isGreeting, true);
   assert.match(sent[0].msg, /gửi số điện thoại/i);
+});
+
+test('Zalo Copilot: inactive/suspended membership is denied access cleanly', async () => {
+  const ZaloBotService = await loadZaloBotService();
+  const sb = createMockZaloSupabase({
+    organizations: [{ id: '11111111-1111-4111-8111-111111111111', name: 'Alpha Co', status: 'active' }],
+    employees: [{ id: '41111111-1111-4111-8111-111111111111', organization_id: '11111111-1111-4111-8111-111111111111', full_name: 'User Suspended', employment_status: 'active', zalo_chat_id: 'zalo_susp_1' }],
+    organization_members: [{ id: '61111111-1111-4111-8111-111111111111', organization_id: '11111111-1111-4111-8111-111111111111', user_id: 'aaaa1111-1111-4111-8111-111111111111', employee_id: '41111111-1111-4111-8111-111111111111', role: 'admin', status: 'suspended' }]
+  });
+  const ctx = await ZaloBotService.resolveZaloEmployeeContext(sb, 'zalo_susp_1');
+  assert.equal(ctx, null);
+});
+
+test('Zalo AI Copilot: uses platform_ai_settings LLM, executes MCP tools, persists multi-turn history & links', async () => {
+  const ZaloBotService = await loadZaloBotService();
+  const { runZaloAiCopilot, executePendingZaloActions } = require('../api/_zalo-copilot.js');
+
+  const ORG_A = '11111111-1111-4111-8111-111111111111';
+  const ORG_B = '22222222-2222-4222-8222-222222222222';
+  const NODE_A = '31111111-1111-4111-8111-111111111111';
+  const USER_A = 'aaaa1111-1111-4111-8111-111111111111';
+  const EMP_A = '41111111-1111-4111-8111-111111111111';
+  const TASK_A = '51111111-1111-4111-8111-111111111111';
+  const TASK_B = '52222221-2222-4222-8222-222222222222';
+
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const sb = createMockZaloSupabase({
+    organizations: [
+      { id: ORG_A, name: 'NTH GROUP', slug: 'nth', timezone: 'Asia/Ho_Chi_Minh', status: 'active', root_node_id: NODE_A },
+      { id: ORG_B, name: 'Secret Beta', slug: 'beta', timezone: 'Asia/Ho_Chi_Minh', status: 'active', root_node_id: '32222221-2222-4222-8222-222222222222' }
+    ],
+    profiles: [{ id: USER_A, display_name: 'Nguyễn Trọng Hữu' }],
+    employees: [
+      { id: EMP_A, organization_id: ORG_A, full_name: 'Nguyễn Trọng Hữu', job_title: 'CEO', home_node_id: NODE_A, employment_status: 'active', zalo_chat_id: 'zalo_ai_owner_1' }
+    ],
+    organization_members: [
+      { id: '61111111-1111-4111-8111-111111111111', organization_id: ORG_A, user_id: USER_A, employee_id: EMP_A, role: 'owner', status: 'active' }
+    ],
+    organization_nodes: [
+      { id: NODE_A, organization_id: ORG_A, parent_id: null, type: 'company', name: 'NTH GROUP', capacity_hours_week: 40, archived_at: null }
+    ],
+    organization_node_closure: [
+      { organization_id: ORG_A, ancestor_id: NODE_A, descendant_id: NODE_A, depth: 0 }
+    ],
+    tasks: [
+      { id: TASK_A, organization_id: ORG_A, node_id: NODE_A, primary_assignee_id: EMP_A, collaborator_ids: [], title: 'Ký hợp đồng đối tác AI', description: 'Gửi bản final', status: 'in_progress', priority: 'urgent', due_date: yesterday, estimate_minutes: 120, progress: 40, auto_progress: false, tags: [], archived_at: null },
+      { id: TASK_B, organization_id: ORG_B, node_id: '32222221-2222-4222-8222-222222222222', primary_assignee_id: EMP_A, collaborator_ids: [], title: 'Việc bí mật Org B', status: 'todo', priority: 'urgent', due_date: yesterday, archived_at: null }
+    ],
+    platform_ai_settings: [{
+      id: 'default',
+      provider: 'xpiki',
+      api_base_url: 'https://mock-ai.local/v1/chat/completions',
+      api_key: 'mock-db-ai-key',
+      model: 'claude-opus-5',
+      fallback_model: 'claude-opus-4-6',
+      is_enabled: true
+    }],
+    // Pre-existing session from another org MUST NOT leak into ORG_A history
+    zalo_copilot_sessions: [{
+      chat_id: 'zalo_ai_owner_1',
+      organization_id: ORG_B,
+      employee_id: EMP_A,
+      recent_messages: [{ role: 'user', content: 'TIN_NHAN_BI_MAT_ORG_B' }],
+      updated_at: new Date().toISOString()
+    }]
+  });
+
+  const capturedPayloads = [];
+  const mockFetch = async (_url, init) => {
+    const reqBody = JSON.parse(init.body);
+    capturedPayloads.push(reqBody);
+    const serialized = JSON.stringify(reqBody.messages);
+    assert.doesNotMatch(serialized, /Việc bí mật Org B/);
+    assert.doesNotMatch(serialized, /TIN_NHAN_BI_MAT_ORG_B/);
+
+    const lastUser = [...reqBody.messages].reverse().find(m => m.role === 'user')?.content || '';
+    if (reqBody.messages.some(m => m.role === 'tool')) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: `Đây là chi tiết [Ký hợp đồng đối tác AI](worktree://task/${TASK_A}): hạn ${yesterday}, tiến độ 40%.`
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (/gửi link/i.test(lastUser)) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: `Link mở nhanh việc bạn vừa xem:\n👉 https://worktree.nguyentronghuu.com/?task=${TASK_A}`
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{
+            id: 'call_get_task_1',
+            type: 'function',
+            function: { name: 'worktree_get_task', arguments: JSON.stringify({ task_id: TASK_A }) }
+          }]
+        }
+      }]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  const sent = [];
+  const aiCopilotFn = (args) => runZaloAiCopilot({ ...args, fetchFn: mockFetch, disableConfigCache: true });
+
+  // Turn 1: Free-form query + MCP read tool + worktree:// link rewrite to Zalo web URL
+  const turn1 = await ZaloBotService.processIncomingMessage(
+    { message: { message_id: 'msg_ai_1', chat: { id: 'zalo_ai_owner_1' }, text: 'Bạn kiểm tra chi tiết hợp đồng AI giúp tôi' } },
+    sb,
+    { sendMessage: async (cid, msg) => sent.push(msg), aiCopilotFn, executePendingFn: executePendingZaloActions }
+  );
+  assert.equal(turn1.copilotIntent, 'ai_chat');
+  assert.equal(turn1.model, 'claude-opus-5');
+  assert.match(sent[0], /https:\/\/worktree\.nguyentronghuu\.com\/\?task=51111111-1111-4111-8111-111111111111/);
+  assert.doesNotMatch(sent[0], /worktree:\/\//);
+
+  // Retry with same message_id must deduplicate without calling LLM again
+  const prevCalls = capturedPayloads.length;
+  const dupTurn = await ZaloBotService.processIncomingMessage(
+    { message: { message_id: 'msg_ai_1', chat: { id: 'zalo_ai_owner_1' }, text: 'Bạn kiểm tra chi tiết hợp đồng AI giúp tôi' } },
+    sb,
+    { sendMessage: async (cid, msg) => sent.push(msg), aiCopilotFn, executePendingFn: executePendingZaloActions }
+  );
+  assert.equal(dupTurn.deduplicated, true);
+  assert.equal(capturedPayloads.length, prevCalls);
+
+  // Turn 2: Follow-up after simulated cold-start (clear in-memory Maps; load history from DB session!)
+  globalThis.__worktreeZaloSessions.clear();
+  globalThis.__worktreeZaloPending.clear();
+
+  const turn2 = await ZaloBotService.processIncomingMessage(
+    { message: { message_id: 'msg_ai_2', chat: { id: 'zalo_ai_owner_1' }, text: 'Gửi link tôi check' } },
+    sb,
+    { sendMessage: async (cid, msg) => sent.push(msg), aiCopilotFn, executePendingFn: executePendingZaloActions }
+  );
+  assert.equal(turn2.copilotIntent, 'ai_chat');
+  const turn2Messages = capturedPayloads[capturedPayloads.length - 1].messages;
+  assert.ok(turn2Messages.some(m => m.role === 'assistant' && m.content.includes('Ký hợp đồng đối tác AI')));
+  assert.match(sent[1], /https:\/\/worktree\.nguyentronghuu\.com\/\?task=51111111/);
+});
+
+test('Zalo AI Copilot: queues LLM write tool in persistent DB session and executes safely across cold starts', async () => {
+  const ZaloBotService = await loadZaloBotService();
+  const { runZaloAiCopilot, executePendingZaloActions } = require('../api/_zalo-copilot.js');
+
+  const ORG_A = '11111111-1111-4111-8111-111111111111';
+  const NODE_A = '31111111-1111-4111-8111-111111111111';
+  const USER_A = 'aaaa1111-1111-4111-8111-111111111111';
+  const EMP_A = '41111111-1111-4111-8111-111111111111';
+  const TASK_A = '51111111-1111-4111-8111-111111111111';
+
+  const sb = createMockZaloSupabase({
+    organizations: [{ id: ORG_A, name: 'NTH GROUP', slug: 'nth', timezone: 'Asia/Ho_Chi_Minh', status: 'active', root_node_id: NODE_A }],
+    profiles: [{ id: USER_A, display_name: 'Nguyễn Trọng Hữu' }],
+    employees: [{ id: EMP_A, organization_id: ORG_A, full_name: 'Nguyễn Trọng Hữu', home_node_id: NODE_A, employment_status: 'active', zalo_chat_id: 'zalo_ai_write_1' }],
+    organization_members: [{ id: '61111111-1111-4111-8111-111111111111', organization_id: ORG_A, user_id: USER_A, employee_id: EMP_A, role: 'owner', status: 'active' }],
+    organization_nodes: [{ id: NODE_A, organization_id: ORG_A, parent_id: null, type: 'company', name: 'NTH GROUP', capacity_hours_week: 40, archived_at: null }],
+    organization_node_closure: [{ organization_id: ORG_A, ancestor_id: NODE_A, descendant_id: NODE_A, depth: 0 }],
+    tasks: [{ id: TASK_A, organization_id: ORG_A, node_id: NODE_A, primary_assignee_id: EMP_A, collaborator_ids: [], title: 'Duyệt ngân sách Ads Q4', status: 'in_progress', priority: 'high', progress: 80, auto_progress: false, tags: [], archived_at: null }],
+    platform_ai_settings: [{
+      id: 'default',
+      provider: 'xpiki',
+      api_base_url: 'https://mock-ai.local/v1/chat/completions',
+      api_key: 'mock-db-ai-key',
+      model: 'claude-opus-5',
+      is_enabled: true
+    }]
+  });
+
+  const writeProposalFetch = async (_url, init) => {
+    const reqBody = JSON.parse(init.body);
+    if (reqBody.messages.some(m => m.role === 'tool')) {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: 'Mình chuẩn bị đánh dấu hoàn thành **Duyệt ngân sách Ads Q4**.'
+          }
+        }]
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{
+            id: 'call_done_1',
+            type: 'function',
+            function: {
+              name: 'worktree_set_task_status',
+              arguments: JSON.stringify({ task_ids: [TASK_A], status: 'done' })
+            }
+          }]
+        }
+      }]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  const sent = [];
+  const opts = {
+    sendMessage: async (_cid, msg) => sent.push(msg),
+    aiCopilotFn: args => runZaloAiCopilot({ ...args, fetchFn: writeProposalFetch, disableConfigCache: true }),
+    executePendingFn: executePendingZaloActions
+  };
+
+  const proposeRes = await ZaloBotService.processIncomingMessage(
+    { message: { message_id: 'w_1', chat: { id: 'zalo_ai_write_1' }, text: 'Xác nhận xong việc ngân sách Ads giúp anh nhé' } },
+    sb,
+    opts
+  );
+  assert.equal(proposeRes.requiresConfirmation, true);
+  assert.equal(sb.db.tasks[0].status, 'in_progress', 'Write must not execute before confirmation');
+  assert.ok(sb.db.zalo_copilot_sessions[0].pending_action, 'Pending action must persist in DB session');
+  assert.match(sent[0], /XÁC NHẬN/);
+
+  // Simulate serverless cold-start between user turns
+  globalThis.__worktreeZaloPending.clear();
+  globalThis.__worktreeZaloSessions.clear();
+
+  const confirmRes = await ZaloBotService.processIncomingMessage(
+    { message: { message_id: 'w_2', chat: { id: 'zalo_ai_write_1' }, text: 'OK' } },
+    sb,
+    opts
+  );
+  assert.equal(confirmRes.copilotAction, 'confirmed');
+  assert.equal(sb.db.tasks[0].status, 'done');
+  assert.equal(sb.db.tasks[0].progress, 100);
+  assert.equal(sb.db.zalo_copilot_sessions[0].pending_action, null);
+  assert.match(sent[1], /ĐÃ THỰC HIỆN/);
+  assert.match(sent[1], /https:\/\/worktree\.nguyentronghuu\.com\/\?task=51111111/);
+});
+
+test('Zalo AI Copilot: falls back gracefully to deterministic engine when AI is disabled', async () => {
+  const ZaloBotService = await loadZaloBotService();
+  const { runZaloAiCopilot } = require('../api/_zalo-copilot.js');
+
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const sb = createMockZaloSupabase({
+    organizations: [{ id: '11111111-1111-4111-8111-111111111111', name: 'Alpha Co', status: 'active' }],
+    employees: [{ id: '41111111-1111-4111-8111-111111111111', organization_id: '11111111-1111-4111-8111-111111111111', full_name: 'Lê Minh', home_node_id: '31111111-1111-4111-8111-111111111111', employment_status: 'active', zalo_chat_id: 'zalo_fallback_1' }],
+    organization_members: [{ id: '61111111-1111-4111-8111-111111111111', organization_id: '11111111-1111-4111-8111-111111111111', user_id: 'aaaa1111-1111-4111-8111-111111111111', employee_id: '41111111-1111-4111-8111-111111111111', role: 'member', status: 'active' }],
+    tasks: [{ id: '51111111-1111-4111-8111-111111111111', organization_id: '11111111-1111-4111-8111-111111111111', node_id: '31111111-1111-4111-8111-111111111111', primary_assignee_id: '41111111-1111-4111-8111-111111111111', title: 'Gọi khách VIP', status: 'in_progress', priority: 'urgent', due_date: yesterday, progress: 20 }],
+    platform_ai_settings: [{ id: 'default', is_enabled: false, api_key: 'x', model: 'claude-opus-5' }]
+  });
+
+  const sent = [];
+  const res = await ZaloBotService.processIncomingMessage(
+    { chat_id: 'zalo_fallback_1', text: 'Hôm nay tôi có việc nào gấp?' },
+    sb,
+    {
+      sendMessage: async (_cid, msg) => sent.push(msg),
+      aiCopilotFn: args => runZaloAiCopilot({ ...args, disableConfigCache: true })
+    }
+  );
+  assert.equal(res.copilotIntent, 'query_tasks');
+  assert.match(sent[0], /Gọi khách VIP/);
+  assert.match(sent[0], /https:\/\/worktree\.nguyentronghuu\.com\/\?task=51111111/);
 });

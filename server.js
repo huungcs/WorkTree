@@ -142,14 +142,19 @@ async function handleZaloEvent(event) {
   if (serviceSb && text) {
     try {
       const { ZaloBotService } = await import('./src/features/integrations/services/zalo-bot-service.js');
+      const { runZaloAiCopilot, executePendingZaloActions } = require('./api/_zalo-copilot.js');
       const empCtx = await ZaloBotService.resolveZaloEmployeeContext(serviceSb, chatId);
       if (empCtx) {
+        const messageId = event?.message?.message_id || event?.message_id || null;
         return await ZaloBotService.handleConversationalCopilot({
           chatId,
           text,
+          messageId,
           employeeCtx: empCtx,
           sb: serviceSb,
-          sendFn: sendZaloMessage
+          sendFn: sendZaloMessage,
+          aiCopilotFn: runZaloAiCopilot,
+          executePendingFn: executePendingZaloActions
         });
       }
     } catch (copilotErr) {

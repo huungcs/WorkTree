@@ -747,7 +747,7 @@ function isRetryableModelCapacityError(err) {
   return /capacity|rate limit|too many requests|overload|回退分组均不可用/i.test(msg);
 }
 
-async function callUpstreamAiWithFallback({ fetchImpl, cfg, preferredModel, messages, tools, timeoutMs }) {
+async function callUpstreamAiWithFallback({ fetchImpl, cfg, preferredModel, messages, tools, timeoutMs, maxTokens = 1800 }) {
   const primary = String(preferredModel || cfg.model).trim();
   const fallback = String(cfg.fallbackModel || '').trim();
   try {
@@ -757,7 +757,8 @@ async function callUpstreamAiWithFallback({ fetchImpl, cfg, preferredModel, mess
       model: primary,
       messages,
       tools,
-      timeoutMs
+      timeoutMs,
+      maxTokens
     });
     return { completion, usedModel: primary, fallbackFrom: null };
   } catch (err) {
@@ -771,13 +772,14 @@ async function callUpstreamAiWithFallback({ fetchImpl, cfg, preferredModel, mess
       model: fallback,
       messages,
       tools,
-      timeoutMs
+      timeoutMs,
+      maxTokens
     });
     return { completion, usedModel: fallback, fallbackFrom: primary };
   }
 }
 
-async function callUpstreamAi({ fetchImpl, cfg, model = cfg.model, messages, tools, timeoutMs }) {
+async function callUpstreamAi({ fetchImpl, cfg, model = cfg.model, messages, tools, timeoutMs, maxTokens = 1800 }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -785,7 +787,7 @@ async function callUpstreamAi({ fetchImpl, cfg, model = cfg.model, messages, too
       model,
       messages,
       ...(tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
-      max_tokens: 1800,
+      max_tokens: maxTokens,
       temperature: 0.2
     };
 
@@ -838,6 +840,194 @@ function safeParseToolArgs(rawArgs) {
   } catch {
     return {};
   }
+}
+
+/**
+ * Shared multi-round AI tool execution loop used by both /api/ai (web) and Zalo AI Copilot.
+ * Read-only tools execute immediately within the caller's grant/scope; write tools are queued
+ * into `pendingActions` for explicit 2-step user confirmation before mutation.
+ */
+async function runAiToolLoop({
+  supabase,
+  grant,
+  cfg,
+  modelMessages,
+  availableToolMap,
+  openAiTools,
+  mcpCache,
+  initialObservations = [],
+  fetchImpl = globalThis.fetch,
+  totalBudgetMs = (process.env.VERCEL ? 13200 : 35000),
+  defaultRoundTimeout = (cfg.timeoutMs || (process.env.VERCEL ? 11500 : 25000)),
+  maxTokens = 1800,
+  fallbackOnTimeout = true,
+  timeoutReplyBuilder = buildDeterministicTimeoutReply
+}) {
+  const executedTools = [];
+  const toolObservations = [...initialObservations];
+  const pendingActions = [];
+  const toolResultCache = new Map();
+  const deadlineAt = Date.now() + totalBudgetMs;
+
+  let finalReply = '';
+  let usage = null;
+  let activeModel = cfg.model;
+  let fallbackFrom = null;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    const remainingMs = deadlineAt - Date.now();
+    if (round > 0 && remainingMs < 2600) {
+      finalReply = timeoutReplyBuilder(toolObservations);
+      break;
+    }
+
+    const roundTimeoutMs = Math.min(defaultRoundTimeout, Math.max(3000, remainingMs - 400));
+    let roundResult;
+    try {
+      roundResult = await callUpstreamAiWithFallback({
+        fetchImpl,
+        cfg,
+        preferredModel: activeModel,
+        messages: modelMessages,
+        tools: openAiTools,
+        timeoutMs: roundTimeoutMs,
+        maxTokens
+      });
+    } catch (upErr) {
+      if (upErr.status === 504 && toolObservations.length > 0 && fallbackOnTimeout !== false) {
+        finalReply = timeoutReplyBuilder(toolObservations);
+        break;
+      }
+      throw upErr;
+    }
+
+    const completion = roundResult.completion;
+    if (roundResult.fallbackFrom && !fallbackFrom) {
+      fallbackFrom = roundResult.fallbackFrom;
+    }
+    activeModel = roundResult.usedModel || activeModel;
+
+    usage = completion.usage || usage;
+    const choice = completion.choices?.[0];
+    const msg = choice?.message || {};
+    const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+
+    if (toolCalls.length === 0) {
+      finalReply = String(msg.content || '').trim();
+      break;
+    }
+
+    modelMessages.push({
+      role: 'assistant',
+      content: msg.content ?? null,
+      tool_calls: toolCalls
+    });
+
+    // Deduplicate & execute all read-only tool calls in parallel using shared mcpCache
+    const parsedCalls = toolCalls.map(call => ({
+      call,
+      toolName: String(call?.function?.name || '').trim(),
+      toolArgs: safeParseToolArgs(call?.function?.arguments)
+    }));
+
+    const readPromises = new Map();
+    for (const item of parsedCalls) {
+      if (!availableToolMap.has(item.toolName)) continue;
+      if (!isReadOnlyToolCall(item.toolName, item.toolArgs)) continue;
+      const cacheKey = stableArgsKey(item.toolName, item.toolArgs);
+      if (!readPromises.has(cacheKey)) {
+        if (toolResultCache.has(cacheKey)) {
+          readPromises.set(cacheKey, Promise.resolve({ ok: true, out: toolResultCache.get(cacheKey), fromCache: true }));
+        } else {
+          readPromises.set(cacheKey, (async () => {
+            try {
+              const out = await mcp.executeMcpTool(supabase, grant, item.toolName, item.toolArgs, mcpCache);
+              toolResultCache.set(cacheKey, out);
+              return { ok: true, out, fromCache: false };
+            } catch (toolErr) {
+              return { ok: false, error: toolErr };
+            }
+          })());
+        }
+      }
+    }
+
+    const settledReads = new Map();
+    await Promise.all(
+      [...readPromises.entries()].map(async ([k, p]) => {
+        settledReads.set(k, await p);
+      })
+    );
+
+    for (const item of parsedCalls) {
+      const { call, toolName, toolArgs } = item;
+
+      if (!availableToolMap.has(toolName)) {
+        modelMessages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: JSON.stringify({ error: `Tool "${toolName}" không được cấp phép cho vai trò "${grant.role}".` })
+        });
+        continue;
+      }
+
+      if (isReadOnlyToolCall(toolName, toolArgs)) {
+        const cacheKey = stableArgsKey(toolName, toolArgs);
+        const readRes = settledReads.get(cacheKey);
+        if (readRes?.ok) {
+          executedTools.push({ name: toolName, status: 'success' });
+          if (readRes.out?.structuredContent) {
+            toolObservations.push({ toolName, data: readRes.out.structuredContent });
+          }
+          modelMessages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify(compactToolPayloadForModel(readRes.out?.structuredContent) || { ok: true })
+          });
+        } else {
+          executedTools.push({ name: toolName, status: 'error' });
+          modelMessages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify({ error: readRes?.error?.message || 'Lỗi truy vấn dữ liệu.' })
+          });
+        }
+      } else {
+        pendingActions.push({
+          id: call.id || `act_${pendingActions.length + 1}`,
+          toolName,
+          title: TOOL_TITLES_VI[toolName] || toolName,
+          summary: summarizePendingAction(toolName, toolArgs),
+          destructive: toolName === 'worktree_archive_task',
+          arguments: toolArgs
+        });
+        modelMessages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: JSON.stringify({
+            queued_for_confirmation: true,
+            message: 'Thao tác ghi đã được đưa vào thẻ chờ người dùng xác nhận. Hãy tóm tắt rõ đề xuất này để người dùng bấm xác nhận.'
+          })
+        });
+      }
+    }
+  }
+
+  if (!finalReply) {
+    finalReply = pendingActions.length > 0
+      ? 'Mình đã chuẩn bị các đề xuất thao tác bên dưới dựa trên dữ liệu hiện tại. Bạn kiểm tra lại và bấm **Xác nhận thực hiện** nếu đồng ý nhé.'
+      : timeoutReplyBuilder(toolObservations);
+  }
+
+  return {
+    finalReply,
+    usage,
+    activeModel,
+    fallbackFrom,
+    executedTools,
+    toolObservations,
+    pendingActions
+  };
 }
 
 function createAiHandler(overrides = {}) {
@@ -990,165 +1180,34 @@ function createAiHandler(overrides = {}) {
         ...conversation
       ];
 
-      const executedTools = [];
-      const toolObservations = [];
-      if (snapshot.reportSeed) toolObservations.push(snapshot.reportSeed);
-      if (snapshot.nodeSeed) toolObservations.push(snapshot.nodeSeed);
+      const initialObservations = [];
+      if (snapshot.reportSeed) initialObservations.push(snapshot.reportSeed);
+      if (snapshot.nodeSeed) initialObservations.push(snapshot.nodeSeed);
 
-      const pendingActions = [];
-      const toolResultCache = new Map();
-      const totalBudgetMs = overrides.totalBudgetMs || (process.env.VERCEL ? 13200 : 35000);
-      const defaultRoundTimeout = overrides.timeoutMs || cfg.timeoutMs || (process.env.VERCEL ? 11500 : 25000);
-      const deadlineAt = Date.now() + totalBudgetMs;
-
-      let finalReply = '';
-      let usage = null;
-      let activeModel = cfg.model;
-      let fallbackFrom = null;
-
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-        const remainingMs = deadlineAt - Date.now();
-        if (round > 0 && remainingMs < 2600) {
-          finalReply = buildDeterministicTimeoutReply(toolObservations);
-          break;
-        }
-
-        const roundTimeoutMs = Math.min(defaultRoundTimeout, Math.max(3000, remainingMs - 400));
-        let roundResult;
-        try {
-          roundResult = await callUpstreamAiWithFallback({
-            fetchImpl,
-            cfg,
-            preferredModel: activeModel,
-            messages: modelMessages,
-            tools: openAiTools,
-            timeoutMs: roundTimeoutMs
-          });
-        } catch (upErr) {
-          if (upErr.status === 504 && toolObservations.length > 0 && overrides.fallbackOnTimeout !== false) {
-            finalReply = buildDeterministicTimeoutReply(toolObservations);
-            break;
-          }
-          throw upErr;
-        }
-
-        const completion = roundResult.completion;
-        if (roundResult.fallbackFrom && !fallbackFrom) {
-          fallbackFrom = roundResult.fallbackFrom;
-        }
-        activeModel = roundResult.usedModel || activeModel;
-
-        usage = completion.usage || usage;
-        const choice = completion.choices?.[0];
-        const msg = choice?.message || {};
-        const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
-
-        if (toolCalls.length === 0) {
-          finalReply = String(msg.content || '').trim();
-          break;
-        }
-
-        modelMessages.push({
-          role: 'assistant',
-          content: msg.content ?? null,
-          tool_calls: toolCalls
-        });
-
-        // Deduplicate & execute all read-only tool calls in parallel using shared mcpCache
-        const parsedCalls = toolCalls.map(call => ({
-          call,
-          toolName: String(call?.function?.name || '').trim(),
-          toolArgs: safeParseToolArgs(call?.function?.arguments)
-        }));
-
-        const readPromises = new Map();
-        for (const item of parsedCalls) {
-          if (!availableToolMap.has(item.toolName)) continue;
-          if (!isReadOnlyToolCall(item.toolName, item.toolArgs)) continue;
-          const cacheKey = stableArgsKey(item.toolName, item.toolArgs);
-          if (!readPromises.has(cacheKey)) {
-            if (toolResultCache.has(cacheKey)) {
-              readPromises.set(cacheKey, Promise.resolve({ ok: true, out: toolResultCache.get(cacheKey), fromCache: true }));
-            } else {
-              readPromises.set(cacheKey, (async () => {
-                try {
-                  const out = await mcp.executeMcpTool(supabase, grant, item.toolName, item.toolArgs, mcpCache);
-                  toolResultCache.set(cacheKey, out);
-                  return { ok: true, out, fromCache: false };
-                } catch (toolErr) {
-                  return { ok: false, error: toolErr };
-                }
-              })());
-            }
-          }
-        }
-
-        const settledReads = new Map();
-        await Promise.all(
-          [...readPromises.entries()].map(async ([k, p]) => {
-            settledReads.set(k, await p);
-          })
-        );
-
-        for (const item of parsedCalls) {
-          const { call, toolName, toolArgs } = item;
-
-          if (!availableToolMap.has(toolName)) {
-            modelMessages.push({
-              role: 'tool',
-              tool_call_id: call.id,
-              content: JSON.stringify({ error: `Tool "${toolName}" không được cấp phép cho vai trò "${grant.role}".` })
-            });
-            continue;
-          }
-
-          if (isReadOnlyToolCall(toolName, toolArgs)) {
-            const cacheKey = stableArgsKey(toolName, toolArgs);
-            const readRes = settledReads.get(cacheKey);
-            if (readRes?.ok) {
-              executedTools.push({ name: toolName, status: 'success' });
-              if (readRes.out?.structuredContent) {
-                toolObservations.push({ toolName, data: readRes.out.structuredContent });
-              }
-              modelMessages.push({
-                role: 'tool',
-                tool_call_id: call.id,
-                content: JSON.stringify(compactToolPayloadForModel(readRes.out?.structuredContent) || { ok: true })
-              });
-            } else {
-              executedTools.push({ name: toolName, status: 'error' });
-              modelMessages.push({
-                role: 'tool',
-                tool_call_id: call.id,
-                content: JSON.stringify({ error: readRes?.error?.message || 'Lỗi truy vấn dữ liệu.' })
-              });
-            }
-          } else {
-            pendingActions.push({
-              id: call.id || `act_${pendingActions.length + 1}`,
-              toolName,
-              title: TOOL_TITLES_VI[toolName] || toolName,
-              summary: summarizePendingAction(toolName, toolArgs),
-              destructive: toolName === 'worktree_archive_task',
-              arguments: toolArgs
-            });
-            modelMessages.push({
-              role: 'tool',
-              tool_call_id: call.id,
-              content: JSON.stringify({
-                queued_for_confirmation: true,
-                message: 'Thao tác ghi đã được đưa vào thẻ chờ người dùng xác nhận. Hãy tóm tắt rõ đề xuất này để người dùng bấm xác nhận.'
-              })
-            });
-          }
-        }
-      }
-
-      if (!finalReply) {
-        finalReply = pendingActions.length > 0
-          ? 'Mình đã chuẩn bị các đề xuất thao tác bên dưới dựa trên dữ liệu hiện tại. Bạn kiểm tra lại và bấm **Xác nhận thực hiện** nếu đồng ý nhé.'
-          : buildDeterministicTimeoutReply(toolObservations);
-      }
+      const {
+        finalReply,
+        usage,
+        activeModel,
+        fallbackFrom,
+        executedTools,
+        toolObservations,
+        pendingActions
+      } = await runAiToolLoop({
+        supabase,
+        grant,
+        cfg,
+        modelMessages,
+        availableToolMap,
+        openAiTools,
+        mcpCache,
+        initialObservations,
+        fetchImpl,
+        totalBudgetMs: overrides.totalBudgetMs || (process.env.VERCEL ? 13200 : 35000),
+        defaultRoundTimeout: overrides.timeoutMs || cfg.timeoutMs || (process.env.VERCEL ? 11500 : 25000),
+        maxTokens: 1800,
+        fallbackOnTimeout: overrides.fallbackOnTimeout !== false,
+        timeoutReplyBuilder: buildDeterministicTimeoutReply
+      });
 
       const quickLinks = extractQuickLinks(toolObservations);
 
@@ -1179,5 +1238,11 @@ defaultAiHandler.createAiHandler = createAiHandler;
 defaultAiHandler.loadAiConfig = loadAiConfig;
 defaultAiHandler.resolveAiConfig = resolveAiConfig;
 defaultAiHandler.invalidateAiConfigCache = invalidateAiConfigCache;
+defaultAiHandler.buildScopedWorkspaceSnapshot = buildScopedWorkspaceSnapshot;
+defaultAiHandler.toOpenAiTools = toOpenAiTools;
+defaultAiHandler.runAiToolLoop = runAiToolLoop;
+defaultAiHandler.sanitizeMessages = sanitizeMessages;
+defaultAiHandler.buildDeterministicTimeoutReply = buildDeterministicTimeoutReply;
+defaultAiHandler.TOOL_TITLES_VI = TOOL_TITLES_VI;
 
 module.exports = defaultAiHandler;

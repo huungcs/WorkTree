@@ -607,6 +607,7 @@ test('AI engine deduplicates/parallelizes read tools on shared cache and recover
 test('AI UI feature and tracked code adhere to AGENTS.md architecture and zero-secret rules', () => {
   const aiFiles = [
     path.join(__dirname, '..', 'api', 'ai.js'),
+    path.join(__dirname, '..', 'api', '_zalo-copilot.js'),
     path.join(__dirname, '..', 'api', 'platform-admin.js'),
     path.join(__dirname, '..', 'api', 'zalo-webhook.js'),
     path.join(__dirname, '..', 'scripts', 'sync-ai-config-to-db.js'),

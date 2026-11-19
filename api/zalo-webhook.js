@@ -7,6 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createClient } = require('@supabase/supabase-js');
+const { runZaloAiCopilot, executePendingZaloActions } = require('./_zalo-copilot.js');
 
 const SUPABASE_CONFIG = {
   url: process.env.SUPABASE_URL || 'https://taupjuaficdzdgbmxmbe.supabase.co',
@@ -44,14 +45,18 @@ const BOT_TOKENS = [
 
 async function sendZaloMessage(chatId, text) {
   let lastError = null;
+  const cleanText = String(text || '').trim().slice(0, 3800);
+  if (!cleanText) return { ok: false, error: 'Empty message' };
+
   for (const token of BOT_TOKENS) {
     try {
-      const res = await fetch(`https://bot-api.zaloplatforms.com/bot${token}/sendMessage`, {
+      const endpoint = `https://bot-api.zaloplatforms.com/bot${token}/sendMessage`;
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: String(chatId),
-          text: text.trim(),
+          text: cleanText,
           parse_mode: 'markdown'
         })
       });
@@ -59,7 +64,25 @@ async function sendZaloMessage(chatId, text) {
       if (data && data.ok) {
         return data;
       }
-      lastError = data;
+
+      // Retry without parse_mode in case Markdown punctuation in task titles breaks Zalo parser
+      if (data && data.ok === false) {
+        const plainRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: String(chatId),
+            text: cleanText
+          })
+        });
+        const plainData = await plainRes.json().catch(() => null);
+        if (plainData && plainData.ok) {
+          return plainData;
+        }
+        lastError = plainData || data;
+      } else {
+        lastError = data;
+      }
     } catch (err) {
       lastError = { ok: false, error: err.message };
     }
@@ -190,8 +213,9 @@ async function handleZaloEvent(event) {
     return { handled: true, isCardNotice: true, sendRes };
   }
 
-  // 3. Two-way Conversational Copilot if sender is already linked & service client available
+  // 3. Two-way Conversational AI Copilot if sender is already linked & service client available
   const text = String(event?.message?.text || event?.text || event?.message?.body || '').trim();
+  const messageId = event?.message?.message_id || event?.message_id || null;
   const serviceSb = getServiceSupabase();
   if (serviceSb && text) {
     try {
@@ -201,9 +225,12 @@ async function handleZaloEvent(event) {
         return await ZaloBotService.handleConversationalCopilot({
           chatId,
           text,
+          messageId,
           employeeCtx: empCtx,
           sb: serviceSb,
-          sendFn: sendZaloMessage
+          sendFn: sendZaloMessage,
+          aiCopilotFn: runZaloAiCopilot,
+          executePendingFn: executePendingZaloActions
         });
       }
     } catch (copilotErr) {

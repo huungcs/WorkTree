@@ -17,7 +17,118 @@ export const ZALO_BOT_CONFIG = {
 };
 
 const pendingZaloConfirmations = globalThis.__worktreeZaloPending || (globalThis.__worktreeZaloPending = new Map());
+const zaloSessionCache = globalThis.__worktreeZaloSessions || (globalThis.__worktreeZaloSessions = new Map());
 const ZALO_CONFIRM_TTL_MS = 10 * 60 * 1000;
+const ZALO_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const ZALO_MAX_HISTORY_ITEMS = 10;
+const ZALO_APP_BASE_URL = 'https://worktree.nguyentronghuu.com';
+
+async function saveZaloSessionRecord(sb, chatId, employeeCtx, record) {
+  const key = String(chatId);
+  const nowIso = new Date().toISOString();
+  zaloSessionCache.set(key, {
+    organizationId: employeeCtx.organizationId,
+    employeeId: employeeCtx.employee.id,
+    lastMessageId: record.lastMessageId ?? null,
+    recentMessages: Array.isArray(record.recentMessages) ? record.recentMessages.slice(-ZALO_MAX_HISTORY_ITEMS) : [],
+    updatedAtMs: Date.now()
+  });
+
+  if (!sb || typeof sb.from !== 'function') return;
+  try {
+    const table = sb.from('zalo_copilot_sessions');
+    const row = {
+      chat_id: key,
+      organization_id: employeeCtx.organizationId,
+      employee_id: employeeCtx.employee.id,
+      last_message_id: record.lastMessageId ?? null,
+      recent_messages: Array.isArray(record.recentMessages) ? record.recentMessages.slice(-ZALO_MAX_HISTORY_ITEMS) : [],
+      pending_action: record.pendingAction ?? null,
+      pending_expires_at: record.pendingExpiresAt ?? null,
+      updated_at: nowIso
+    };
+    if (typeof table?.upsert === 'function') {
+      await table.upsert(row, { onConflict: 'chat_id' });
+    } else if (typeof table?.select === 'function') {
+      const { data: existing } = await table.select('chat_id').eq('chat_id', key).maybeSingle();
+      if (existing) {
+        await sb.from('zalo_copilot_sessions').update(row).eq('chat_id', key);
+      } else {
+        await sb.from('zalo_copilot_sessions').insert(row);
+      }
+    }
+  } catch {
+    // Graceful fallback when running against mock DBs without zalo_copilot_sessions
+  }
+}
+
+async function loadZaloSessionState(sb, chatId, employeeCtx) {
+  const key = String(chatId);
+  const now = Date.now();
+  const state = {
+    lastMessageId: null,
+    recentMessages: [],
+    pending: null
+  };
+
+  const memPending = pendingZaloConfirmations.get(key);
+  if (memPending && memPending.organizationId === employeeCtx.organizationId && memPending.employeeId === employeeCtx.employee.id) {
+    if (memPending.expiresAt >= now) {
+      state.pending = memPending;
+    } else {
+      pendingZaloConfirmations.delete(key);
+    }
+  }
+
+  const memSession = zaloSessionCache.get(key);
+  if (
+    memSession &&
+    memSession.organizationId === employeeCtx.organizationId &&
+    memSession.employeeId === employeeCtx.employee.id &&
+    now - memSession.updatedAtMs <= ZALO_SESSION_TTL_MS
+  ) {
+    state.lastMessageId = memSession.lastMessageId || null;
+    state.recentMessages = Array.isArray(memSession.recentMessages) ? [...memSession.recentMessages] : [];
+  }
+
+  if (sb && typeof sb.from === 'function') {
+    try {
+      const { data: row, error } = await sb
+        .from('zalo_copilot_sessions')
+        .select('chat_id, organization_id, employee_id, last_message_id, recent_messages, pending_action, pending_expires_at, updated_at')
+        .eq('chat_id', key)
+        .maybeSingle();
+
+      if (!error && row && row.organization_id === employeeCtx.organizationId && row.employee_id === employeeCtx.employee.id) {
+        const updatedMs = row.updated_at ? Date.parse(row.updated_at) : 0;
+        if (!state.lastMessageId && row.last_message_id) {
+          state.lastMessageId = row.last_message_id;
+        }
+        if (updatedMs && now - updatedMs <= ZALO_SESSION_TTL_MS && Array.isArray(row.recent_messages) && row.recent_messages.length > 0) {
+          state.recentMessages = row.recent_messages
+            .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+            .slice(-ZALO_MAX_HISTORY_ITEMS);
+        }
+        if (!state.pending && row.pending_action && Array.isArray(row.pending_action.actions) && row.pending_action.actions.length > 0) {
+          const expMs = row.pending_expires_at ? Date.parse(row.pending_expires_at) : 0;
+          if (expMs >= now) {
+            state.pending = {
+              organizationId: row.organization_id,
+              employeeId: row.employee_id,
+              intent: row.pending_action.intent || 'ai_pending_actions',
+              expiresAt: expMs,
+              actions: row.pending_action.actions
+            };
+          }
+        }
+      }
+    } catch {
+      // Non-fatal in mock or offline environments
+    }
+  }
+
+  return state;
+}
 
 function foldVi(str) {
   return String(str || '')
@@ -154,19 +265,31 @@ export const ZaloBotService = {
 
     // Direct fallback (e.g. Node server / CLI)
     const url = `${ZALO_BOT_CONFIG.API_BASE}/bot${token}/sendMessage`;
+    const bodyBase = {
+      chat_id: String(chatId),
+      text: text.trim()
+    };
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        chat_id: String(chatId),
-        text: text.trim(),
+        ...bodyBase,
         parse_mode: options.parse_mode || 'markdown'
       })
     });
 
     const data = await response.json();
+    if (data && data.ok === false && (options.parse_mode || 'markdown') === 'markdown') {
+      const plainRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyBase)
+      });
+      const plainData = await plainRes.json().catch(() => null);
+      if (plainData) return plainData;
+    }
     return data;
   },
 
@@ -397,13 +520,18 @@ export const ZaloBotService = {
         .select('id, organization_id, user_id, employee_id, role, status')
         .eq('organization_id', emp.organization_id)
         .eq('employee_id', emp.id)
-        .eq('status', 'active')
-        .limit(1)
     ]);
 
     if (!org || (org.status && org.status !== 'active')) return null;
 
-    const membership = Array.isArray(memRows) ? (memRows[0] || null) : memRows;
+    const allMemRows = Array.isArray(memRows) ? memRows : (memRows ? [memRows] : []);
+    const activeMembership = allMemRows.find(m => m && m.status === 'active') || null;
+    if (allMemRows.length > 0 && !activeMembership) {
+      // Member exists but is suspended / inactive -> deny Copilot access
+      return null;
+    }
+
+    const membership = activeMembership;
     let role = membership?.role || 'member';
     let scopeNodeIds = emp.home_node_id ? [emp.home_node_id] : [];
 
@@ -431,41 +559,140 @@ export const ZaloBotService = {
 
   /**
    * Two-way Conversational Copilot for linked employees via Zalo Bot.
-   * Enforces tenant/role/scope isolation and requires confirmation before DB writes.
+   * Connects real AI (via injected server engine) when configured, enforces tenant/role/scope
+   * isolation, persists short-term session + pending confirmation state, and degrades cleanly.
    */
-  async handleConversationalCopilot({ chatId, text, employeeCtx, sb, sendFn = null }) {
+  async handleConversationalCopilot({
+    chatId,
+    text,
+    messageId = null,
+    employeeCtx,
+    sb,
+    sendFn = null,
+    aiCopilotFn = null,
+    executePendingFn = null
+  }) {
     const key = String(chatId);
     const send = typeof sendFn === 'function' ? sendFn : (cid, msg) => this.sendMessage(cid, msg);
     const { organizationId, organization, employee, role, userId, scopeNodeIds } = employeeCtx;
     const folded = foldVi(text);
     const today = getTodayIsoVn();
 
-    // 1. Check pending confirmation flow first
-    const pending = pendingZaloConfirmations.get(key);
-    if (pending && pending.expiresAt < Date.now()) {
-      pendingZaloConfirmations.delete(key);
+    const sessionState = await loadZaloSessionState(sb, key, employeeCtx);
+    const cleanMsgId = messageId ? String(messageId) : null;
+    if (cleanMsgId && sessionState.lastMessageId === cleanMsgId) {
+      return { handled: true, deduplicated: true };
     }
 
+    const baseHistory = sessionState.recentMessages || [];
+    const serializePending = (pendingObj) => (
+      pendingObj && Array.isArray(pendingObj.actions) && pendingObj.actions.length > 0
+        ? {
+            pendingAction: { intent: pendingObj.intent || 'ai_pending_actions', actions: pendingObj.actions },
+            pendingExpiresAt: new Date(pendingObj.expiresAt).toISOString()
+          }
+        : { pendingAction: null, pendingExpiresAt: null }
+    );
+
+    const persistTurn = async (assistantReply, nextPendingObj = null) => {
+      const nextHistory = [
+        ...baseHistory,
+        { role: 'user', content: String(text || '').trim() },
+        ...(assistantReply ? [{ role: 'assistant', content: String(assistantReply).trim() }] : [])
+      ].slice(-ZALO_MAX_HISTORY_ITEMS);
+
+      await saveZaloSessionRecord(sb, key, employeeCtx, {
+        lastMessageId: cleanMsgId || sessionState.lastMessageId || null,
+        recentMessages: nextHistory,
+        ...serializePending(nextPendingObj)
+      });
+    };
+
+    // 1. Check pending 2-step confirmation flow first (memory + persistent DB session)
+    const pending = sessionState.pending;
     if (pending && pending.expiresAt >= Date.now()) {
       if (/^(ok|oke|xac nhan|dong y|chot|yes|y|co|duyet)$/.test(folded)) {
         pendingZaloConfirmations.delete(key);
         try {
-          const execResult = await pending.execute();
+          let execResult;
+          if (typeof pending.execute === 'function') {
+            execResult = await pending.execute();
+          } else if (Array.isArray(pending.actions) && pending.actions.length > 0 && typeof executePendingFn === 'function') {
+            execResult = await executePendingFn({ sb, employeeCtx, actions: pending.actions });
+          } else {
+            throw new Error('Phiên xác nhận không còn hợp lệ hoặc máy chủ thiếu trình thực thi.');
+          }
+          await persistTurn(execResult.reply, null);
           await send(chatId, execResult.reply);
           return { handled: true, copilotAction: 'confirmed', intent: pending.intent, ...execResult.meta };
         } catch (err) {
-          await send(chatId, `**❌ KHÔNG THỂ THỰC HIỆN**\n${err.message || 'Đã xảy ra lỗi khi lưu dữ liệu.'}`);
+          const errMsg = `**❌ KHÔNG THỂ THỰC HIỆN**\n${err.message || 'Đã xảy ra lỗi khi lưu dữ liệu.'}`;
+          await persistTurn(errMsg, null);
+          await send(chatId, errMsg);
           return { handled: true, copilotAction: 'error', error: err.message };
         }
       }
       if (/^(huy|khong|bo qua|cancel|no|thoi)$/.test(folded)) {
         pendingZaloConfirmations.delete(key);
-        await send(chatId, '🚫 Đã hủy thao tác chờ xác nhận. Bạn cần hỗ trợ gì khác cứ nhắn nhé!');
+        const cancelMsg = '🚫 Đã hủy thao tác chờ xác nhận. Bạn cần hỗ trợ gì khác cứ nhắn nhé!';
+        await persistTurn(cancelMsg, null);
+        await send(chatId, cancelMsg);
         return { handled: true, copilotAction: 'cancelled', intent: pending.intent };
+      }
+      // User moved on to a different request without confirming
+      pendingZaloConfirmations.delete(key);
+    }
+
+    if (cleanMsgId) {
+      await saveZaloSessionRecord(sb, key, employeeCtx, {
+        lastMessageId: cleanMsgId,
+        recentMessages: baseHistory,
+        pendingAction: null,
+        pendingExpiresAt: null
+      });
+    }
+
+    // 2. Real LLM AI Copilot (when server engine is supplied & configured in platform_ai_settings)
+    if (typeof aiCopilotFn === 'function') {
+      try {
+        const aiResult = await aiCopilotFn({
+          chatId: key,
+          text,
+          history: baseHistory,
+          employeeCtx,
+          sb
+        });
+        if (aiResult && !aiResult.fallbackNeeded && aiResult.reply) {
+          let pendingObj = null;
+          if (Array.isArray(aiResult.pendingActions) && aiResult.pendingActions.length > 0) {
+            pendingObj = {
+              organizationId,
+              employeeId: employee.id,
+              intent: 'ai_pending_actions',
+              expiresAt: Date.now() + ZALO_CONFIRM_TTL_MS,
+              actions: aiResult.pendingActions
+            };
+            pendingZaloConfirmations.set(key, pendingObj);
+          }
+          await persistTurn(aiResult.reply, pendingObj);
+          await send(chatId, aiResult.reply);
+          return {
+            handled: true,
+            copilotIntent: 'ai_chat',
+            model: aiResult.model || null,
+            configuredModel: aiResult.configuredModel || null,
+            fallbackFrom: aiResult.fallbackFrom || null,
+            executedTools: aiResult.executedTools || [],
+            requiresConfirmation: Boolean(pendingObj),
+            pendingActions: aiResult.pendingActions || []
+          };
+        }
+      } catch (aiErr) {
+        console.warn('[ZaloBot] AI copilot error, falling back to deterministic engine:', aiErr.message);
       }
     }
 
-    // Load scoped readable nodes & tasks within the employee's organization ONLY
+    // 3. Deterministic fallback engine (offline unit tests or AI temporarily disabled/unavailable)
     const [{ data: orgNodes = [] }, { data: orgClosures = [] }, { data: rawTasks = [] }] = await Promise.all([
       sb.from('organization_nodes')
         .select('id, organization_id, parent_id, type, name')
@@ -530,6 +757,7 @@ export const ZaloBotService = {
           'Hiện tại bạn không có công việc nào đang quá hạn hoặc khẩn cấp cần xử lý gấp.',
           `Tổng công việc đang mở trong phạm vi: **${openTasks.length}**.`
         ].join('\n');
+        await persistTurn(msg, null);
         await send(chatId, msg);
         return { handled: true, copilotIntent: 'query_tasks', tasksCount: 0 };
       }
@@ -538,7 +766,7 @@ export const ZaloBotService = {
         const isLate = Boolean(t.due_date && t.due_date < today);
         const dueStr = t.due_date ? (isLate ? `⚠️ Quá hạn (${t.due_date})` : `📅 Hạn ${t.due_date}`) : 'Chưa đặt hạn';
         const priStr = t.priority === 'urgent' ? '🔴 Khẩn cấp' : t.priority === 'high' ? '🟠 Cao' : '🔵 Bình thường';
-        return `${idx + 1}. **${t.title}**\n   ${priStr} · ${dueStr} · Tiến độ ${t.progress || 0}%`;
+        return `${idx + 1}. **${t.title}**\n   ${priStr} · ${dueStr} · Tiến độ ${t.progress || 0}%\n   🔗 ${ZALO_APP_BASE_URL}/?task=${t.id}`;
       });
 
       const msg = [
@@ -547,8 +775,9 @@ export const ZaloBotService = {
         '━━━━━━━━━━━━━━━━━━━━━━━━━',
         ...lines,
         '━━━━━━━━━━━━━━━━━━━━━━━━━',
-        '💡 *Nhắn "Báo xong [tên việc]" để cập nhật nhanh, hoặc mở WorkTree X xem chi tiết.*'
+        '💡 *Nhắn "Báo xong [tên việc]" để cập nhật nhanh, hoặc bấm link trên để mở chi tiết.*'
       ].join('\n');
+      await persistTurn(msg, null);
       await send(chatId, msg);
       return { handled: true, copilotIntent: 'query_tasks', tasksCount: listToShow.length };
     }
@@ -564,13 +793,17 @@ export const ZaloBotService = {
         .sort((a, b) => b.score - a.score);
 
       if (candidates.length === 0) {
-        await send(chatId, `🤔 Mình chưa tìm thấy đầu việc đang mở nào khớp với "**${phrase || text}**" trong phạm vi của bạn.\nNhắn *"Hôm nay tôi có việc nào?"* để xem chính xác tên công việc nhé.`);
+        const notFoundMsg = `🤔 Mình chưa tìm thấy đầu việc đang mở nào khớp với "**${phrase || text}**" trong phạm vi của bạn.\nNhắn *"Hôm nay tôi có việc nào?"* để xem chính xác tên công việc nhé.`;
+        await persistTurn(notFoundMsg, null);
+        await send(chatId, notFoundMsg);
         return { handled: true, copilotIntent: 'propose_complete', requiresConfirmation: false, matched: false };
       }
 
       const targetTask = candidates[0].task;
       const nowIso = new Date().toISOString();
       pendingZaloConfirmations.set(key, {
+        organizationId,
+        employeeId: employee.id,
         intent: 'complete_task',
         expiresAt: Date.now() + ZALO_CONFIRM_TTL_MS,
         execute: async () => {
@@ -615,6 +848,7 @@ export const ZaloBotService = {
         '━━━━━━━━━━━━━━━━━━━━━━━━━',
         '👉 Nhắn **OK** hoặc **XÁC NHẬN** để lưu vào hệ thống *(hoặc nhắn **HỦY** để bỏ qua)*.'
       ].join('\n');
+      await persistTurn(previewMsg, null);
       await send(chatId, previewMsg);
       return { handled: true, copilotIntent: 'propose_complete', requiresConfirmation: true, taskId: targetTask.id, taskTitle: targetTask.title };
     }
@@ -624,7 +858,9 @@ export const ZaloBotService = {
       || text.trim().match(/^(?:nhắc|giao|tạo việc(?:\s+cho)?|nhờ)\s+([^\s,:]+)\s*[:,]\s*(.+)$/i);
     if (assignMatch) {
       if (!['owner', 'admin', 'manager'].includes(role)) {
-        await send(chatId, '🔒 Vai trò hiện tại của bạn không có quyền giao việc mới cho người khác qua Zalo. Bạn chỉ có thể hỏi việc hoặc báo hoàn thành công việc được giao.');
+        const denyMsg = '🔒 Vai trò hiện tại của bạn không có quyền giao việc mới cho người khác qua Zalo. Bạn chỉ có thể hỏi việc hoặc báo hoàn thành công việc được giao.';
+        await persistTurn(denyMsg, null);
+        await send(chatId, denyMsg);
         return { handled: true, copilotIntent: 'propose_create_task', denied: true };
       }
 
@@ -652,6 +888,8 @@ export const ZaloBotService = {
       const actorCreatorId = userId || employee.id;
 
       pendingZaloConfirmations.set(key, {
+        organizationId,
+        employeeId: employee.id,
         intent: 'create_task',
         expiresAt: Date.now() + ZALO_CONFIRM_TTL_MS,
         execute: async () => {
@@ -695,6 +933,7 @@ export const ZaloBotService = {
         '━━━━━━━━━━━━━━━━━━━━━━━━━',
         '👉 Nhắn **OK** hoặc **XÁC NHẬN** để tạo việc *(hoặc nhắn **HỦY** để bỏ qua)*.'
       ].join('\n');
+      await persistTurn(previewMsg, null);
       await send(chatId, previewMsg);
       return {
         handled: true,
@@ -713,8 +952,9 @@ export const ZaloBotService = {
       '2️⃣ *"Báo xong việc [tên công việc]"* *(Bot sẽ tóm tắt hỏi xác nhận trước khi lưu)*',
       ['owner', 'admin', 'manager'].includes(role)
         ? '3️⃣ *"Nhắc [Tên nhân sự] làm [đầu việc] trước thứ Sáu"*'
-        : '3️⃣ Mở WorkTree X: https://worktree.nguyentronghuu.com'
+        : `3️⃣ Mở WorkTree X: ${ZALO_APP_BASE_URL}`
     ].join('\n');
+    await persistTurn(helpMsg, null);
     await send(chatId, helpMsg);
     return { handled: true, copilotIntent: 'help' };
   },
@@ -837,12 +1077,16 @@ export const ZaloBotService = {
       try {
         const employeeCtx = await this.resolveZaloEmployeeContext(copilotSb, chatId);
         if (employeeCtx) {
+          const messageId = eventData?.message?.message_id || eventData?.message_id || null;
           return await this.handleConversationalCopilot({
             chatId,
             text,
+            messageId,
             employeeCtx,
             sb: copilotSb,
-            sendFn: options.sendMessage
+            sendFn: options.sendMessage,
+            aiCopilotFn: options.aiCopilotFn || null,
+            executePendingFn: options.executePendingFn || null
           });
         }
       } catch (copilotErr) {
