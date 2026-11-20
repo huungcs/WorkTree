@@ -860,20 +860,34 @@ html:has(#drawer[open]){overflow:hidden}
 .privacy-note{background:var(--primary-soft);border:1px solid var(--line);border-radius:9px;padding:12px 14px;font-size:11px;color:var(--subtle);line-height:1.85}
 .privacy-note strong{color:var(--primary-text)}
 .info-dialog{width:620px}
-.notif-center-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap}
-.notif-center-tabs{display:flex;align-items:center;gap:6px}
+.notif-center-head{
+ position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;
+ gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:4px 0 12px;
+ border-bottom:1px solid var(--line);background:var(--surface);
+}
+.notif-center-tabs{
+ display:flex;align-items:center;gap:3px;padding:3px;border:1px solid var(--line);
+ border-radius:var(--radius-lg);background:var(--surface-2);
+}
 .notif-center-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .notif-center-view{width:100%;max-width:100%;box-sizing:border-box;min-width:0}
-.notif-tab-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;position:relative}
-.notif-badge{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;padding:0 5px;border-radius:999px;font-size:10px;font-weight:700;line-height:1;margin-left:5px;box-sizing:border-box;vertical-align:middle}
-.notif-badge.on-active{background:#fff;color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.notif-badge.on-inactive{background:var(--red);color:#fff}
-.notif-tab-count{font-size:11px;opacity:.85;margin-left:3px}
-.notif-reminders-card{margin-bottom:14px;padding:10px 12px;border-radius:10px;background:var(--amber-soft);border:1px solid rgba(147,84,12,.22);width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}
+.notif-tab-btn{
+ display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:0 10px;
+ border-radius:var(--radius-md);background:transparent;color:var(--muted);font-weight:550;
+}
+.notif-tab-btn[aria-pressed="true"]{background:var(--primary-soft);color:var(--primary-text);font-weight:650}
+.notif-badge{
+ display:inline-flex;align-items:center;justify-content:center;min-height:20px;min-width:20px;
+ padding:0 5px;border-radius:var(--radius-pill);background:var(--surface-3);font-size:.85em;
+ font-weight:650;font-variant-numeric:tabular-nums;color:inherit;
+}
+.notif-tab-btn[aria-pressed="true"] .notif-badge{background:var(--surface)}
+.notif-reminders-card{margin-bottom:16px;padding:12px;border-radius:var(--radius-panel);background:var(--surface-2);border:1px solid var(--line)}
 .notif-reminders-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap;width:100%;box-sizing:border-box}
-.notif-reminders-title{font-size:11.5px;color:var(--amber);display:flex;align-items:center;gap:6px;font-weight:650;min-width:0;flex:1}
+.notif-reminders-title{color:var(--text);display:flex;align-items:center;gap:6px;font-weight:650;min-width:0}
+.notif-reminders-title svg{color:var(--amber)}
 .notif-reminders-title svg{width:14px;height:14px;flex-shrink:0}
-.notif-reminders-manage-btn{font-size:10.5px!important;height:26px!important;min-height:26px!important;max-height:26px!important;padding:0 8px!important;background:var(--surface)!important;color:var(--text)!important;border:1px solid var(--line)!important;border-radius:6px!important;flex-shrink:0!important;white-space:nowrap!important}
+.notif-reminders-manage-btn{min-height:32px;white-space:nowrap}
 .notif-reminders-list{display:flex;flex-direction:column;gap:6px;width:100%;max-width:100%;box-sizing:border-box;min-width:0}
 .notif-reminder-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--line);gap:8px;width:100%;max-width:100%;box-sizing:border-box;cursor:pointer;transition:all .15s ease;min-width:0}
 .notif-reminder-row:hover{background:var(--surface-2);border-color:var(--line-strong)}
@@ -881,7 +895,7 @@ html:has(#drawer[open]){overflow:hidden}
 .notif-reminder-name{font-size:12px;color:var(--text);font-weight:550;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;display:block}
 .notif-reminder-sub{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);white-space:nowrap;flex-shrink:0}
 .notif-reminder-time{white-space:nowrap}
-.notif-reminder-rel{color:var(--amber);font-weight:600;white-space:nowrap;background:rgba(147,84,12,.08);padding:1px 6px;border-radius:4px}
+.notif-reminder-rel{color:var(--amber);font-weight:600;white-space:nowrap;background:var(--amber-soft);padding:2px 6px;border-radius:var(--radius-sm)}
 .notif-filter-btn{width:32px;height:32px;min-width:32px;min-height:32px;max-width:32px;max-height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;font-size:11px;font-weight:600;flex-shrink:0;background:var(--surface);border:1px solid var(--line);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.04);cursor:pointer;transition:all .15s ease}
 .notif-filter-btn:hover{background:var(--surface-2);border-color:var(--line-strong)}
 .notif-attention-btn{height:28px;min-height:28px;padding:0 10px;font-size:11px;font-weight:550;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
@@ -903,6 +917,46 @@ html:has(#drawer[open]){overflow:hidden}
 .notif-item-actions .tiny-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s ease}
 .notif-item-actions .tiny-btn:hover{background:var(--surface-3);border-color:var(--line-strong);transform:scale(1.05)}
 .notif-item-actions .tiny-btn:active{transform:scale(0.95)}
+.notif-center-view .notification-list{display:grid;gap:8px;max-height:none;overflow:visible}
+.notif-center-view .notification-item{
+ gap:4px;margin:0;padding:6px;border-radius:var(--radius-lg);border-color:var(--line);
+}
+.notif-center-view .notification-item.is-unread{background:var(--surface-2)}
+.notif-item-open{
+ display:flex;flex:1;align-items:flex-start;gap:10px;min-width:0;padding:8px;
+ background:transparent;color:var(--text);border-radius:var(--radius-md);text-align:left;
+}
+.notif-item-open:hover,.notif-item-actions .icon-btn:hover{background:var(--surface-3)}
+.notif-center-view .notification-icon{width:32px;height:32px;margin:0}
+.notif-center-view .notif-item-title{font-size:var(--text-control,13px);font-weight:550}
+.notif-center-view .is-unread .notif-item-title{font-weight:650}
+.notif-center-view .notif-item-body{display:block;margin-top:3px;color:var(--muted);font-size:var(--text-label,12px);line-height:1.5;overflow-wrap:anywhere}
+.notif-center-view .notif-item-meta{gap:6px;font-size:var(--text-label,12px)}
+.notif-unread-dot{width:6px;height:6px;border-radius:50%;background:var(--primary);flex:none}
+.notif-center-view .notif-item-actions{gap:2px;margin:0}
+.notif-center-view .notif-item-actions .icon-btn{width:32px;height:32px;color:var(--muted)}
+.notif-center-view .notif-item-actions .icon-btn svg{width:15px;height:15px}
+.notif-attention{display:grid;gap:6px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.notif-attention .notif-reminders-head,.notif-attention h3{margin:0}
+.notif-attention-row{
+ display:flex;align-items:center;gap:8px;min-height:38px;padding:6px 10px;text-align:left;
+ color:var(--amber);background:var(--amber-soft);border-radius:var(--radius-md);
+}
+.notif-attention-row.is-overdue{color:var(--red);background:var(--red-soft)}
+.notif-attention-row:hover{box-shadow:inset 0 0 0 1px currentColor}
+.notif-attention-row svg{flex:none}
+@media(max-width:600px){
+ .notif-center-tabs{width:100%}
+ .notif-tab-btn{flex:1;min-height:44px}
+ .notif-center-actions .btn,.notif-reminders-manage-btn,.notif-reminder-row{min-height:44px}
+ .notif-center-view .notification-item{display:grid;gap:0}
+ .notif-center-view .notif-item-actions{justify-content:flex-end}
+ .notif-center-view .notif-item-actions .icon-btn{width:44px;height:44px}
+ .notif-reminder-text{flex-direction:column;align-items:flex-start;gap:4px}
+ .notif-reminder-name{white-space:normal;overflow-wrap:anywhere}
+ .notif-reminder-sub{flex-wrap:wrap}
+ .notif-attention-row,.notif-attention .btn{min-height:44px}
+}
 .notif-settings-view .notif-setting-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
 .notif-settings-view .notif-setting-text{flex:1;min-width:0}
 .notif-settings-view .notif-setting-text strong{font-size:12px;font-weight:600;display:block;color:var(--text)}
@@ -1073,7 +1127,7 @@ html[data-density="compact"] .tree-node{min-height:29px}
  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
 @media print{
- .sidebar,.topbar,.filterbar,.view-nav,.scope-strip,.page-actions,.content-footer,.toast-region,.timer-dock,.storage-banner{display:none!important}
+ .sidebar,.topbar,.filterbar,.view-nav,.scope-strip,.scope-members-bar,.page-actions,.content-footer,.toast-region,.timer-dock,.storage-banner{display:none!important}
  .app{display:block}.content{padding:0}.panel{break-inside:avoid;box-shadow:none}.view-content{min-height:0}body{background:white;color:black}
  .overview-main{display:block}.overview-right{display:block}.panel{margin-bottom:15px}.kpi-grid{grid-template-columns:repeat(4,1fr)}
 }
@@ -1379,26 +1433,8 @@ dialog.mobile-only:not([open]){display:none!important}
  .access-tabs{margin:18px 0 15px;gap:17px}.access-tabs button{min-height:48px;font-size:13px}.access-toolbar{flex-direction:column;align-items:stretch;gap:10px}.access-toolbar .btn{min-height:48px}.access-search{min-height:48px;padding:0 12px}.access-search input{font-size:16px;min-height:46px}
  .account-row{display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;padding:18px 0}.account-main strong{font-size:14px}.account-main p{font-size:12px;overflow-wrap:anywhere}.account-main>small{font-size:11px;white-space:normal;overflow-wrap:anywhere}.account-ops{grid-column:2;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.account-ops .icon-btn{width:44px;height:44px;border:1px solid var(--line);margin-left:4px;background:var(--surface-2)}.access-status{font-size:11px}.role-badge{font-size:11px}.access-pending{font-size:11px}.role-cards{grid-template-columns:1fr;gap:10px}.role-cards p{font-size:12px}.access-matrix th,.access-matrix td{font-size:12px}.access-table-scroll{overscroll-behavior:contain}.access-limits summary{min-height:44px;font-size:13px}.access-limits p{font-size:12px}.access-audit p{font-size:13px}.access-audit small{font-size:12px;line-height:1.6}
  .settings-section h3{font-size:16px}.settings-section p{font-size:13px}.settings-row{gap:12px;flex-wrap:wrap;font-size:13px}.settings-row select{min-height:46px;font-size:16px;max-width:100%}.profile-actions{grid-template-columns:1fr}.profile-scope{font-size:13px}.profile-summary p{font-size:13px}
-   .notif-center-view .notif-center-head{flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;gap:10px!important;padding-bottom:12px!important;margin-bottom:12px!important}
-   .notif-center-view .notif-center-tabs{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:6px!important;width:auto!important;max-width:100%!important;flex-wrap:wrap!important}
-   .notif-center-view .notif-center-tabs .btn{flex:0 0 auto!important;width:auto!important;min-width:auto!important;height:30px!important;min-height:30px!important;max-height:30px!important;line-height:normal!important;padding:0 10px!important;font-size:11.5px!important;font-weight:600!important;border-radius:7px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:4px!important}
-   .notif-center-view .notif-center-tabs .btn .notif-badge{height:18px!important;min-width:18px!important;padding:0 5px!important;border-radius:999px!important;font-size:10px!important;font-weight:700!important;line-height:1!important;margin-left:4px!important;box-sizing:border-box!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
-   .notif-center-view .notif-center-tabs .tag{flex:0 0 auto!important;height:30px!important;min-height:30px!important;max-height:30px!important;line-height:28px!important;padding:0 10px!important;border-radius:7px!important;font-size:11px!important;font-weight:550!important;display:inline-flex!important;align-items:center!important}
-   .notif-center-view .notif-center-actions{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:6px!important;width:100%!important;box-sizing:border-box!important}
-   .notif-center-view .notif-center-actions::-webkit-scrollbar{display:none}
-   .notif-center-view .notif-center-actions .btn{flex:1 1 0!important;min-width:0!important;height:34px!important;min-height:34px!important;max-height:34px!important;font-size:11px!important;letter-spacing:-0.2px!important;font-weight:550!important;border-radius:8px!important;padding:0 4px!important;white-space:nowrap!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important}
-   .notif-center-view .notif-center-actions .btn:only-child{flex:0 0 auto!important;min-width:110px!important;padding:0 14px!important}
-   .notif-center-view .notif-center-actions .btn .icon,.notif-center-view .notif-center-actions .btn svg{width:12px!important;height:12px!important;margin-right:3px!important;flex-shrink:0!important}
-   .notif-reminders-card{width:100%!important;max-width:100%!important;box-sizing:border-box!important;overflow:hidden!important}
-   .notif-reminder-row{flex-direction:column!important;align-items:stretch!important;gap:4px!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;min-width:0!important}
-   .notif-reminder-text{flex-direction:column!important;align-items:flex-start!important;gap:3px!important;width:100%!important;min-width:0!important}
-   .notif-reminder-name{display:block!important;width:100%!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
-   .notif-reminder-sub{display:flex!important;align-items:center!important;gap:6px!important;font-size:10.5px!important;color:var(--muted)!important;width:100%!important;min-width:0!important;flex-wrap:wrap!important}
-   .notif-item-actions .tiny-btn{width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;max-width:32px!important;max-height:32px!important;padding:0!important;border-radius:7px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;background:var(--surface)!important;border:1px solid var(--line)!important;box-shadow:0 1px 2px rgba(0,0,0,.03)!important}
-   .notif-item-actions .tiny-btn svg{width:13px!important;height:13px!important}
-   .notif-filter-btn,button[data-action="insight-late"],button[data-action="insight-today"]{width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;max-width:32px!important;max-height:32px!important;padding:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:7px!important;font-size:11px!important;font-weight:600!important;background:var(--surface)!important;border:1px solid var(--line)!important;color:var(--text)!important;flex-shrink:0!important;box-shadow:0 1px 2px rgba(0,0,0,.04)!important}
+   .notif-filter-btn,button[data-action="insight-late"]:not(.notif-attention-row),button[data-action="insight-today"]:not(.notif-attention-row){width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;max-width:32px!important;max-height:32px!important;padding:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:7px!important;font-size:11px!important;font-weight:600!important;background:var(--surface)!important;border:1px solid var(--line)!important;color:var(--text)!important;flex-shrink:0!important;box-shadow:0 1px 2px rgba(0,0,0,.04)!important}
    .notif-attention-btn,button[data-action="nav-attention-from-notif"]{height:28px!important;min-height:28px!important;max-height:28px!important;padding:0 10px!important;font-size:11px!important;font-weight:550!important;border-radius:6px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
-  .notif-center-view .notification-list{max-height:none!important;overflow:visible!important}
   .info-dialog .dialog-scroll{padding-bottom:calc(32px + var(--m-safe, env(safe-area-inset-bottom, 0px)))!important}
  .notif-settings-view .notif-setting-row{flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;padding:14px 0!important;gap:10px!important;text-align:left!important}
  .notif-settings-view .notif-setting-text{width:100%!important;flex:none!important;text-align:left!important}
@@ -4196,6 +4232,15 @@ html[data-theme="dark"] .worktree-tour-target-note {
 /* ==========================================================================
    13. SIDEBAR TREE SEMANTIC ICONS, QUICK-ADD & ACTIONABLE COUNTS
    ========================================================================== */
+.org-tree :is(.tree-node,.tree-completed-toggle) {
+  padding-inline-start: var(--tree-indent, 0px);
+}
+.org-tree .tree-node { border-radius: var(--radius-md); }
+.org-tree .node-select { min-height: 34px; color: var(--sidebar-text); font-size: var(--text-label); }
+.org-tree .node-select > svg { flex-shrink: 0; }
+.org-tree .tree-node.selected { background: color-mix(in srgb, var(--primary) 22%, var(--sidebar)); }
+.org-tree .tree-node.selected::before { background: var(--focus); }
+.sidebar .tree-search:focus-within { border-color: var(--focus); }
 .tree-node.tree-type-company .node-select svg {
   color: var(--primary);
 }
@@ -4232,8 +4277,8 @@ html[data-theme="dark"] .worktree-tour-target-note {
   align-items: center;
   gap: 4px;
   padding: 1px 6px;
-  border-radius: 999px;
-  font-size: 9.5px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
   background: rgba(184, 195, 220, .08);
   color: var(--sidebar-muted);
@@ -4253,6 +4298,228 @@ html[data-theme="dark"] .worktree-tour-target-note {
 }
 .tree-count.is-zero {
   opacity: .42;
+}
+.tree-count.is-completed-project {
+  color: var(--sidebar-text);
+  color: color-mix(in srgb, var(--green) 62%, var(--sidebar-text));
+  background: rgba(115, 214, 180, .12);
+  gap: 3px;
+}
+.tree-count.is-completed-project svg {
+  width: 10px;
+  height: 10px;
+}
+.tree-node.is-completed-project .node-select {
+  opacity: .84;
+}
+.tree-node.is-completed-project .node-select svg {
+  color: var(--sidebar-text);
+  color: color-mix(in srgb, var(--green) 65%, var(--sidebar-text));
+}
+.tree-completed-group {
+  margin: 2px 0 4px;
+}
+.tree-completed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 28px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  padding-right: 6px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  font-size: 10.5px;
+  text-align: left;
+  transition: background .15s, color .15s;
+}
+.tree-completed-toggle:hover {
+  background: rgba(255, 255, 255, .04);
+  color: var(--sidebar-text);
+}
+.tree-completed-toggle .tree-completed-chevron {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.tree-completed-toggle .tree-completed-chevron svg {
+  width: 11px;
+  height: 11px;
+  transition: transform .15s;
+}
+.tree-completed-toggle.expanded .tree-completed-chevron svg {
+  transform: rotate(90deg);
+}
+.tree-completed-toggle .tree-completed-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--sidebar-text);
+  color: color-mix(in srgb, var(--green) 58%, var(--sidebar-text));
+}
+.tree-completed-toggle .tree-completed-check svg {
+  width: 13px;
+  height: 13px;
+}
+.tree-completed-toggle .tree-completed-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.tree-completed-toggle .tree-completed-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(184, 195, 220, .08);
+  color: var(--sidebar-muted);
+}
+.scope-members-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 4px 10px 4px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  min-width: 0;
+  max-width: 100%;
+}
+.scope-members-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.scope-members-label svg {
+  width: 14px;
+  height: 14px;
+}
+.scope-members-total {
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.scope-members-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  padding: 4px;
+  scroll-padding-inline: 4px;
+}
+.scope-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 3px 9px 3px 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.scope-member-name {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scope-member-chip.is-all {
+  padding-inline: 10px;
+}
+.scope-member-chip:hover {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+.scope-member-chip.active {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-text);
+  font-weight: var(--weight-semibold);
+}
+.scope-member-chip .avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 8px;
+  border-width: 1px;
+}
+.scope-member-count {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.scope-member-chip.active .scope-member-count {
+  background: var(--surface);
+  color: var(--primary-text);
+}
+@media (max-width: 900px) {
+  .org-tree :is(.tree-node,.tree-completed-toggle) {
+    padding-inline-start: min(var(--tree-indent, 0px), 24px);
+  }
+  .org-tree .tree-node .node-expand { width: 44px; min-width: 44px; flex-basis: 44px; }
+  .org-tree .tree-node .node-spacer { width: 44px; min-width: 44px; flex-basis: 44px; }
+  .org-tree .tree-node .node-select { min-height: 48px; font-size: 13px; }
+  .org-tree .tree-node .tree-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .org-tree .tree-count:not(.is-zero) { display: inline-flex; }
+  .tree-completed-toggle {
+    min-height: 44px;
+    font-size: 12.5px;
+    border-radius: 10px;
+  }
+  .tree-completed-toggle .tree-completed-chevron {
+    width: 30px;
+    height: 30px;
+  }
+  .scope-members-bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px;
+    gap: 2px;
+  }
+  .scope-members-label { padding-inline: 4px; }
+  .scope-members-list { margin-block-end: -2px; }
+  .scope-member-name { max-width: 18ch; }
+  .scope-member-chip {
+    min-height: 44px;
+    padding: 5px 12px 5px 6px;
+    font-size: 12px;
+  }
+  .scope-member-chip.is-all {
+    padding-inline: 13px;
+  }
 }
 
 /* Public demo role picker */
@@ -4816,7 +5083,7 @@ body[data-demo-workspace] #topAvatar {
 
 </style>
 <link rel="stylesheet" href="src/features/onboarding/styles/onboarding.css">
-<link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.43">
+<link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.44">
 <link rel="stylesheet" href="src/design-system/field-focus.css?v=1">
 <link rel="manifest" href="manifest.webmanifest">
 </head>
@@ -4885,6 +5152,7 @@ body[data-demo-workspace] #topAvatar {
         <div class="page-actions"><button class="btn" data-action="daily-checkin"><span data-icon="check-circle"></span><span>Báo cáo hôm nay</span></button><button class="btn" data-action="export-csv"><span data-icon="download"></span><span>Xuất báo cáo</span></button><button class="btn primary" data-action="new-task"><span data-icon="plus"></span>Công việc mới</button></div>
       </div>
       <div class="scope-strip" id="scopeStrip"><nav id="breadcrumbs" aria-label="Đường dẫn đơn vị"></nav><div class="scope-actions"><button class="icon-btn small" id="pinCurrentNode" data-action="pin-node-current" title="Ghim đơn vị" aria-label="Ghim đơn vị" data-icon="pin"></button><label class="switch-label" title="Bao gồm công việc trong toàn bộ các nhánh con"><input type="checkbox" id="includeChildren" checked><span class="mini-switch"></span>Bao gồm cấp con</label><button class="icon-btn small" data-action="node-menu" title="Chỉnh sửa đơn vị đang chọn" aria-label="Chỉnh sửa đơn vị đang chọn" data-icon="more"></button></div></div>
+      <div class="scope-members-bar" id="scopeMembersBar" hidden aria-label="Nhân sự trong đơn vị"></div>
       <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs" data-tour="view-tabs"></div>
       <div class="filterbar" data-tour="filter-toolbar filters-search">
         <div class="inline-search"><span data-icon="search"></span><input id="taskSearch" type="search" aria-label="Tìm công việc trong phạm vi hiện tại" placeholder="Tìm công việc, thẻ, người phụ trách..." autocomplete="off"><kbd>/</kbd></div>
@@ -5278,7 +5546,7 @@ let justDraggedUntil=0;
 let history=[],future=[],confirmResolver=null,commandOptions=[],commandIndex=0,returnFocus=new Map();
 let state={
  selected:1,view:'overview',includeChildren:true,collapsed:false,mobileOpen:false,filterOpen:false,filters:blankFilters(),sort:'smart',page:1,pageSize:15,
- focusTab:'attention',expanded:[1,10,11,12,13],treeQuery:'',theme:'light',density:'comfortable',currentUser:306,savedViews:[],
+ focusTab:'attention',expanded:[1,10,11,12,13],expandedCompletedProjects:[],treeQuery:'',theme:'light',density:'comfortable',currentUser:306,savedViews:[],
  timelineStart:addDays(TODAY,-2),timelineDays:14,calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),timer:null,selectedTasks:new Set()
 };
 function getAvatarIndex(id) {
@@ -5625,7 +5893,7 @@ async function applyUrlStateToWorkspace({isInitialLoad=false}={}){
   state.selected=targetNodeId;
   if(targetNodeId!==null){
    for(const n of pathNodes(targetNodeId)){
-    if(n.parent!==null&&!state.expanded.some(x=>String(x)===String(n.parent)))state.expanded.push(n.parent);
+    if(n.parent!==null){expandTreeAncestors(targetNodeId);break;}
    }
   }
   state.includeChildren=params.get('sub')==='0'?false:true;
@@ -5869,6 +6137,7 @@ function changeStatus(rawId,status){
    title:t.title
   };
   data.activities.push(optAct);
+  queueMicrotask(()=>{if(typeof renderTree==='function')renderTree();if(typeof renderShell==='function')renderShell(filteredTasks());});
   if(data.activities.length>500)data.activities.shift();
 
   rebuild();
@@ -5885,6 +6154,8 @@ function changeStatus(rawId,status){
       rebuild();
       renderView();
       if($('drawer').open&&drawerId===id)renderDrawer();
+      if(typeof renderTree==='function')renderTree();
+      renderShell(filteredTasks());
       toast(`Đã đổi trạng thái thành ${status}`,'success',true);
 
       const currentOrgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
@@ -5904,6 +6175,8 @@ function changeStatus(rawId,status){
     rebuild();
     renderView();
     if($('drawer').open&&drawerId===id)renderDrawer();
+    if(typeof renderTree==='function')renderTree();
+    renderShell(filteredTasks());
     toast(err.message||'Không thể đổi trạng thái công việc.','error');
    }
   })();
@@ -6029,10 +6302,24 @@ function setView(view){
  syncUrlWithState({replace:false});
  $('liveStatus').textContent='Đang xem '+VIEWS[view][0];
 }
+function expandTreeAncestors(nodeId){
+ if(nodeId===null||nodeId===undefined)return;
+ const stats=computeTreeBranchCounts(typeof readableTasks==='function'?readableTasks():(data?.tasks||[]));
+ for(const n of pathNodes(nodeId)){
+  if(n.parent!==null){
+   if(!state.expanded.some(x=>String(x)===String(n.parent)))state.expanded.push(n.parent);
+   if(isCompletedProjectNode(n,stats)){
+    const pk=String(n.parent);
+    if(!Array.isArray(state.expandedCompletedProjects))state.expandedCompletedProjects=[];
+    if(!state.expandedCompletedProjects.includes(pk))state.expandedCompletedProjects.push(pk);
+   }
+  }
+ }
+}
 function selectNode(id){
  if(!requireLogin()||!visibleNodeIds().has(id))return;if(typeof window.closeSystemHub==='function'&&window.isSystemHubOpen?.())window.closeSystemHub();state.selected=id;state.page=1;state.selectedTasks.clear();
  document.dispatchEvent(new CustomEvent('worktree:navigate'));
- for(const n of pathNodes(id)){if(n.parent!==null&&!state.expanded.some(x=>String(x)===String(n.parent)))state.expanded.push(n.parent);}
+ expandTreeAncestors(id);
  closeSidebar();savePrefs();renderAll(true);syncUrlWithState({replace:false});
 }
 function navigate(which){
@@ -6087,9 +6374,33 @@ function computeTreeBranchCounts(taskList){
  }
  return {open,late,done};
 }
+function isCompletedProjectNode(node,stats){
+ if(!node||node.type!=='project'||!stats)return false;
+ return (stats.open.get(node.id)||0)===0&&(stats.done.get(node.id)||0)>0;
+}
+function renderTreeChildrenHTML(parentNode,kids,depth,stats,rowFn,{forceOpen=false,step=12,maxPad=72}={}){
+ const activeKids=[],completedKids=[];
+ for(const c of kids){
+  if(isCompletedProjectNode(c,stats))completedKids.push(c);
+  else activeKids.push(c);
+ }
+ let html=activeKids.map(c=>rowFn(c,depth+1)).join('');
+ if(!completedKids.length)return html;
+ const renderedCompleted=completedKids.map(c=>rowFn(c,depth+1)).filter(Boolean);
+ if(!renderedCompleted.length)return html;
+ const parentKey=String(parentNode.id);
+ const expandedList=Array.isArray(state.expandedCompletedProjects)?state.expandedCompletedProjects:[];
+ const open=Boolean(forceOpen||expandedList.includes(parentKey));
+ const padLeft=Math.min((depth+1)*step,maxPad);
+ const toggleTitle=`${open?'Thu gọn ':'Xem '}${renderedCompleted.length} dự án đã hoàn thành`;
+ html+=`<div class="tree-completed-group"><button type="button" class="tree-completed-toggle ${open?'expanded':''}" data-action="toggle-completed-projects" data-id="${esc(parentKey)}" aria-expanded="${open}" style="--tree-indent:${padLeft}px" title="${esc(toggleTitle)}"><span class="tree-completed-chevron" aria-hidden="true">${icon('chevron-right')}</span><span class="tree-completed-check" aria-hidden="true">${icon('check-circle')}</span><span class="tree-completed-label">Dự án đã hoàn thành</span><span class="tree-completed-badge">${renderedCompleted.length}</span></button>${open?renderedCompleted.join(''):''}</div>`;
+ return html;
+}
 function treeCountBadgeHTML(nodeId,stats){
  const openC=stats.open.get(nodeId)||0,lateC=stats.late.get(nodeId)||0,doneC=stats.done.get(nodeId)||0;
  const title=`${openC} việc đang mở${lateC?` · ${lateC} quá hạn`:''} · ${doneC} đã hoàn thành`;
+ const node=byNode.get(nodeId);
+ if(isCompletedProjectNode(node,stats))return `<span class="tree-count is-completed-project" title="${esc(`Dự án đã hoàn thành 100% (${doneC} công việc)`)}">${icon('check')}${doneC}</span>`;
  return `<span class="tree-count ${lateC?'has-overdue':''} ${openC===0?'is-zero':''}" title="${esc(title)}">${lateC?'<i class="tree-overdue-dot" aria-hidden="true"></i>':''}${openC}</span>`;
 }
 function legacyRenderTree(){
@@ -6101,16 +6412,97 @@ function legacyRenderTree(){
   if(q&&!visible.has(n.id))return '';
   const kids=childrenOf(n.id),open=q?forcedOpen.has(n.id):expanded.has(n.id);
   const selected=state.selected===n.id;
-  return `<div class="tree-node tree-type-${esc(n.type)} ${selected?'selected':''}" style="padding-left:${Math.min(depth*12,72)}px">
+  return `<div class="tree-node tree-type-${esc(n.type)} ${isCompletedProjectNode(n,stats)?'is-completed-project':''} ${selected?'selected':''}" style="--tree-indent:${Math.min(depth*12,72)}px">
    ${kids.length?`<button class="node-expand ${open?'expanded':''}" data-action="tree-toggle" data-id="${n.id}" aria-expanded="${open}" aria-label="${esc((open?'Thu gọn ':'Mở rộng ')+n.name)}">${icon('chevron-right')}</button>`:'<span class="node-spacer"></span>'}
    <button class="node-select" data-action="select-node" data-id="${n.id}" ${selected?'aria-current="page"':''} title="${esc(pathName(n.id))}">${icon(nodeIcon(n.type))}<span class="tree-name">${esc(n.name.replace(/^Công ty /,''))}</span></button>
    <button class="tiny-btn tree-add-child" data-action="new-child-node" data-id="${n.id}" title="${esc('Thêm đơn vị con vào '+n.name)}" aria-label="${esc('Thêm đơn vị con vào '+n.name)}">${icon('plus')}</button>
    ${treeCountBadgeHTML(n.id,stats)}
-  </div>${open?kids.map(c=>row(c,depth+1)).join(''):''}`;
+  </div>${open?renderTreeChildrenHTML(n,kids,depth,stats,row,{forceOpen:Boolean(q),step:12,maxPad:72}):''}`;
  };
  const root=rootNode();
  $('orgTree').innerHTML=root ? (row(root,0)||(q?'<div class="tree-empty">Không tìm thấy đơn vị phù hợp.</div>':'')) : '<div class="tree-empty">Chưa có dữ liệu đơn vị.</div>';
  $('savedViews').innerHTML=state.savedViews.length?state.savedViews.map(v=>`<div class="saved-item"><button class="nav-item" data-action="load-view" data-id="${v.id}" title="${esc(v.name)}">${icon('bookmark')}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.name)}</span></button><button class="tiny-btn" data-action="delete-view" data-id="${v.id}" title="Xóa góc nhìn" aria-label="${esc('Xóa góc nhìn '+v.name)}">${icon('x')}</button></div>`).join(''):'<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
+}
+function renderScopeMembersBar(){
+ const bar=$('scopeMembersBar');
+ if(!bar)return;
+ const previousList=bar.querySelector('.scope-members-list');
+ const previousScroll=previousList?.scrollLeft||0;
+ const focusedId=bar.contains(document.activeElement)?document.activeElement.dataset.id:undefined;
+ const root=rootNode(),node=byNode.get(state.selected)||root;
+ if(!root||!node||node.id===root.id){
+  bar.hidden=true;
+  bar.innerHTML='';
+  return;
+ }
+ const scopeSet=state.includeChildren?subtree(node.id):new Set([node.id]);
+ const allPeople=typeof people==='function'?people():[];
+ const branchTasks=readableTasks().filter(t=>scopeSet.has(t.node)&&matchesPeriodFilter(t,state.filters));
+ const openCountByPerson=new Map(),totalCountByPerson=new Map(),activeInBranchIds=new Set();
+ for(const t of branchTasks){
+  const involved=new Set();
+  if(t.owner!==null&&t.owner!==undefined&&t.owner!=='')involved.add(String(t.owner));
+  if(Array.isArray(t.collaborators)){
+   for(const cid of t.collaborators){
+    if(cid!==null&&cid!==undefined&&cid!=='')involved.add(String(cid));
+   }
+  }
+  for(const pid of involved){
+   activeInBranchIds.add(pid);
+   totalCountByPerson.set(pid,(totalCountByPerson.get(pid)||0)+1);
+   if(t.status!=='Hoàn thành')openCountByPerson.set(pid,(openCountByPerson.get(pid)||0)+1);
+  }
+ }
+ const unitMembers=allPeople.filter(p=>{
+  if(!p||p.id===null||p.id===undefined)return false;
+  const pid=String(p.id);
+  const homeId=p.home_node_id??p.parent??null;
+  const inHome=homeId!==null&&homeId!==undefined&&scopeSet.has(homeId);
+  return inHome||activeInBranchIds.has(pid);
+ });
+ if(!unitMembers.length){
+  bar.hidden=true;
+  bar.innerHTML='';
+  return;
+ }
+ unitMembers.sort((a,b)=>{
+  const aid=String(a.id),bid=String(b.id);
+  const openDiff=(openCountByPerson.get(bid)||0)-(openCountByPerson.get(aid)||0);
+  if(openDiff!==0)return openDiff;
+  const aHome=scopeSet.has(a.home_node_id??a.parent)?1:0;
+  const bHome=scopeSet.has(b.home_node_id??b.parent)?1:0;
+  if(bHome!==aHome)return bHome-aHome;
+  return String(a.full_name||a.name||'').localeCompare(String(b.full_name||b.name||''),'vi');
+ });
+ const activeOwner=String(state.filters.owner||'');
+ const allSelected=activeOwner==='';
+ const totalOpen=branchTasks.filter(t=>t.status!=='Hoàn thành').length;
+ const curAcc=typeof currentAccount==='function'?currentAccount():null;
+ const chipsHTML=unitMembers.map(p=>{
+  const pid=String(p.id);
+  const displayName=p.full_name||p.name||'Nhân sự';
+  const jobTitle=p.job_title||p.desc||'';
+  const openC=openCountByPerson.get(pid)||0;
+  const totalC=totalCountByPerson.get(pid)||0;
+  const isSel=activeOwner===pid||(typeof isCurrentUserPerson==='function'&&isCurrentUserPerson(p.id)&&curAcc&&(activeOwner===String(curAcc.id)||activeOwner===String(curAcc.personId)));
+  const tip=`${displayName}${jobTitle?' · '+jobTitle:''} · ${openC} việc đang mở · ${totalC} tổng việc`;
+  return `<button type="button" class="scope-member-chip ${isSel?'active':''}" data-action="scope-member-filter" data-id="${esc(pid)}" aria-pressed="${isSel}" aria-label="${esc(tip)}" title="${esc(tip)}">${avatar(p.id)}<span class="scope-member-name">${esc(displayName)}</span>${openC>0?`<span class="scope-member-count" aria-hidden="true">${openC}</span>`:''}</button>`;
+ }).join('');
+ bar.hidden=false;
+ bar.innerHTML=`<span class="scope-members-label">${icon('users')}<span>Nhân sự</span><span class="scope-members-total">${unitMembers.length}</span></span><div class="scope-members-list" role="group" aria-label="Lọc nhanh theo nhân sự đơn vị"><button type="button" class="scope-member-chip is-all ${allSelected?'active':''}" data-action="scope-member-filter" data-id="" aria-pressed="${allSelected}" aria-label="Tất cả nhân sự, ${totalOpen} việc đang mở"><span>Tất cả</span>${totalOpen>0?`<span class="scope-member-count" aria-hidden="true">${totalOpen}</span>`:''}</button>${chipsHTML}</div>`;
+ const list=bar.querySelector('.scope-members-list');
+ const sameBranch=bar.dataset.unit===String(node.id);
+ if(sameBranch)list.scrollLeft=previousScroll;
+ const focused=sameBranch&&focusedId!==undefined?list.querySelector(`[data-id="${CSS.escape(focusedId)}"]`):null;
+ const selected=list.querySelector('[aria-pressed="true"]');
+ const target=focused||(!sameBranch||bar.dataset.owner!==activeOwner?selected:null);
+ if(target){
+  const area=list.getBoundingClientRect(),chip=target.getBoundingClientRect();
+  list.scrollLeft+=Math.min(0,chip.left-area.left-4)+Math.max(0,chip.right-area.right+4);
+ }
+ focused?.focus({preventScroll:true});
+ bar.dataset.unit=String(node.id);
+ bar.dataset.owner=activeOwner;
 }
 function renderShell(arr){
  const root=rootNode();
@@ -6136,6 +6528,7 @@ function renderShell(arr){
  const subtitles={overview:'Tập trung đúng việc. Phối hợp đúng nhịp.',list:'Một danh sách rõ ràng, không bỏ sót điều quan trọng.',kanban:'Nhìn rõ luồng công việc. Kéo thả để cập nhật trạng thái.',timeline:'Kết nối công việc với thời gian, nhìn trước những điểm nghẽn.',calendar:'Sắp xếp thời hạn, chủ động từng ngày.',workload:'Hiểu năng lực đội ngũ. Phân bổ công việc có cơ sở.',children:'Mọi phòng ban, dự án và nhân sự trong một cấu trúc thống nhất.'};
  $('pageSubtitle').textContent=node.id===root.id?subtitles[state.view]:(node.desc||subtitles[state.view]);
  $('breadcrumbs').innerHTML=pathNodes(state.selected).map((n,i,a)=>`${i?'<span class="crumb-arrow" aria-hidden="true">/</span>':''}<button class="crumb ${i===a.length-1?'current':''}" data-action="select-node" data-id="${n.id}" title="${esc(n.name)}" ${i===a.length-1?'aria-current="location"':''}>${i===0?icon('building'):''}<span>${esc(n.name.replace(/^Công ty /,''))}</span></button>`).join('');
+ renderScopeMembersBar();
  const isMyTask = t => {
   if(!user || !user.id) return false;
   const collabs = Array.isArray(t.collaborators) ? t.collaborators.map(String) : [];
@@ -8774,6 +9167,8 @@ function bulkStatus(status){
    rebuild();
    renderView();
    if($('drawer').open&&ids.includes(drawerId))renderDrawer();
+   if(typeof renderTree==='function')renderTree();
+   renderShell(filteredTasks());
    if(failCount>0){
     toast(`Đã cập nhật ${successCount}/${ids.length} công việc. ${failCount} thất bại: ${lastErr}`,'error');
    }else{
@@ -8821,6 +9216,8 @@ function bulkOwner(owner){
    rebuild();
    renderView();
    if($('drawer').open&&ids.includes(drawerId))renderDrawer();
+   if(typeof renderTree==='function')renderTree();
+   renderShell(filteredTasks());
    if(failCount>0){
     toast(`Đã phân công ${successCount}/${ids.length} công việc. ${failCount} thất bại: ${lastErr}`,'error');
    }else{
@@ -8990,7 +9387,9 @@ window.renderNotificationCenter = function(targetTab) {
  const unreadCount = notifications.filter(n => !n.read_at).length;
  window.__notifCache.unreadCount = unreadCount;
 
- const pendingReminders = (reminders || []).filter(r => r.status === 'pending');
+ const pendingReminders = reminders.filter(r => r.status === 'pending').sort((a, b) =>
+  (Date.parse(a.scheduled_for) || Infinity) - (Date.parse(b.scheduled_for) || Infinity)
+ );
  const activeTab = targetTab || window.__notifTab || (unreadCount > 0 ? 'unread' : 'all');
  window.__notifTab = activeTab;
 
@@ -9001,19 +9400,18 @@ window.renderNotificationCenter = function(targetTab) {
  let html = `
   <div class="notif-center-view">
    <div class="notif-center-head">
-    <div class="notif-center-tabs">
-     <button class="btn small notif-tab-btn" type="button" data-action="notif-tab" data-tab="unread" style="${activeTab === 'unread' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
-      <span>Chưa đọc</span>${unreadCount > 0 ? `<span class="notif-badge ${activeTab === 'unread' ? 'on-active' : 'on-inactive'}">${unreadCount}</span>` : ''}
+    <div class="notif-center-tabs" role="group" aria-label="Lọc thông báo">
+     <button class="notif-tab-btn" type="button" data-action="notif-tab" data-tab="unread" aria-pressed="${activeTab === 'unread'}">
+      <span>Chưa đọc</span><span class="notif-badge">${unreadCount}</span>
      </button>
-     <button class="btn small notif-tab-btn" type="button" data-action="notif-tab" data-tab="all" style="${activeTab === 'all' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
-      <span>Tất cả</span><span class="notif-tab-count">(${notifications.length})</span>
+     <button class="notif-tab-btn" type="button" data-action="notif-tab" data-tab="all" aria-pressed="${activeTab === 'all'}">
+      <span>Tất cả</span><span class="notif-badge">${notifications.length}</span>
      </button>
-     ${pendingReminders.length > 0 ? `<button class="tag notif-reminder-tag" type="button" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn</button>` : ''}
     </div>
     <div class="notif-center-actions">
      ${unreadCount > 0 ? `<button class="btn small" type="button" data-action="mark-all-read" title="Đánh dấu tất cả thông báo là đã đọc">${icon('check')}Đã đọc tất cả</button>` : ''}
-     ${hasReadNotifications ? `<button class="btn small" type="button" data-action="clear-read-notifs" title="Xóa toàn bộ các thông báo đã đọc">${icon('trash')}Dọn sạch đã đọc</button>` : ''}
-     <button class="btn small" type="button" data-action="notif-settings" title="Lịch nhắc & Cài đặt">${icon('clock')}Lịch nhắc</button>
+     ${hasReadNotifications ? `<button class="btn small" type="button" data-action="clear-read-notifs" title="Xóa toàn bộ các thông báo đã đọc">${icon('trash')}Dọn đã đọc</button>` : ''}
+     ${!pendingReminders.length ? `<button class="btn small" type="button" data-action="notif-settings">${icon('clock')}Lịch nhắc</button>` : ''}
     </div>
    </div>
  `;
@@ -9023,12 +9421,12 @@ window.renderNotificationCenter = function(targetTab) {
    <div class="notif-reminders-card">
     <div class="notif-reminders-head">
      <strong class="notif-reminders-title">
-      ${icon('clock')}Lịch nhắc việc cá nhân (${pendingReminders.length})
+      ${icon('clock')}Lịch nhắc cá nhân <span class="notif-badge">${pendingReminders.length}</span>
      </strong>
-     <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings">+ Đặt thêm / Quản lý</button>
+     <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings">Quản lý lịch nhắc</button>
     </div>
     <div class="notif-reminders-list">
-     ${pendingReminders.slice(0, 5).map(r => {
+     ${pendingReminders.slice(0, 2).map(r => {
        const scheduledDate = new Date(r.scheduled_for);
        const dateStr = !isNaN(scheduledDate.getTime())
         ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(scheduledDate)
@@ -9046,15 +9444,15 @@ window.renderNotificationCenter = function(targetTab) {
         }
        }
        return `
-        <div class="notif-reminder-row" data-action="notif-settings" title="${esc(r.title)}">
-         <div class="notif-reminder-text">
+        <button type="button" class="notif-reminder-row" data-action="notif-settings" title="${esc(r.title)}">
+         <span class="notif-reminder-text">
           <span class="notif-reminder-name">${esc(r.title)}</span>
-          <div class="notif-reminder-sub">
-           <span class="notif-reminder-time">${dateStr}</span>
-           ${timeRel ? `<span class="notif-reminder-rel">(${timeRel})</span>` : ''}
-          </div>
-         </div>
-        </div>
+          <span class="notif-reminder-sub">
+           <span class="notif-reminder-time">${esc(dateStr)}</span>
+           ${timeRel ? `<span class="notif-reminder-rel">${timeRel}</span>` : ''}
+          </span>
+         </span>
+        </button>
        `;
      }).join('')}
     </div>
@@ -9064,7 +9462,7 @@ window.renderNotificationCenter = function(targetTab) {
 
  if (displayedNotifications.length === 0) {
   if (activeTab === 'unread') {
-   html += emptyState('Không có thông báo chưa đọc', 'Tuyệt vời! Bạn đã xem hết tất cả thông báo mới.', null, '', false, 'check-circle');
+   html += emptyState('Không có thông báo chưa đọc', 'Thông báo mới sẽ xuất hiện ở đây.', null, '', false, 'check-circle');
    if (notifications.length > 0) {
     html += `<div style="text-align:center;margin-top:12px"><button class="btn small" type="button" data-action="notif-tab" data-tab="all">${icon('layers')}Xem lại ${notifications.length} thông báo trước đây</button></div>`;
    }
@@ -9072,27 +9470,30 @@ window.renderNotificationCenter = function(targetTab) {
    html += emptyState('Không có thông báo nào', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
   }
  } else {
-  html += `<div class="notification-list" style="display:grid;gap:6px">`;
+  html += `<div class="notification-list" aria-label="Thông báo">`;
   displayedNotifications.forEach(n => {
    const isUnread = !n.read_at;
    const chatId = n.kind === 'chat_mention' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(n.metadata?.conversation_id || '') ? n.metadata.conversation_id : '';
    const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
    const iconName = n.kind === 'task_assigned' ? 'user' : ['task_comment', 'chat_mention'].includes(n.kind) ? 'message-square' : n.kind === 'task_completed' ? 'check' : (n.kind === 'due_soon' || n.kind === 'overdue' || n.kind === 'task_status_changed') ? 'alert' : 'bell';
    html += `
-    <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" data-chat-id="${chatId}" style="position:relative;cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px;transition:all .15s ease">
-     <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px;flex-shrink:0">${icon(iconName)}</span>
-     <div class="notif-item-content" style="flex:1;min-width:0">
-      <strong class="notif-item-title" style="display:block;font-size:12px;color:var(--text);font-weight:${isUnread ? '650' : '500'};line-height:1.45">${esc(n.title)}</strong>
-      ${n.body ? `<p class="notif-item-body" style="font-size:11px;color:var(--subtle);margin:3px 0 0;line-height:1.5">${esc(n.body)}</p>` : ''}
-      <div class="notif-item-meta" style="display:flex;align-items:center;gap:4px;margin-top:6px;font-size:10px;color:var(--muted)">
-       <span class="notif-item-time" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--muted);white-space:nowrap">${icon('clock')}${timeStr}</span>
-      </div>
+    <article class="notification-item ${isUnread ? 'is-unread' : 'is-read'}">
+     <button type="button" class="notif-item-open" data-action="open-cloud-notif" data-id="${esc(n.id)}" data-task-id="${esc(n.task_id || '')}" data-chat-id="${chatId}">
+      <span class="notification-icon" aria-hidden="true">${icon(iconName)}</span>
+      <span class="notif-item-content">
+       <strong class="notif-item-title">${esc(n.title)}</strong>
+       ${n.body ? `<span class="notif-item-body">${esc(n.body)}</span>` : ''}
+       <span class="notif-item-meta">
+        ${isUnread ? '<span class="notif-unread-dot" aria-hidden="true"></span><span class="sr-only">Chưa đọc</span>' : ''}
+        ${timeStr ? `<time datetime="${esc(n.created_at)}">${timeStr}</time>` : ''}
+       </span>
+      </span>
+     </button>
+     <div class="notif-item-actions">
+      ${isUnread ? `<button class="icon-btn" type="button" data-action="mark-read-cloud-notif" data-id="${esc(n.id)}" title="Đánh dấu đã đọc" aria-label="Đánh dấu đã đọc">${icon('check')}</button>` : ''}
+      <button class="icon-btn" type="button" data-action="delete-cloud-notif" data-id="${esc(n.id)}" title="Xóa thông báo này" aria-label="Xóa thông báo">${icon('trash')}</button>
      </div>
-     <div class="notif-item-actions" data-action="ignore" style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:6px">
-      ${isUnread ? `<button class="tiny-btn" type="button" data-action="mark-read-cloud-notif" data-id="${n.id}" title="Đánh dấu đã đọc" aria-label="Đánh dấu đã đọc" style="padding:2px 6px;font-size:11px;color:var(--primary)">${icon('check')}</button>` : ''}
-      <button class="tiny-btn" type="button" data-action="delete-cloud-notif" data-id="${n.id}" title="Xóa thông báo này" aria-label="Xóa thông báo" style="padding:2px 6px;font-size:11px;color:var(--muted)">${icon('trash')}</button>
-     </div>
-    </div>
+    </article>
    `;
   });
   html += `</div>`;
@@ -9100,19 +9501,21 @@ window.renderNotificationCenter = function(targetTab) {
 
  const active = readableTasks().filter(t => t.status !== 'Hoàn thành'), late = active.filter(isLate), today = active.filter(isToday);
  if (late.length || today.length) {
-  html += `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
-   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <h4 style="font-size:11px;font-weight:600;color:var(--muted);margin:0;text-transform:uppercase;letter-spacing:.8px">Hạn công việc cần chú ý (${late.length + today.length})</h4>
-    <button class="btn small notif-attention-btn" type="button" data-action="nav-attention-from-notif">Xem trang Cần chú ý</button>
+  html += `<section class="notif-attention" aria-labelledby="notifAttentionTitle">
+   <div class="notif-reminders-head">
+    <h3 id="notifAttentionTitle" class="notif-reminders-title">Công việc cần chú ý</h3>
+    <button class="btn small" type="button" data-action="nav-attention-from-notif">Xem tất cả</button>
    </div>
-   <div style="display:grid;gap:6px">`;
-  if (late.length) html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--red);background:var(--red-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(174,58,74,.15)"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('alert')}</span><span><strong>${late.length}</strong> công việc đã quá hạn.</span></div><button class="btn small notif-filter-btn" type="button" data-action="insight-late" title="Lọc công việc quá hạn">Lọc</button></div>`;
-  if (today.length) html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--amber);background:var(--amber-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(147,84,12,.15)"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('clock')}</span><span><strong>${today.length}</strong> công việc đến hạn hôm nay.</span></div><button class="btn small notif-filter-btn" type="button" data-action="insight-today" title="Lọc công việc đến hạn">Lọc</button></div>`;
-  html += `</div></div>`;
+   ${late.length ? `<button class="notif-attention-row is-overdue" type="button" data-action="insight-late">${icon('alert')}<span><strong>${late.length}</strong> công việc quá hạn</span></button>` : ''}
+   ${today.length ? `<button class="notif-attention-row" type="button" data-action="insight-today">${icon('clock')}<span><strong>${today.length}</strong> công việc đến hạn hôm nay</span></button>` : ''}
+  </section>`;
  }
  html += `</div>`;
 
- $('infoContent').innerHTML = html;
+ const content = $('infoContent');
+ const focusedTab = document.activeElement?.closest('.notif-center-tabs [data-tab]');
+ content.innerHTML = html;
+ if (focusedTab) content.querySelector('.notif-center-tabs [aria-pressed="true"]')?.focus({ preventScroll: true });
 };
 
 async function openNotifications(targetTab, forceRefresh = false){
@@ -9568,7 +9971,7 @@ function loadView(id){
  const fallbackNode = rootNode()?.id || null;
  const targetNode = (v.selected && byNode.has(v.selected)) ? v.selected : fallbackNode;
  if(!targetNode){toast('Đơn vị của góc nhìn này không còn tồn tại.','error');return;}
- state.selected=targetNode;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();
+ state.selected=targetNode;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();expandTreeAncestors(targetNode);syncFilters();
  if(typeof closeSidebar==='function') closeSidebar();
  if(!window.__worktree_is_cloud_workspace) savePrefs();
  renderAll(true);
@@ -9843,8 +10246,34 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'node-menu':openNodeForm(state.selected);break;
    case 'delete-node':await deleteNode();break;
    case 'select-node':selectNode(id);break;
-   case 'tree-toggle':state.expanded=state.expanded.includes(id)?state.expanded.filter(x=>x!==id):[...state.expanded,id];savePrefs();renderTree();break;
-   case 'expand-tree':{const parents=data.nodes.filter(n=>childrenOf(n.id).length).map(n=>n.id);state.expanded=parents.every(id=>state.expanded.includes(id))?[]:parents;savePrefs();renderTree();break;}
+   case 'tree-toggle':{
+    const restoreFocus=el.matches(':focus-visible');
+    state.expanded=state.expanded.includes(id)?state.expanded.filter(x=>x!==id):[...state.expanded,id];
+    savePrefs();
+    renderTree();
+    if(restoreFocus)$('orgTree').querySelector(`[data-action="tree-toggle"][data-id="${CSS.escape(String(id))}"]`)?.focus({preventScroll:true});
+    break;
+   }
+   case 'toggle-completed-projects':{
+    const key=String(rawId||'');
+    if(!Array.isArray(state.expandedCompletedProjects))state.expandedCompletedProjects=[];
+    state.expandedCompletedProjects=state.expandedCompletedProjects.includes(key)?state.expandedCompletedProjects.filter(x=>x!==key):[...state.expandedCompletedProjects,key];
+    renderTree();
+    break;
+   }
+   case 'scope-member-filter':{
+    const targetOwner=String(rawId||'');
+    const curOwner=String(state.filters.owner||'');
+    state.filters.owner=(!targetOwner||curOwner===targetOwner)?'':targetOwner;
+    state.page=1;
+    state.selectedTasks.clear();
+    syncFilters();
+    savePrefs();
+    renderAll(false);
+    syncUrlWithState({replace:true});
+    break;
+   }
+   case 'expand-tree':{const parents=data.nodes.filter(n=>childrenOf(n.id).length).map(n=>n.id);const allOpen=parents.every(id=>state.expanded.includes(id));state.expanded=allOpen?[]:parents;if(allOpen)state.expandedCompletedProjects=[];savePrefs();renderTree();break;}
    case 'view':setView(el.dataset.view);break;
    case 'view-list':setView('list');break;
    case 'view-children':setView('children');break;
@@ -11213,6 +11642,8 @@ window.clearTenantUI=function(orgName){
   state.timer=null;
   if($('savedViews')) $('savedViews').innerHTML='<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
   if($('pinSection')) $('pinSection').innerHTML='';
+  state.expandedCompletedProjects=[];
+  if($('scopeMembersBar')){$('scopeMembersBar').hidden=true;$('scopeMembersBar').innerHTML='';}
   if(typeof savePrefs==='function'&&!window.__worktree_is_cloud_workspace&&!window.__worktree_supabase_user)savePrefs();
   if(typeof renderTimer==='function')renderTimer();
   window.__taskDetailData={taskId:null,checklist:[],dependencies:[],comments:[],logs:[],loading:{},errors:{}};
@@ -11395,6 +11826,7 @@ window.updateCloudTasksQuietly = function(mappedTasks) {
   favorite: starredIds.has(t.id)
  }));
  data.tasks = taskList;
+ queueMicrotask(()=>{if(typeof renderTree==='function')renderTree();});
  rebuild();
  renderAll(false);
  if (!state.timer && typeof restoreActiveTimerFromStorage === 'function' && restoreActiveTimerFromStorage()) {
@@ -14118,7 +14550,8 @@ function renderTree(){
  const row=(n,depth)=>{
   if(!ids.has(n.id)||q&&!matches.has(n.id))return '';
   const kids=childrenOf(n.id).filter(c=>ids.has(c.id)),open=q?forced.has(n.id):state.expanded.includes(n.id),on=isPinned('node',n.id);
-  return `<div class="tree-node tree-type-${esc(n.type)} ${state.selected===n.id?'selected':''}" style="padding-left:${Math.min(depth*10,60)}px">${kids.length?`<button class="node-expand ${open?'expanded':''}" data-action="tree-toggle" data-id="${n.id}" aria-expanded="${open}" aria-label="${open?'Thu gọn':'Mở'} ${esc(n.name)}">${icon('chevron-right')}</button>`:'<span class="node-spacer"></span>'}<button class="node-select" data-action="select-node" data-id="${n.id}" ${state.selected===n.id?'aria-current="page"':''} title="${esc(pathName(n.id))}">${icon(nodeIcon(n.type))}<span class="tree-name">${esc(n.name.replace(/^Công ty /,''))}</span></button>${canCreateChildNode(n.id)?`<button class="tiny-btn tree-add-child" data-action="new-child-node" data-id="${n.id}" title="${esc('Thêm đơn vị con vào '+n.name)}" aria-label="${esc('Thêm đơn vị con vào '+n.name)}">${icon('plus')}</button>`:''}${canPin('node',n.id)?`<button class="tiny-btn tree-pin ${on?'is-pinned':''}" data-v8="pin-toggle" data-kind="node" data-id="${n.id}" aria-pressed="${on}" title="${on?T.unpin:T.pin}" aria-label="${on?T.unpin:T.pin}: ${esc(n.name)}">${icon('pin')}</button>`:''}${treeCountBadgeHTML(n.id,stats)}</div>${open?kids.map(n=>row(n,depth+1)).join(''):''}`;
+  const completedProj=isCompletedProjectNode(n,stats);
+  return `<div class="tree-node tree-type-${esc(n.type)} ${completedProj?'is-completed-project':''} ${state.selected===n.id?'selected':''}" style="--tree-indent:${Math.min(depth*10,60)}px">${kids.length?`<button class="node-expand ${open?'expanded':''}" data-action="tree-toggle" data-id="${n.id}" aria-expanded="${open}" aria-label="${open?'Thu gọn':'Mở'} ${esc(n.name)}">${icon('chevron-right')}</button>`:'<span class="node-spacer"></span>'}<button class="node-select" data-action="select-node" data-id="${n.id}" ${state.selected===n.id?'aria-current="page"':''} title="${esc(pathName(n.id))}">${icon(nodeIcon(n.type))}<span class="tree-name">${esc(n.name.replace(/^Công ty /,''))}</span></button>${canCreateChildNode(n.id)?`<button class="tiny-btn tree-add-child" data-action="new-child-node" data-id="${n.id}" title="${esc('Thêm đơn vị con vào '+n.name)}" aria-label="${esc('Thêm đơn vị con vào '+n.name)}">${icon('plus')}</button>`:''}${canPin('node',n.id)?`<button class="tiny-btn tree-pin ${on?'is-pinned':''}" data-v8="pin-toggle" data-kind="node" data-id="${n.id}" aria-pressed="${on}" title="${on?T.unpin:T.pin}" aria-label="${on?T.unpin:T.pin}: ${esc(n.name)}">${icon('pin')}</button>`:''}${treeCountBadgeHTML(n.id,stats)}</div>${open?renderTreeChildrenHTML(n,kids,depth,stats,row,{forceOpen:Boolean(q),step:10,maxPad:60}):''}`;
  };
  $('orgTree').innerHTML=row(rootNode(),0)||`<div class="tree-empty">${T.noResults}</div>`;
  const visibleViews = (state.savedViews || []).filter(v => !v.selected || ids.has(v.selected));

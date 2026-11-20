@@ -244,7 +244,7 @@ let justDraggedUntil=0;
 let history=[],future=[],confirmResolver=null,commandOptions=[],commandIndex=0,returnFocus=new Map();
 let state={
  selected:1,view:'overview',includeChildren:true,collapsed:false,mobileOpen:false,filterOpen:false,filters:blankFilters(),sort:'smart',page:1,pageSize:15,
- focusTab:'attention',expanded:[1,10,11,12,13],treeQuery:'',theme:'light',density:'comfortable',currentUser:306,savedViews:[],
+ focusTab:'attention',expanded:[1,10,11,12,13],expandedCompletedProjects:[],treeQuery:'',theme:'light',density:'comfortable',currentUser:306,savedViews:[],
  timelineStart:addDays(TODAY,-2),timelineDays:14,calendarMonth:monthStart(TODAY),workloadWeek:weekStart(TODAY),timer:null,selectedTasks:new Set()
 };
 function getAvatarIndex(id) {
@@ -591,7 +591,7 @@ async function applyUrlStateToWorkspace({isInitialLoad=false}={}){
   state.selected=targetNodeId;
   if(targetNodeId!==null){
    for(const n of pathNodes(targetNodeId)){
-    if(n.parent!==null&&!state.expanded.some(x=>String(x)===String(n.parent)))state.expanded.push(n.parent);
+    if(n.parent!==null){expandTreeAncestors(targetNodeId);break;}
    }
   }
   state.includeChildren=params.get('sub')==='0'?false:true;
@@ -835,6 +835,7 @@ function changeStatus(rawId,status){
    title:t.title
   };
   data.activities.push(optAct);
+  queueMicrotask(()=>{if(typeof renderTree==='function')renderTree();if(typeof renderShell==='function')renderShell(filteredTasks());});
   if(data.activities.length>500)data.activities.shift();
 
   rebuild();
@@ -851,6 +852,8 @@ function changeStatus(rawId,status){
       rebuild();
       renderView();
       if($('drawer').open&&drawerId===id)renderDrawer();
+      if(typeof renderTree==='function')renderTree();
+      renderShell(filteredTasks());
       toast(`Đã đổi trạng thái thành ${status}`,'success',true);
 
       const currentOrgId=window.__active_org_id||window.__worktree_supabase_user?.organization?.organizationId||(window.__worktree_supabase_user?.organization?.id);
@@ -870,6 +873,8 @@ function changeStatus(rawId,status){
     rebuild();
     renderView();
     if($('drawer').open&&drawerId===id)renderDrawer();
+    if(typeof renderTree==='function')renderTree();
+    renderShell(filteredTasks());
     toast(err.message||'Không thể đổi trạng thái công việc.','error');
    }
   })();
@@ -995,10 +1000,24 @@ function setView(view){
  syncUrlWithState({replace:false});
  $('liveStatus').textContent='Đang xem '+VIEWS[view][0];
 }
+function expandTreeAncestors(nodeId){
+ if(nodeId===null||nodeId===undefined)return;
+ const stats=computeTreeBranchCounts(typeof readableTasks==='function'?readableTasks():(data?.tasks||[]));
+ for(const n of pathNodes(nodeId)){
+  if(n.parent!==null){
+   if(!state.expanded.some(x=>String(x)===String(n.parent)))state.expanded.push(n.parent);
+   if(isCompletedProjectNode(n,stats)){
+    const pk=String(n.parent);
+    if(!Array.isArray(state.expandedCompletedProjects))state.expandedCompletedProjects=[];
+    if(!state.expandedCompletedProjects.includes(pk))state.expandedCompletedProjects.push(pk);
+   }
+  }
+ }
+}
 function selectNode(id){
  if(!requireLogin()||!visibleNodeIds().has(id))return;if(typeof window.closeSystemHub==='function'&&window.isSystemHubOpen?.())window.closeSystemHub();state.selected=id;state.page=1;state.selectedTasks.clear();
  document.dispatchEvent(new CustomEvent('worktree:navigate'));
- for(const n of pathNodes(id)){if(n.parent!==null&&!state.expanded.some(x=>String(x)===String(n.parent)))state.expanded.push(n.parent);}
+ expandTreeAncestors(id);
  closeSidebar();savePrefs();renderAll(true);syncUrlWithState({replace:false});
 }
 function navigate(which){
@@ -1053,9 +1072,33 @@ function computeTreeBranchCounts(taskList){
  }
  return {open,late,done};
 }
+function isCompletedProjectNode(node,stats){
+ if(!node||node.type!=='project'||!stats)return false;
+ return (stats.open.get(node.id)||0)===0&&(stats.done.get(node.id)||0)>0;
+}
+function renderTreeChildrenHTML(parentNode,kids,depth,stats,rowFn,{forceOpen=false,step=12,maxPad=72}={}){
+ const activeKids=[],completedKids=[];
+ for(const c of kids){
+  if(isCompletedProjectNode(c,stats))completedKids.push(c);
+  else activeKids.push(c);
+ }
+ let html=activeKids.map(c=>rowFn(c,depth+1)).join('');
+ if(!completedKids.length)return html;
+ const renderedCompleted=completedKids.map(c=>rowFn(c,depth+1)).filter(Boolean);
+ if(!renderedCompleted.length)return html;
+ const parentKey=String(parentNode.id);
+ const expandedList=Array.isArray(state.expandedCompletedProjects)?state.expandedCompletedProjects:[];
+ const open=Boolean(forceOpen||expandedList.includes(parentKey));
+ const padLeft=Math.min((depth+1)*step,maxPad);
+ const toggleTitle=`${open?'Thu gọn ':'Xem '}${renderedCompleted.length} dự án đã hoàn thành`;
+ html+=`<div class="tree-completed-group"><button type="button" class="tree-completed-toggle ${open?'expanded':''}" data-action="toggle-completed-projects" data-id="${esc(parentKey)}" aria-expanded="${open}" style="--tree-indent:${padLeft}px" title="${esc(toggleTitle)}"><span class="tree-completed-chevron" aria-hidden="true">${icon('chevron-right')}</span><span class="tree-completed-check" aria-hidden="true">${icon('check-circle')}</span><span class="tree-completed-label">Dự án đã hoàn thành</span><span class="tree-completed-badge">${renderedCompleted.length}</span></button>${open?renderedCompleted.join(''):''}</div>`;
+ return html;
+}
 function treeCountBadgeHTML(nodeId,stats){
  const openC=stats.open.get(nodeId)||0,lateC=stats.late.get(nodeId)||0,doneC=stats.done.get(nodeId)||0;
  const title=`${openC} việc đang mở${lateC?` · ${lateC} quá hạn`:''} · ${doneC} đã hoàn thành`;
+ const node=byNode.get(nodeId);
+ if(isCompletedProjectNode(node,stats))return `<span class="tree-count is-completed-project" title="${esc(`Dự án đã hoàn thành 100% (${doneC} công việc)`)}">${icon('check')}${doneC}</span>`;
  return `<span class="tree-count ${lateC?'has-overdue':''} ${openC===0?'is-zero':''}" title="${esc(title)}">${lateC?'<i class="tree-overdue-dot" aria-hidden="true"></i>':''}${openC}</span>`;
 }
 function legacyRenderTree(){
@@ -1067,16 +1110,97 @@ function legacyRenderTree(){
   if(q&&!visible.has(n.id))return '';
   const kids=childrenOf(n.id),open=q?forcedOpen.has(n.id):expanded.has(n.id);
   const selected=state.selected===n.id;
-  return `<div class="tree-node tree-type-${esc(n.type)} ${selected?'selected':''}" style="padding-left:${Math.min(depth*12,72)}px">
+  return `<div class="tree-node tree-type-${esc(n.type)} ${isCompletedProjectNode(n,stats)?'is-completed-project':''} ${selected?'selected':''}" style="--tree-indent:${Math.min(depth*12,72)}px">
    ${kids.length?`<button class="node-expand ${open?'expanded':''}" data-action="tree-toggle" data-id="${n.id}" aria-expanded="${open}" aria-label="${esc((open?'Thu gọn ':'Mở rộng ')+n.name)}">${icon('chevron-right')}</button>`:'<span class="node-spacer"></span>'}
    <button class="node-select" data-action="select-node" data-id="${n.id}" ${selected?'aria-current="page"':''} title="${esc(pathName(n.id))}">${icon(nodeIcon(n.type))}<span class="tree-name">${esc(n.name.replace(/^Công ty /,''))}</span></button>
    <button class="tiny-btn tree-add-child" data-action="new-child-node" data-id="${n.id}" title="${esc('Thêm đơn vị con vào '+n.name)}" aria-label="${esc('Thêm đơn vị con vào '+n.name)}">${icon('plus')}</button>
    ${treeCountBadgeHTML(n.id,stats)}
-  </div>${open?kids.map(c=>row(c,depth+1)).join(''):''}`;
+  </div>${open?renderTreeChildrenHTML(n,kids,depth,stats,row,{forceOpen:Boolean(q),step:12,maxPad:72}):''}`;
  };
  const root=rootNode();
  $('orgTree').innerHTML=root ? (row(root,0)||(q?'<div class="tree-empty">Không tìm thấy đơn vị phù hợp.</div>':'')) : '<div class="tree-empty">Chưa có dữ liệu đơn vị.</div>';
  $('savedViews').innerHTML=state.savedViews.length?state.savedViews.map(v=>`<div class="saved-item"><button class="nav-item" data-action="load-view" data-id="${v.id}" title="${esc(v.name)}">${icon('bookmark')}<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.name)}</span></button><button class="tiny-btn" data-action="delete-view" data-id="${v.id}" title="Xóa góc nhìn" aria-label="${esc('Xóa góc nhìn '+v.name)}">${icon('x')}</button></div>`).join(''):'<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
+}
+function renderScopeMembersBar(){
+ const bar=$('scopeMembersBar');
+ if(!bar)return;
+ const previousList=bar.querySelector('.scope-members-list');
+ const previousScroll=previousList?.scrollLeft||0;
+ const focusedId=bar.contains(document.activeElement)?document.activeElement.dataset.id:undefined;
+ const root=rootNode(),node=byNode.get(state.selected)||root;
+ if(!root||!node||node.id===root.id){
+  bar.hidden=true;
+  bar.innerHTML='';
+  return;
+ }
+ const scopeSet=state.includeChildren?subtree(node.id):new Set([node.id]);
+ const allPeople=typeof people==='function'?people():[];
+ const branchTasks=readableTasks().filter(t=>scopeSet.has(t.node)&&matchesPeriodFilter(t,state.filters));
+ const openCountByPerson=new Map(),totalCountByPerson=new Map(),activeInBranchIds=new Set();
+ for(const t of branchTasks){
+  const involved=new Set();
+  if(t.owner!==null&&t.owner!==undefined&&t.owner!=='')involved.add(String(t.owner));
+  if(Array.isArray(t.collaborators)){
+   for(const cid of t.collaborators){
+    if(cid!==null&&cid!==undefined&&cid!=='')involved.add(String(cid));
+   }
+  }
+  for(const pid of involved){
+   activeInBranchIds.add(pid);
+   totalCountByPerson.set(pid,(totalCountByPerson.get(pid)||0)+1);
+   if(t.status!=='Hoàn thành')openCountByPerson.set(pid,(openCountByPerson.get(pid)||0)+1);
+  }
+ }
+ const unitMembers=allPeople.filter(p=>{
+  if(!p||p.id===null||p.id===undefined)return false;
+  const pid=String(p.id);
+  const homeId=p.home_node_id??p.parent??null;
+  const inHome=homeId!==null&&homeId!==undefined&&scopeSet.has(homeId);
+  return inHome||activeInBranchIds.has(pid);
+ });
+ if(!unitMembers.length){
+  bar.hidden=true;
+  bar.innerHTML='';
+  return;
+ }
+ unitMembers.sort((a,b)=>{
+  const aid=String(a.id),bid=String(b.id);
+  const openDiff=(openCountByPerson.get(bid)||0)-(openCountByPerson.get(aid)||0);
+  if(openDiff!==0)return openDiff;
+  const aHome=scopeSet.has(a.home_node_id??a.parent)?1:0;
+  const bHome=scopeSet.has(b.home_node_id??b.parent)?1:0;
+  if(bHome!==aHome)return bHome-aHome;
+  return String(a.full_name||a.name||'').localeCompare(String(b.full_name||b.name||''),'vi');
+ });
+ const activeOwner=String(state.filters.owner||'');
+ const allSelected=activeOwner==='';
+ const totalOpen=branchTasks.filter(t=>t.status!=='Hoàn thành').length;
+ const curAcc=typeof currentAccount==='function'?currentAccount():null;
+ const chipsHTML=unitMembers.map(p=>{
+  const pid=String(p.id);
+  const displayName=p.full_name||p.name||'Nhân sự';
+  const jobTitle=p.job_title||p.desc||'';
+  const openC=openCountByPerson.get(pid)||0;
+  const totalC=totalCountByPerson.get(pid)||0;
+  const isSel=activeOwner===pid||(typeof isCurrentUserPerson==='function'&&isCurrentUserPerson(p.id)&&curAcc&&(activeOwner===String(curAcc.id)||activeOwner===String(curAcc.personId)));
+  const tip=`${displayName}${jobTitle?' · '+jobTitle:''} · ${openC} việc đang mở · ${totalC} tổng việc`;
+  return `<button type="button" class="scope-member-chip ${isSel?'active':''}" data-action="scope-member-filter" data-id="${esc(pid)}" aria-pressed="${isSel}" aria-label="${esc(tip)}" title="${esc(tip)}">${avatar(p.id)}<span class="scope-member-name">${esc(displayName)}</span>${openC>0?`<span class="scope-member-count" aria-hidden="true">${openC}</span>`:''}</button>`;
+ }).join('');
+ bar.hidden=false;
+ bar.innerHTML=`<span class="scope-members-label">${icon('users')}<span>Nhân sự</span><span class="scope-members-total">${unitMembers.length}</span></span><div class="scope-members-list" role="group" aria-label="Lọc nhanh theo nhân sự đơn vị"><button type="button" class="scope-member-chip is-all ${allSelected?'active':''}" data-action="scope-member-filter" data-id="" aria-pressed="${allSelected}" aria-label="Tất cả nhân sự, ${totalOpen} việc đang mở"><span>Tất cả</span>${totalOpen>0?`<span class="scope-member-count" aria-hidden="true">${totalOpen}</span>`:''}</button>${chipsHTML}</div>`;
+ const list=bar.querySelector('.scope-members-list');
+ const sameBranch=bar.dataset.unit===String(node.id);
+ if(sameBranch)list.scrollLeft=previousScroll;
+ const focused=sameBranch&&focusedId!==undefined?list.querySelector(`[data-id="${CSS.escape(focusedId)}"]`):null;
+ const selected=list.querySelector('[aria-pressed="true"]');
+ const target=focused||(!sameBranch||bar.dataset.owner!==activeOwner?selected:null);
+ if(target){
+  const area=list.getBoundingClientRect(),chip=target.getBoundingClientRect();
+  list.scrollLeft+=Math.min(0,chip.left-area.left-4)+Math.max(0,chip.right-area.right+4);
+ }
+ focused?.focus({preventScroll:true});
+ bar.dataset.unit=String(node.id);
+ bar.dataset.owner=activeOwner;
 }
 function renderShell(arr){
  const root=rootNode();
@@ -1102,6 +1226,7 @@ function renderShell(arr){
  const subtitles={overview:'Tập trung đúng việc. Phối hợp đúng nhịp.',list:'Một danh sách rõ ràng, không bỏ sót điều quan trọng.',kanban:'Nhìn rõ luồng công việc. Kéo thả để cập nhật trạng thái.',timeline:'Kết nối công việc với thời gian, nhìn trước những điểm nghẽn.',calendar:'Sắp xếp thời hạn, chủ động từng ngày.',workload:'Hiểu năng lực đội ngũ. Phân bổ công việc có cơ sở.',children:'Mọi phòng ban, dự án và nhân sự trong một cấu trúc thống nhất.'};
  $('pageSubtitle').textContent=node.id===root.id?subtitles[state.view]:(node.desc||subtitles[state.view]);
  $('breadcrumbs').innerHTML=pathNodes(state.selected).map((n,i,a)=>`${i?'<span class="crumb-arrow" aria-hidden="true">/</span>':''}<button class="crumb ${i===a.length-1?'current':''}" data-action="select-node" data-id="${n.id}" title="${esc(n.name)}" ${i===a.length-1?'aria-current="location"':''}>${i===0?icon('building'):''}<span>${esc(n.name.replace(/^Công ty /,''))}</span></button>`).join('');
+ renderScopeMembersBar();
  const isMyTask = t => {
   if(!user || !user.id) return false;
   const collabs = Array.isArray(t.collaborators) ? t.collaborators.map(String) : [];
@@ -3740,6 +3865,8 @@ function bulkStatus(status){
    rebuild();
    renderView();
    if($('drawer').open&&ids.includes(drawerId))renderDrawer();
+   if(typeof renderTree==='function')renderTree();
+   renderShell(filteredTasks());
    if(failCount>0){
     toast(`Đã cập nhật ${successCount}/${ids.length} công việc. ${failCount} thất bại: ${lastErr}`,'error');
    }else{
@@ -3787,6 +3914,8 @@ function bulkOwner(owner){
    rebuild();
    renderView();
    if($('drawer').open&&ids.includes(drawerId))renderDrawer();
+   if(typeof renderTree==='function')renderTree();
+   renderShell(filteredTasks());
    if(failCount>0){
     toast(`Đã phân công ${successCount}/${ids.length} công việc. ${failCount} thất bại: ${lastErr}`,'error');
    }else{
@@ -3956,7 +4085,9 @@ window.renderNotificationCenter = function(targetTab) {
  const unreadCount = notifications.filter(n => !n.read_at).length;
  window.__notifCache.unreadCount = unreadCount;
 
- const pendingReminders = (reminders || []).filter(r => r.status === 'pending');
+ const pendingReminders = reminders.filter(r => r.status === 'pending').sort((a, b) =>
+  (Date.parse(a.scheduled_for) || Infinity) - (Date.parse(b.scheduled_for) || Infinity)
+ );
  const activeTab = targetTab || window.__notifTab || (unreadCount > 0 ? 'unread' : 'all');
  window.__notifTab = activeTab;
 
@@ -3967,19 +4098,18 @@ window.renderNotificationCenter = function(targetTab) {
  let html = `
   <div class="notif-center-view">
    <div class="notif-center-head">
-    <div class="notif-center-tabs">
-     <button class="btn small notif-tab-btn" type="button" data-action="notif-tab" data-tab="unread" style="${activeTab === 'unread' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
-      <span>Chưa đọc</span>${unreadCount > 0 ? `<span class="notif-badge ${activeTab === 'unread' ? 'on-active' : 'on-inactive'}">${unreadCount}</span>` : ''}
+    <div class="notif-center-tabs" role="group" aria-label="Lọc thông báo">
+     <button class="notif-tab-btn" type="button" data-action="notif-tab" data-tab="unread" aria-pressed="${activeTab === 'unread'}">
+      <span>Chưa đọc</span><span class="notif-badge">${unreadCount}</span>
      </button>
-     <button class="btn small notif-tab-btn" type="button" data-action="notif-tab" data-tab="all" style="${activeTab === 'all' ? 'background:var(--primary);color:#fff;border-color:transparent;font-weight:600' : 'background:var(--surface-3);color:var(--text);border-color:var(--line);font-weight:500'}">
-      <span>Tất cả</span><span class="notif-tab-count">(${notifications.length})</span>
+     <button class="notif-tab-btn" type="button" data-action="notif-tab" data-tab="all" aria-pressed="${activeTab === 'all'}">
+      <span>Tất cả</span><span class="notif-badge">${notifications.length}</span>
      </button>
-     ${pendingReminders.length > 0 ? `<button class="tag notif-reminder-tag" type="button" data-action="notif-settings" style="background:var(--amber-soft);color:var(--amber);cursor:pointer;border:0" title="Xem danh sách lịch nhắc hẹn">${pendingReminders.length} nhắc hẹn</button>` : ''}
     </div>
     <div class="notif-center-actions">
      ${unreadCount > 0 ? `<button class="btn small" type="button" data-action="mark-all-read" title="Đánh dấu tất cả thông báo là đã đọc">${icon('check')}Đã đọc tất cả</button>` : ''}
-     ${hasReadNotifications ? `<button class="btn small" type="button" data-action="clear-read-notifs" title="Xóa toàn bộ các thông báo đã đọc">${icon('trash')}Dọn sạch đã đọc</button>` : ''}
-     <button class="btn small" type="button" data-action="notif-settings" title="Lịch nhắc & Cài đặt">${icon('clock')}Lịch nhắc</button>
+     ${hasReadNotifications ? `<button class="btn small" type="button" data-action="clear-read-notifs" title="Xóa toàn bộ các thông báo đã đọc">${icon('trash')}Dọn đã đọc</button>` : ''}
+     ${!pendingReminders.length ? `<button class="btn small" type="button" data-action="notif-settings">${icon('clock')}Lịch nhắc</button>` : ''}
     </div>
    </div>
  `;
@@ -3989,12 +4119,12 @@ window.renderNotificationCenter = function(targetTab) {
    <div class="notif-reminders-card">
     <div class="notif-reminders-head">
      <strong class="notif-reminders-title">
-      ${icon('clock')}Lịch nhắc việc cá nhân (${pendingReminders.length})
+      ${icon('clock')}Lịch nhắc cá nhân <span class="notif-badge">${pendingReminders.length}</span>
      </strong>
-     <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings">+ Đặt thêm / Quản lý</button>
+     <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings">Quản lý lịch nhắc</button>
     </div>
     <div class="notif-reminders-list">
-     ${pendingReminders.slice(0, 5).map(r => {
+     ${pendingReminders.slice(0, 2).map(r => {
        const scheduledDate = new Date(r.scheduled_for);
        const dateStr = !isNaN(scheduledDate.getTime())
         ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(scheduledDate)
@@ -4012,15 +4142,15 @@ window.renderNotificationCenter = function(targetTab) {
         }
        }
        return `
-        <div class="notif-reminder-row" data-action="notif-settings" title="${esc(r.title)}">
-         <div class="notif-reminder-text">
+        <button type="button" class="notif-reminder-row" data-action="notif-settings" title="${esc(r.title)}">
+         <span class="notif-reminder-text">
           <span class="notif-reminder-name">${esc(r.title)}</span>
-          <div class="notif-reminder-sub">
-           <span class="notif-reminder-time">${dateStr}</span>
-           ${timeRel ? `<span class="notif-reminder-rel">(${timeRel})</span>` : ''}
-          </div>
-         </div>
-        </div>
+          <span class="notif-reminder-sub">
+           <span class="notif-reminder-time">${esc(dateStr)}</span>
+           ${timeRel ? `<span class="notif-reminder-rel">${timeRel}</span>` : ''}
+          </span>
+         </span>
+        </button>
        `;
      }).join('')}
     </div>
@@ -4030,7 +4160,7 @@ window.renderNotificationCenter = function(targetTab) {
 
  if (displayedNotifications.length === 0) {
   if (activeTab === 'unread') {
-   html += emptyState('Không có thông báo chưa đọc', 'Tuyệt vời! Bạn đã xem hết tất cả thông báo mới.', null, '', false, 'check-circle');
+   html += emptyState('Không có thông báo chưa đọc', 'Thông báo mới sẽ xuất hiện ở đây.', null, '', false, 'check-circle');
    if (notifications.length > 0) {
     html += `<div style="text-align:center;margin-top:12px"><button class="btn small" type="button" data-action="notif-tab" data-tab="all">${icon('layers')}Xem lại ${notifications.length} thông báo trước đây</button></div>`;
    }
@@ -4038,27 +4168,30 @@ window.renderNotificationCenter = function(targetTab) {
    html += emptyState('Không có thông báo nào', 'Bạn chưa có thông báo nào từ đồng nghiệp hoặc hệ thống.', null, '', false, 'bell');
   }
  } else {
-  html += `<div class="notification-list" style="display:grid;gap:6px">`;
+  html += `<div class="notification-list" aria-label="Thông báo">`;
   displayedNotifications.forEach(n => {
    const isUnread = !n.read_at;
    const chatId = n.kind === 'chat_mention' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(n.metadata?.conversation_id || '') ? n.metadata.conversation_id : '';
    const timeStr = n.created_at ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(new Date(n.created_at)) : '';
    const iconName = n.kind === 'task_assigned' ? 'user' : ['task_comment', 'chat_mention'].includes(n.kind) ? 'message-square' : n.kind === 'task_completed' ? 'check' : (n.kind === 'due_soon' || n.kind === 'overdue' || n.kind === 'task_status_changed') ? 'alert' : 'bell';
    html += `
-    <div class="notification-item ${isUnread ? 'is-unread' : 'is-read'}" data-action="open-cloud-notif" data-id="${n.id}" data-task-id="${n.task_id || ''}" data-chat-id="${chatId}" style="position:relative;cursor:pointer;padding:10px 12px;border-radius:8px;border:1px solid ${isUnread ? 'var(--line-strong)' : 'var(--line)'};background:${isUnread ? 'var(--surface-2)' : 'var(--surface)'};display:flex;align-items:flex-start;gap:10px;transition:all .15s ease">
-     <span class="notification-icon" style="color:${isUnread ? 'var(--primary)' : 'var(--muted)'};margin-top:2px;flex-shrink:0">${icon(iconName)}</span>
-     <div class="notif-item-content" style="flex:1;min-width:0">
-      <strong class="notif-item-title" style="display:block;font-size:12px;color:var(--text);font-weight:${isUnread ? '650' : '500'};line-height:1.45">${esc(n.title)}</strong>
-      ${n.body ? `<p class="notif-item-body" style="font-size:11px;color:var(--subtle);margin:3px 0 0;line-height:1.5">${esc(n.body)}</p>` : ''}
-      <div class="notif-item-meta" style="display:flex;align-items:center;gap:4px;margin-top:6px;font-size:10px;color:var(--muted)">
-       <span class="notif-item-time" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--muted);white-space:nowrap">${icon('clock')}${timeStr}</span>
-      </div>
+    <article class="notification-item ${isUnread ? 'is-unread' : 'is-read'}">
+     <button type="button" class="notif-item-open" data-action="open-cloud-notif" data-id="${esc(n.id)}" data-task-id="${esc(n.task_id || '')}" data-chat-id="${chatId}">
+      <span class="notification-icon" aria-hidden="true">${icon(iconName)}</span>
+      <span class="notif-item-content">
+       <strong class="notif-item-title">${esc(n.title)}</strong>
+       ${n.body ? `<span class="notif-item-body">${esc(n.body)}</span>` : ''}
+       <span class="notif-item-meta">
+        ${isUnread ? '<span class="notif-unread-dot" aria-hidden="true"></span><span class="sr-only">Chưa đọc</span>' : ''}
+        ${timeStr ? `<time datetime="${esc(n.created_at)}">${timeStr}</time>` : ''}
+       </span>
+      </span>
+     </button>
+     <div class="notif-item-actions">
+      ${isUnread ? `<button class="icon-btn" type="button" data-action="mark-read-cloud-notif" data-id="${esc(n.id)}" title="Đánh dấu đã đọc" aria-label="Đánh dấu đã đọc">${icon('check')}</button>` : ''}
+      <button class="icon-btn" type="button" data-action="delete-cloud-notif" data-id="${esc(n.id)}" title="Xóa thông báo này" aria-label="Xóa thông báo">${icon('trash')}</button>
      </div>
-     <div class="notif-item-actions" data-action="ignore" style="display:flex;align-items:center;gap:4px;flex-shrink:0;margin-left:6px">
-      ${isUnread ? `<button class="tiny-btn" type="button" data-action="mark-read-cloud-notif" data-id="${n.id}" title="Đánh dấu đã đọc" aria-label="Đánh dấu đã đọc" style="padding:2px 6px;font-size:11px;color:var(--primary)">${icon('check')}</button>` : ''}
-      <button class="tiny-btn" type="button" data-action="delete-cloud-notif" data-id="${n.id}" title="Xóa thông báo này" aria-label="Xóa thông báo" style="padding:2px 6px;font-size:11px;color:var(--muted)">${icon('trash')}</button>
-     </div>
-    </div>
+    </article>
    `;
   });
   html += `</div>`;
@@ -4066,19 +4199,21 @@ window.renderNotificationCenter = function(targetTab) {
 
  const active = readableTasks().filter(t => t.status !== 'Hoàn thành'), late = active.filter(isLate), today = active.filter(isToday);
  if (late.length || today.length) {
-  html += `<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
-   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <h4 style="font-size:11px;font-weight:600;color:var(--muted);margin:0;text-transform:uppercase;letter-spacing:.8px">Hạn công việc cần chú ý (${late.length + today.length})</h4>
-    <button class="btn small notif-attention-btn" type="button" data-action="nav-attention-from-notif">Xem trang Cần chú ý</button>
+  html += `<section class="notif-attention" aria-labelledby="notifAttentionTitle">
+   <div class="notif-reminders-head">
+    <h3 id="notifAttentionTitle" class="notif-reminders-title">Công việc cần chú ý</h3>
+    <button class="btn small" type="button" data-action="nav-attention-from-notif">Xem tất cả</button>
    </div>
-   <div style="display:grid;gap:6px">`;
-  if (late.length) html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--red);background:var(--red-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(174,58,74,.15)"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('alert')}</span><span><strong>${late.length}</strong> công việc đã quá hạn.</span></div><button class="btn small notif-filter-btn" type="button" data-action="insight-late" title="Lọc công việc quá hạn">Lọc</button></div>`;
-  if (today.length) html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--amber);background:var(--amber-soft);padding:8px 12px;border-radius:8px;border:1px solid rgba(147,84,12,.15)"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;flex-shrink:0">${icon('clock')}</span><span><strong>${today.length}</strong> công việc đến hạn hôm nay.</span></div><button class="btn small notif-filter-btn" type="button" data-action="insight-today" title="Lọc công việc đến hạn">Lọc</button></div>`;
-  html += `</div></div>`;
+   ${late.length ? `<button class="notif-attention-row is-overdue" type="button" data-action="insight-late">${icon('alert')}<span><strong>${late.length}</strong> công việc quá hạn</span></button>` : ''}
+   ${today.length ? `<button class="notif-attention-row" type="button" data-action="insight-today">${icon('clock')}<span><strong>${today.length}</strong> công việc đến hạn hôm nay</span></button>` : ''}
+  </section>`;
  }
  html += `</div>`;
 
- $('infoContent').innerHTML = html;
+ const content = $('infoContent');
+ const focusedTab = document.activeElement?.closest('.notif-center-tabs [data-tab]');
+ content.innerHTML = html;
+ if (focusedTab) content.querySelector('.notif-center-tabs [aria-pressed="true"]')?.focus({ preventScroll: true });
 };
 
 async function openNotifications(targetTab, forceRefresh = false){
@@ -4534,7 +4669,7 @@ function loadView(id){
  const fallbackNode = rootNode()?.id || null;
  const targetNode = (v.selected && byNode.has(v.selected)) ? v.selected : fallbackNode;
  if(!targetNode){toast('Đơn vị của góc nhìn này không còn tồn tại.','error');return;}
- state.selected=targetNode;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();
+ state.selected=targetNode;state.view=v.view;state.filters=clone(v.filters);state.sort=v.sort;state.includeChildren=v.includeChildren;state.page=1;state.selectedTasks.clear();expandTreeAncestors(targetNode);syncFilters();
  if(typeof closeSidebar==='function') closeSidebar();
  if(!window.__worktree_is_cloud_workspace) savePrefs();
  renderAll(true);
@@ -4809,8 +4944,34 @@ function toggleTheme(){state.theme=document.documentElement.dataset.theme==='dar
    case 'node-menu':openNodeForm(state.selected);break;
    case 'delete-node':await deleteNode();break;
    case 'select-node':selectNode(id);break;
-   case 'tree-toggle':state.expanded=state.expanded.includes(id)?state.expanded.filter(x=>x!==id):[...state.expanded,id];savePrefs();renderTree();break;
-   case 'expand-tree':{const parents=data.nodes.filter(n=>childrenOf(n.id).length).map(n=>n.id);state.expanded=parents.every(id=>state.expanded.includes(id))?[]:parents;savePrefs();renderTree();break;}
+   case 'tree-toggle':{
+    const restoreFocus=el.matches(':focus-visible');
+    state.expanded=state.expanded.includes(id)?state.expanded.filter(x=>x!==id):[...state.expanded,id];
+    savePrefs();
+    renderTree();
+    if(restoreFocus)$('orgTree').querySelector(`[data-action="tree-toggle"][data-id="${CSS.escape(String(id))}"]`)?.focus({preventScroll:true});
+    break;
+   }
+   case 'toggle-completed-projects':{
+    const key=String(rawId||'');
+    if(!Array.isArray(state.expandedCompletedProjects))state.expandedCompletedProjects=[];
+    state.expandedCompletedProjects=state.expandedCompletedProjects.includes(key)?state.expandedCompletedProjects.filter(x=>x!==key):[...state.expandedCompletedProjects,key];
+    renderTree();
+    break;
+   }
+   case 'scope-member-filter':{
+    const targetOwner=String(rawId||'');
+    const curOwner=String(state.filters.owner||'');
+    state.filters.owner=(!targetOwner||curOwner===targetOwner)?'':targetOwner;
+    state.page=1;
+    state.selectedTasks.clear();
+    syncFilters();
+    savePrefs();
+    renderAll(false);
+    syncUrlWithState({replace:true});
+    break;
+   }
+   case 'expand-tree':{const parents=data.nodes.filter(n=>childrenOf(n.id).length).map(n=>n.id);const allOpen=parents.every(id=>state.expanded.includes(id));state.expanded=allOpen?[]:parents;if(allOpen)state.expandedCompletedProjects=[];savePrefs();renderTree();break;}
    case 'view':setView(el.dataset.view);break;
    case 'view-list':setView('list');break;
    case 'view-children':setView('children');break;
@@ -6179,6 +6340,8 @@ window.clearTenantUI=function(orgName){
   state.timer=null;
   if($('savedViews')) $('savedViews').innerHTML='<div class="saved-empty">Lưu bộ lọc bạn thường dùng.</div>';
   if($('pinSection')) $('pinSection').innerHTML='';
+  state.expandedCompletedProjects=[];
+  if($('scopeMembersBar')){$('scopeMembersBar').hidden=true;$('scopeMembersBar').innerHTML='';}
   if(typeof savePrefs==='function'&&!window.__worktree_is_cloud_workspace&&!window.__worktree_supabase_user)savePrefs();
   if(typeof renderTimer==='function')renderTimer();
   window.__taskDetailData={taskId:null,checklist:[],dependencies:[],comments:[],logs:[],loading:{},errors:{}};
@@ -6361,6 +6524,7 @@ window.updateCloudTasksQuietly = function(mappedTasks) {
   favorite: starredIds.has(t.id)
  }));
  data.tasks = taskList;
+ queueMicrotask(()=>{if(typeof renderTree==='function')renderTree();});
  rebuild();
  renderAll(false);
  if (!state.timer && typeof restoreActiveTimerFromStorage === 'function' && restoreActiveTimerFromStorage()) {

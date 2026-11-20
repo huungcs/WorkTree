@@ -1,5 +1,31 @@
 const { test, expect } = require('@playwright/test');
 
+test('places message actions beside outgoing and incoming chat bubbles', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto('/chat-preview.html');
+  await page.locator('[data-chat-conversation]').first().click();
+  const candidates = [
+    page.locator('.chat-message.is-own').filter({ has: page.locator('.chat-quoted-message') }).first(),
+    page.locator('.chat-message:not(.is-own)').last()
+  ];
+  for (const [index, message] of candidates.entries()) {
+    const bubble = message.locator('.chat-bubble');
+    const actions = message.locator('.chat-message-actions');
+    await bubble.hover();
+    await expect(actions).toHaveCSS('opacity', '1');
+    const bubbleBox = await bubble.boundingBox();
+    const actionBox = await actions.boundingBox();
+    const gap = index === 0 ? bubbleBox.x - actionBox.x - actionBox.width : actionBox.x - bubbleBox.x - bubbleBox.width;
+    expect(gap).toBeGreaterThanOrEqual(0);
+    expect(gap).toBeLessThan(16);
+    const reply = actions.getByRole('button', { name: 'Trả lời tin nhắn' });
+    await reply.hover();
+    await expect(actions).toHaveCSS('opacity', '1');
+  }
+  await candidates[1].getByRole('button', { name: 'Trả lời tin nhắn' }).click();
+  await expect(page.locator('[data-chat-reply]')).toBeVisible();
+});
+
 test('shows a sent group photo inline and keeps documents as attachment buttons', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/chat-preview.html');

@@ -102,9 +102,23 @@ html[data-theme=dark] .chat-conversation-preview>b{color:var(--bg)}
 .chat-message.is-own .chat-message-meta{justify-content:flex-end}
 .chat-message-check{display:inline-flex;align-self:center;color:var(--primary-text)}
 .chat-message-check>.icon{width:12px;height:12px}
-.chat-message-actions{position:absolute;bottom:24px;right:0;display:flex;align-items:center;gap:1px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .15s}
-.chat-message.is-own .chat-message-actions{right:auto;left:0}
-.chat-message:hover .chat-message-actions,.chat-message:focus-within .chat-message-actions{opacity:1;pointer-events:auto}
+.chat-message-actions{
+ display:flex;align-items:center;flex:none;gap:1px;padding:3px;
+ background:var(--surface);border:1px solid var(--line);border-radius:8px;
+ box-shadow:var(--shadow);transition:opacity .15s;
+}
+.chat-message.is-own .chat-message-actions{order:-1}
+@media (min-width:901px){
+ .chat-message{width:fit-content;max-width:100%}
+ .chat-message.is-own{margin-inline-start:auto}
+ .chat-message-main{max-width:none}
+ .chat-message-meta{min-height:26px}
+ .chat-message-actions{margin-bottom:28px}
+}
+@media (min-width:901px) and (hover:hover) and (pointer:fine){
+ .chat-message-actions{opacity:0;pointer-events:none}
+ .chat-message:hover .chat-message-actions,.chat-message:focus-within .chat-message-actions{opacity:1;pointer-events:auto}
+}
 .chat-message-actions .chat-icon-button{width:28px;height:28px}
 .chat-message-actions .icon{width:14px;height:14px}
 .chat-reactions{display:flex;gap:4px;margin-top:5px}
@@ -325,7 +339,6 @@ body.chat-is-open .sidebar [data-chat-open][aria-current=page]{background:var(--
  .chat-message-actions>.chat-icon-button{width:44px;height:44px;flex-shrink:0}
  .chat-message-actions>.chat-icon-button:not(:first-child){display:none}
  .chat-message-actions>.chat-icon-button>.icon{width:16px;height:16px}
- .chat-message.is-own .chat-message-actions{order:-1}
  .chat-reactions>button{min-height:44px;padding:5px 10px;font-size:15px}
  .chat-reactions>button>span{font-size:12px}
  .chat-quoted-message{padding:9px;min-height:44px}

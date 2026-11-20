@@ -452,6 +452,8 @@ Trên điện thoại, ngày bắt đầu và hạn hoàn thành nằm ở phầ
 
 ### Biểu mẫu đơn vị
 
+Cây tổ chức giới hạn độ thụt của nhánh sâu trên điện thoại để tên đơn vị và các nút còn đủ chỗ. Thanh nhân sự giữ tiêu đề cố định và chỉ cuộn ngang danh sách lọc. Khi mở đường dẫn đã lọc, chip đang chọn tự cuộn vào vùng nhìn thấy.
+
 Bộ chọn đơn vị cấp trên mở toàn chiều rộng ngay dưới ô đã chọn. Nội dung dùng chung thanh cuộn của biểu mẫu để giữ nút lưu và hủy luôn truy cập được. Tên đơn vị dài được xuống dòng trong danh sách.
 
 ---
@@ -477,6 +479,8 @@ Công việc, Tin nhắn và Quản trị & Cài đặt dùng khoảng đệm 18
 Trong workspace đám mây, Chủ sở hữu và Quản trị viên xem tối đa 50 sự kiện bảo mật gần nhất. Nhật ký có trạng thái tải, trống, lỗi và nút làm mới. Các hàng hiển thị thao tác, người thực hiện khi xác định được và thời điểm.
 
 ### Thông báo và nhắc việc
+
+Trung tâm thông báo giữ bộ lọc và thao tác hàng loạt ở đầu vùng cuộn. Chấm tím và tiêu đề đậm đánh dấu tin chưa đọc. Phần nhắc việc hiện hai lịch gần nhất và dẫn đến màn hình quản lý đầy đủ. Trên điện thoại, tiêu đề dài xuống dòng và các nút thao tác trong danh sách có vùng chạm tối thiểu 44px.
 
 Quản trị & Cài đặt có tab Thông báo & Nhắc việc cho các tùy chọn cá nhân và lịch nhắc. Lối tắt trong trung tâm thông báo mở trực tiếp tab này.
 
