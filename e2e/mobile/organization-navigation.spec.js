@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-for (const width of [360, 1440]) {
+for (const width of [360, 440, 1440]) {
   test(`keeps the organization tree and employee filters usable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto('/?demo=1&node=phong-kinh-doanh--10&view=list');
@@ -16,6 +16,19 @@ for (const width of [360, 1440]) {
     await expect(chosen).toHaveAttribute('aria-pressed', 'false');
     if (width < 901) {
       expect((await chosen.boundingBox()).height).toBeGreaterThanOrEqual(44);
+      const label = await members.locator('.scope-members-label').boundingBox();
+      const chip = await chosen.boundingBox();
+      expect(Math.abs(label.y + label.height / 2 - chip.y - chip.height / 2)).toBeLessThan(2);
+      const search = await page.locator('#taskSearch').boundingBox();
+      const period = page.locator('#filterPeriod');
+      const periodBox = await period.boundingBox();
+      expect(Math.abs(search.y + search.height / 2 - periodBox.y - periodBox.height / 2)).toBeLessThan(2);
+      await period.selectOption('all');
+      await expect(period).toHaveValue('all');
+      await page.locator('#filterBtn').click();
+      await expect(page.locator('#mobileFilter')).toBeVisible();
+      await expect(page.locator('#mfPeriod')).toHaveValue('all');
+      await page.keyboard.press('Escape');
       await page.getByRole('button', { name: /Mở menu & cây tổ chức/ }).first().click();
     }
 

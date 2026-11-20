@@ -452,7 +452,7 @@ Trên điện thoại, ngày bắt đầu và hạn hoàn thành nằm ở phầ
 
 ### Biểu mẫu đơn vị
 
-Cây tổ chức giới hạn độ thụt của nhánh sâu trên điện thoại để tên đơn vị và các nút còn đủ chỗ. Thanh nhân sự giữ tiêu đề cố định và chỉ cuộn ngang danh sách lọc. Khi mở đường dẫn đã lọc, chip đang chọn tự cuộn vào vùng nhìn thấy.
+Cây tổ chức giới hạn độ thụt của nhánh sâu trên điện thoại để tên đơn vị và các nút còn đủ chỗ. Thanh nhân sự giữ tiêu đề cố định và chỉ cuộn ngang danh sách lọc. Khi mở đường dẫn đã lọc, chip đang chọn tự cuộn vào vùng nhìn thấy. Trên điện thoại, tìm kiếm, bộ lọc, chu kỳ và trợ giúp dùng chung một hàng. Có thể chọn Tất cả lịch sử trong ô chu kỳ.
 
 Bộ chọn đơn vị cấp trên mở toàn chiều rộng ngay dưới ô đã chọn. Nội dung dùng chung thanh cuộn của biểu mẫu để giữ nút lưu và hủy luôn truy cập được. Tên đơn vị dài được xuống dòng trong danh sách.
 

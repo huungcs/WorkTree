@@ -76,7 +76,7 @@
 </script>
 
 <link rel="stylesheet" href="src/design-system/typography.css?v=1">
-<link rel="stylesheet" href="css/style.css?v=8.2.49">
+<link rel="stylesheet" href="css/style.css?v=8.2.50">
 <link rel="stylesheet" href="src/features/onboarding/styles/onboarding.css">
 <link rel="stylesheet" href="src/features/chat/styles/chat.css?v=8.2.44">
 <link rel="stylesheet" href="src/design-system/field-focus.css?v=1">
@@ -151,7 +151,7 @@
       <div class="view-nav" role="tablist" aria-label="Cách xem công việc" id="viewTabs" data-tour="view-tabs"></div>
       <div class="filterbar" data-tour="filter-toolbar filters-search">
         <div class="inline-search"><span data-icon="search"></span><input id="taskSearch" type="search" aria-label="Tìm công việc trong phạm vi hiện tại" placeholder="Tìm công việc, thẻ, người phụ trách..." autocomplete="off"><kbd>/</kbd></div>
-        <button class="btn filter-button" id="filterBtn" data-action="filters" aria-expanded="false" aria-controls="advancedFilters"><span data-icon="sliders"></span>Bộ lọc<span class="filter-count" id="filterCount" hidden>0</span></button>
+        <button class="btn filter-button" id="filterBtn" data-action="filters" aria-expanded="false" aria-controls="advancedFilters"><span data-icon="sliders" aria-hidden="true"></span><span class="filter-button-label">Bộ lọc</span><span class="filter-count" id="filterCount" hidden>0</span></button>
         <div class="filter-period-group">
           <div class="filter-period-control">
           <select id="filterPeriod" class="toolbar-select period-select" aria-label="Chu kỳ thời gian và tra cứu lịch sử"><option value="recent">Chu kỳ hiện tại</option><option value="all">Tất cả lịch sử</option><option value="this_month">Tháng này</option><option value="last_month">Tháng trước</option><option value="this_quarter">Quý này</option><option value="last_quarter">Quý trước</option><option value="this_year">Năm nay</option><option value="last_year">Năm trước</option><option value="custom">Khoảng ngày tùy chọn</option></select>

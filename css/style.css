@@ -1198,14 +1198,25 @@ dialog.mobile-only:not([open]){display:none!important}
  .m-scope-open{min-height:48px;display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);flex:1;min-width:0;text-align:left}
  .m-scope-open>.icon:first-child{color:var(--primary-text);width:18px}.m-scope-open>span{min-width:0;flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.m-scope-open>.icon:last-child{width:15px;color:var(--muted)}
  .m-scope>.icon-btn{background:var(--surface);border:1px solid var(--line);width:48px;height:48px;border-radius:12px}
- .filterbar{display:flex;gap:8px;padding:0;border:0;background:none;box-shadow:none;margin:0 0 10px;flex-wrap:wrap}
- .filter-period-group{order:1;flex-basis:100%}
- .filter-period-control .period-select{min-height:44px;height:auto}
- .period-history .period-history-link{min-width:44px;min-height:44px;justify-content:center}
- .period-history-hint{inset-inline-start:auto;inset-inline-end:0}
- .filterbar .inline-search{flex:1 1 0;width:auto;min-width:0;max-width:none;height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:0 12px}
- .filterbar .inline-search input{font-size:16px;min-width:0;height:46px;padding:0;width:100%}.inline-search kbd{display:none}
- .filterbar .filter-button{height:48px;min-width:48px;flex-shrink:0;gap:6px;padding:0 12px;border-radius:12px;font-size:13px;background:var(--surface)}
+ .filterbar{
+  display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(96px,34%) 44px;
+  gap:6px;padding:0;border:0;background:none;box-shadow:none;margin:0 0 8px;
+ }
+ .filterbar .filter-period-control{display:flex;width:100%;border-radius:var(--radius-lg)}
+ .filterbar .filter-period-control .period-select{
+  width:100%;min-height:42px;height:auto;padding:6px 4px 6px 8px;
+  border-radius:inherit;text-overflow:ellipsis;
+ }
+ .filterbar .period-history{display:none}
+ .filterbar .inline-search{width:auto;min-width:0;max-width:none;height:44px;border-radius:var(--radius-lg);border:1px solid var(--line);background:var(--surface);padding:0 8px;gap:6px}
+ .filterbar .inline-search input{font-size:16px;min-width:0;height:42px;padding:0;width:100%;text-overflow:ellipsis}.inline-search kbd{display:none}
+ .filterbar .filter-button,.filterbar > .contextual-help-btn{
+  position:relative;width:44px;min-width:44px;height:44px;min-height:44px;
+  padding:0;justify-content:center;border-radius:var(--radius-lg);background:var(--surface);
+ }
+ .filterbar > .contextual-help-btn{border:1px solid var(--line)}
+ .filterbar .filter-button-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .filterbar .filter-count{position:absolute;inset:3px 3px auto auto;min-width:14px;height:14px;line-height:14px;padding:0 2px;font-size:9px}
  .filter-count{font-size:11px;min-width:20px;height:20px;line-height:20px}
  .m-viewbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}
  .m-viewbutton{display:flex;align-items:center;gap:7px;min-height:44px;background:transparent;font-size:14px;font-weight:650;text-align:left;padding:0 4px;min-width:0}
@@ -4425,13 +4436,14 @@ html[data-theme="dark"] .worktree-tour-target-note {
     height: 30px;
   }
   .scope-members-bar {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 8px;
-    gap: 2px;
+    align-items: center;
+    padding: 2px 6px 2px 8px;
+    gap: 4px;
+    margin: 0 0 8px;
   }
-  .scope-members-label { padding-inline: 4px; }
-  .scope-members-list { margin-block-end: -2px; }
+  .m-scope:has(+ .scope-members-bar:not([hidden])) { margin-bottom: 8px; }
+  .scope-members-label { gap: 4px; }
+  .scope-members-list { flex: 1; }
   .scope-member-name { max-width: 18ch; }
   .scope-member-chip {
     min-height: 44px;
