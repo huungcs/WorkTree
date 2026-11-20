@@ -809,14 +809,17 @@ html:has(#drawer[open]){overflow:hidden}
 .notif-reminders-title svg{color:var(--amber)}
 .notif-reminders-title svg{width:14px;height:14px;flex-shrink:0}
 .notif-reminders-manage-btn{min-height:32px;white-space:nowrap}
+.notif-reminders-card .notif-reminders-head{flex-wrap:nowrap}
+.notif-reminders-card .notif-reminders-title{line-height:1.35}
+.notif-reminders-card .notif-reminders-title .notif-badge{flex-shrink:0}
 .notif-reminders-list{display:flex;flex-direction:column;gap:6px;width:100%;max-width:100%;box-sizing:border-box;min-width:0}
-.notif-reminder-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:7px;background:var(--surface);border:1px solid var(--line);gap:8px;width:100%;max-width:100%;box-sizing:border-box;cursor:pointer;transition:all .15s ease;min-width:0}
+.notif-reminder-row{display:block;min-height:44px;padding:8px 10px;border-radius:var(--radius-md);background:var(--surface);border:1px solid var(--line);width:100%;text-align:start;cursor:pointer;transition:background .15s,border-color .15s;min-width:0}
 .notif-reminder-row:hover{background:var(--surface-2);border-color:var(--line-strong)}
-.notif-reminder-text{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0}
-.notif-reminder-name{font-size:12px;color:var(--text);font-weight:550;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;display:block}
-.notif-reminder-sub{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);white-space:nowrap;flex-shrink:0}
-.notif-reminder-time{white-space:nowrap}
-.notif-reminder-rel{color:var(--amber);font-weight:600;white-space:nowrap;background:var(--amber-soft);padding:2px 6px;border-radius:var(--radius-sm)}
+.notif-reminder-text{display:grid;grid-template-columns:minmax(0,1fr) 190px;align-items:center;gap:10px}
+.notif-reminder-name{font-size:var(--text-label);color:var(--text);font-weight:550;line-height:1.4;overflow-wrap:anywhere}
+.notif-reminder-sub{display:grid;grid-template-columns:minmax(0,1fr) 88px;align-items:center;gap:6px;font-size:var(--text-label);color:var(--muted)}
+.notif-reminder-time{white-space:nowrap;font-variant-numeric:tabular-nums}
+.notif-reminder-rel{justify-self:end;color:var(--amber);font-weight:600;white-space:nowrap;background:var(--amber-soft);padding:2px 6px;border-radius:var(--radius-sm)}
 .notif-filter-btn{width:32px;height:32px;min-width:32px;min-height:32px;max-width:32px;max-height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;font-size:11px;font-weight:600;flex-shrink:0;background:var(--surface);border:1px solid var(--line);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.04);cursor:pointer;transition:all .15s ease}
 .notif-filter-btn:hover{background:var(--surface-2);border-color:var(--line-strong)}
 .notif-attention-btn{height:28px;min-height:28px;padding:0 10px;font-size:11px;font-weight:550;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
@@ -873,9 +876,8 @@ html:has(#drawer[open]){overflow:hidden}
  .notif-center-view .notification-item{display:grid;gap:0}
  .notif-center-view .notif-item-actions{justify-content:flex-end}
  .notif-center-view .notif-item-actions .icon-btn{width:44px;height:44px}
- .notif-reminder-text{flex-direction:column;align-items:flex-start;gap:4px}
- .notif-reminder-name{white-space:normal;overflow-wrap:anywhere}
- .notif-reminder-sub{flex-wrap:wrap}
+ .notif-reminder-text{grid-template-columns:minmax(0,1fr);gap:6px}
+ .notif-reminder-sub{grid-template-columns:minmax(0,1fr) auto;justify-items:start}
  .notif-attention-row,.notif-attention .btn{min-height:44px}
 }
 .notif-settings-view .notif-setting-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}

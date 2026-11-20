@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-for (const width of [390, 1440]) {
+for (const width of [360, 390, 1440]) {
   test(`keeps notification actions usable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto('/?demo=1');
@@ -18,6 +18,15 @@ for (const width of [390, 1440]) {
     const reminders = dialog.locator('.notif-reminder-row');
     await expect(reminders).toHaveCount(2);
     await expect(reminders.first()).toContainText('Nhắc việc sau 1 giờ');
+    const [firstTime, secondTime] = await Promise.all([
+      reminders.first().locator('time').boundingBox(), reminders.last().locator('time').boundingBox()
+    ]);
+    expect(Math.abs(firstTime.x - secondTime.x)).toBeLessThan(1);
+    if (width < 600) {
+      const name = await reminders.first().locator('.notif-reminder-name').boundingBox();
+      expect(Math.abs(name.x - firstTime.x)).toBeLessThan(1);
+      expect(firstTime.y).toBeGreaterThan(name.y);
+    }
     await expect(dialog.locator('.notif-tab-btn[data-tab="unread"]')).toHaveAttribute('aria-pressed', 'true');
     const all = dialog.getByRole('button', { name: /^Tất cả/ });
     await all.press('Enter');

@@ -4119,18 +4119,19 @@ window.renderNotificationCenter = function(targetTab) {
    <div class="notif-reminders-card">
     <div class="notif-reminders-head">
      <strong class="notif-reminders-title">
-      ${icon('clock')}Lịch nhắc cá nhân <span class="notif-badge">${pendingReminders.length}</span>
+      ${icon('clock')}<span>Lịch nhắc cá nhân</span><span class="notif-badge">${pendingReminders.length}</span>
      </strong>
-     <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings">Quản lý lịch nhắc</button>
+     <button class="btn small notif-reminders-manage-btn" type="button" data-action="notif-settings" aria-label="Quản lý lịch nhắc">Quản lý</button>
     </div>
     <div class="notif-reminders-list">
      ${pendingReminders.slice(0, 2).map(r => {
        const scheduledDate = new Date(r.scheduled_for);
-       const dateStr = !isNaN(scheduledDate.getTime())
+       const hasDate = !isNaN(scheduledDate.getTime());
+       const dateStr = hasDate
         ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: TZ }).format(scheduledDate)
-        : r.scheduled_for;
+        : 'Chưa rõ giờ hẹn';
        let timeRel = '';
-       if (!isNaN(scheduledDate.getTime())) {
+       if (hasDate) {
         const diffMs = scheduledDate.getTime() - Date.now();
         if (diffMs > 0) {
          const diffMins = Math.round(diffMs / 60000);
@@ -4146,7 +4147,7 @@ window.renderNotificationCenter = function(targetTab) {
          <span class="notif-reminder-text">
           <span class="notif-reminder-name">${esc(r.title)}</span>
           <span class="notif-reminder-sub">
-           <span class="notif-reminder-time">${esc(dateStr)}</span>
+           ${hasDate ? `<time class="notif-reminder-time" datetime="${esc(r.scheduled_for)}">${esc(dateStr)}</time>` : `<span class="notif-reminder-time">${dateStr}</span>`}
            ${timeRel ? `<span class="notif-reminder-rel">${timeRel}</span>` : ''}
           </span>
          </span>
