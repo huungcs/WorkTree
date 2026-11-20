@@ -15,6 +15,7 @@ for (const width of [360, 440, 1440]) {
     await chosen.press('Enter');
     await expect(chosen).toHaveAttribute('aria-pressed', 'false');
     if (width < 901) {
+      await expect(page.locator('.filterbar [data-contextual-help="filters-saved-views-help"]')).toBeHidden();
       expect((await chosen.boundingBox()).height).toBeGreaterThanOrEqual(44);
       const label = await members.locator('.scope-members-label').boundingBox();
       const chip = await chosen.boundingBox();

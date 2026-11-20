@@ -1278,7 +1278,7 @@ dialog.mobile-only:not([open]){display:none!important}
  .m-scope-open>.icon:first-child{color:var(--primary-text);width:18px}.m-scope-open>span{min-width:0;flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.m-scope-open>.icon:last-child{width:15px;color:var(--muted)}
  .m-scope>.icon-btn{background:var(--surface);border:1px solid var(--line);width:48px;height:48px;border-radius:12px}
  .filterbar{
-  display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(96px,34%) 44px;
+  display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(96px,34%);
   gap:6px;padding:0;border:0;background:none;box-shadow:none;margin:0 0 8px;
  }
  .filterbar .filter-period-control{display:flex;width:100%;border-radius:var(--radius-lg)}
@@ -1289,11 +1289,11 @@ dialog.mobile-only:not([open]){display:none!important}
  .filterbar .period-history{display:none}
  .filterbar .inline-search{width:auto;min-width:0;max-width:none;height:44px;border-radius:var(--radius-lg);border:1px solid var(--line);background:var(--surface);padding:0 8px;gap:6px}
  .filterbar .inline-search input{font-size:16px;min-width:0;height:42px;padding:0;width:100%;text-overflow:ellipsis}.inline-search kbd{display:none}
- .filterbar .filter-button,.filterbar > .contextual-help-btn{
+ .filterbar .filter-button{
   position:relative;width:44px;min-width:44px;height:44px;min-height:44px;
   padding:0;justify-content:center;border-radius:var(--radius-lg);background:var(--surface);
  }
- .filterbar > .contextual-help-btn{border:1px solid var(--line)}
+ .filterbar > [data-contextual-help="filters-saved-views-help"]{display:none}
  .filterbar .filter-button-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
  .filterbar .filter-count{position:absolute;inset:3px 3px auto auto;min-width:14px;height:14px;line-height:14px;padding:0 2px;font-size:9px}
  .filter-count{font-size:11px;min-width:20px;height:20px;line-height:20px}
