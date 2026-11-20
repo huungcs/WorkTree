@@ -254,7 +254,7 @@ function showWorkspaceError(message, retryCallback) {
  * STEP 05 — CLOUD WORKSPACE LOAD PIPELINE
  * Tải đồng thời organization_nodes, employees, task_rollups và commit nguyên tử
  */
-export async function loadWorkspaceData(orgId) {
+export async function loadWorkspaceData(orgId, options = {}) {
   if (!orgId) return;
 
   const currentGeneration = ++workspaceLoadGeneration;
@@ -269,11 +269,11 @@ export async function loadWorkspaceData(orgId) {
   window.__active_org_id = orgId;
 
   // 2. Hiển thị loading state
-  showWorkspaceLoading(true);
+  if (!options?.quiet) showWorkspaceLoading(true);
 
   try {
     // 3. Purge dữ liệu tenant trước đó để tránh flash / mix data
-    callLegacyGlobal('clearTenantUI', [membership.name]);
+    if (!options?.quiet) callLegacyGlobal('clearTenantUI', [membership.name]);
 
     // 4, 5, 6. Fetch song song từ canonical repositories (kể cả personal cloud data: pins, stars, saved views, activities)
     const [rawNodes, rawEmployees, rawTasks, rawPins, rawStarredTaskIds, rawSavedViews, rawActivities] = await Promise.all([
@@ -457,7 +457,7 @@ export async function loadWorkspaceData(orgId) {
     }
   } finally {
     if (currentGeneration === workspaceLoadGeneration) {
-      showWorkspaceLoading(false);
+      if (!options?.quiet) showWorkspaceLoading(false);
     }
   }
 }
